@@ -28,9 +28,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Admin auth (hardcoded)
-const ADMIN_USER = 'admin';
-const ADMIN_PASS = 'djematcha2024';
+// Admin auth — dari environment variable, fallback ke default
+const ADMIN_USER = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'djematcha2024';
 
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
