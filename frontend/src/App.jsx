@@ -3,7 +3,11 @@ import Home from './pages/Home';
 import HCPanel from './pages/HCPanel';
 import WHPanel from './pages/WHPanel';
 import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminLayout from './pages/AdminLayout';
+import AdminOverview from './pages/AdminOverview';
+import AdminHC from './pages/AdminHC';
+import AdminWH from './pages/AdminWH';
+import AdminArchive from './pages/AdminArchive';
 import AdminCodes from './pages/AdminCodes';
 
 function RequireAdmin({ children }) {
@@ -15,12 +19,29 @@ function RequireAdmin({ children }) {
 export default function App() {
   return (
     <Routes>
+      {/* User routes */}
       <Route path="/" element={<Home />} />
       <Route path="/hc" element={<HCPanel />} />
       <Route path="/wh" element={<WHPanel />} />
+
+      {/* Admin login */}
       <Route path="/admin" element={<AdminLogin />} />
-      <Route path="/admin/dashboard" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
-      <Route path="/admin/codes" element={<RequireAdmin><AdminCodes /></RequireAdmin>} />
+
+      {/* Admin panel with sidebar layout */}
+      <Route
+        element={
+          <RequireAdmin>
+            <AdminLayout />
+          </RequireAdmin>
+        }
+      >
+        <Route path="/admin/dashboard" element={<AdminOverview />} />
+        <Route path="/admin/hc" element={<AdminHC />} />
+        <Route path="/admin/wh" element={<AdminWH />} />
+        <Route path="/admin/archive" element={<AdminArchive />} />
+        <Route path="/admin/codes" element={<AdminCodes />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
