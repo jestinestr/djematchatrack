@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Environment variables — JANGAN PERNAH dicommit!
+.env
+.env.local
+
+# SQLite database (tidak dipakai lagi, tapi jaga-jaga)
+*.db
+*.db-shm
+*.db-wal
+
+# Local upload folder (foto sekarang di Supabase Storage)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Build output
+frontend/dist/
+
+# Vercel
+.vercel/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
