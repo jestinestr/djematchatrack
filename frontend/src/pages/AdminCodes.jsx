@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export default function AdminCodes() {
   const [codes, setCodes] = useState([]);
-  const [form, setForm] = useState({ code: '', label: '' });
+  const [form, setForm] = useState({ code: '', label: '', access_hc: true, access_wh: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +24,7 @@ export default function AdminCodes() {
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
       setCodes(prev => [data, ...prev]);
-      setForm({ code: '', label: '' });
+      setForm({ code: '', label: '', access_hc: true, access_wh: true });
     } catch {
       setError('Koneksi gagal');
     } finally {
@@ -75,8 +75,26 @@ export default function AdminCodes() {
               />
             </div>
           </div>
+          {/* Access checkboxes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Akses Panel</label>
+            <div className="flex gap-3">
+              <label className={`flex-1 flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form.access_hc ? 'border-matcha-400 bg-matcha-50' : 'border-gray-200 bg-gray-50'}`}>
+                <input type="checkbox" checked={form.access_hc} onChange={e => setForm(f => ({ ...f, access_hc: e.target.checked }))} className="w-4 h-4 accent-matcha-700" />
+                <span className="text-sm font-medium text-gray-700">✈️ Hand Carry</span>
+              </label>
+              <label className={`flex-1 flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form.access_wh ? 'border-matcha-400 bg-matcha-50' : 'border-gray-200 bg-gray-50'}`}>
+                <input type="checkbox" checked={form.access_wh} onChange={e => setForm(f => ({ ...f, access_wh: e.target.checked }))} className="w-4 h-4 accent-matcha-700" />
+                <span className="text-sm font-medium text-gray-700">🏭 Warehouse</span>
+              </label>
+            </div>
+            {!form.access_hc && !form.access_wh && (
+              <p className="text-amber-600 text-xs mt-1.5">⚠️ Pilih minimal satu akses</p>
+            )}
+          </div>
+
           {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-          <button type="submit" disabled={saving} className="btn-primary w-full">
+          <button type="submit" disabled={saving || (!form.access_hc && !form.access_wh)} className="btn-primary w-full">
             {saving ? 'Menyimpan...' : '+ Tambah Kode'}
           </button>
         </form>
@@ -100,6 +118,14 @@ export default function AdminCodes() {
                 <div>
                   <p className="font-semibold text-matcha-800 text-sm">{c.label}</p>
                   <p className="text-xs font-mono text-gray-400 mt-0.5 tracking-wider">{c.code}</p>
+                  <div className="flex gap-1 mt-1.5">
+                    {(c.access_hc ?? true) && (
+                      <span className="text-xs bg-matcha-50 text-matcha-700 border border-matcha-200 px-1.5 py-0.5 rounded-full">✈️ HC</span>
+                    )}
+                    {(c.access_wh ?? true) && (
+                      <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full">🏭 WH</span>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={() => handleDelete(c.id)}

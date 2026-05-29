@@ -107,6 +107,32 @@ router.post('/hc', upload.single('photo'), async (req, res) => {
   }
 });
 
+// Edit HC parcel
+router.patch('/hc/:id', upload.single('photo'), async (req, res) => {
+  const { tracking_number, recipient_name, type, estimated_weight_grams, estimated_quantity, is_manual_input } = req.body;
+  const isManual = is_manual_input === 'true';
+  const fine = isManual ? 2000 : 0;
+
+  try {
+    const updates = {
+      tracking_number: tracking_number?.trim(),
+      recipient_name: recipient_name?.trim(),
+      type,
+      estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
+      estimated_quantity: parseInt(estimated_quantity) || 1,
+      is_manual_input: isManual,
+      fine_amount: fine,
+    };
+    if (req.file) updates.photo_url = await uploadPhoto(req.file);
+
+    const { data, error } = await supabase.from('hc_parcels').update(updates).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Delete HC parcel
 router.delete('/hc/:id', async (req, res) => {
   const { error } = await supabase.from('hc_parcels').delete().eq('id', req.params.id);
@@ -186,6 +212,31 @@ router.post('/wh', upload.single('photo'), async (req, res) => {
       .select()
       .single();
 
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Edit WH parcel
+router.patch('/wh/:id', upload.single('photo'), async (req, res) => {
+  const { tracking_number, recipient_name, type, wh_fee, is_manual_input } = req.body;
+  const isManual = is_manual_input === 'true';
+  const fine = isManual ? 2000 : 0;
+
+  try {
+    const updates = {
+      tracking_number: tracking_number?.trim(),
+      recipient_name: recipient_name?.trim(),
+      type,
+      wh_fee: parseInt(wh_fee) || 0,
+      is_manual_input: isManual,
+      fine_amount: fine,
+    };
+    if (req.file) updates.photo_url = await uploadPhoto(req.file);
+
+    const { data, error } = await supabase.from('wh_parcels').update(updates).eq('id', req.params.id).select().single();
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
   } catch (e) {

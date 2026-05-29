@@ -2,20 +2,25 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
 
-// Verify access code
+// Verify access code — returns which panels the code can access
 router.post('/verify', async (req, res) => {
   const { code } = req.body;
   if (!code) return res.status(400).json({ error: 'Kode tidak boleh kosong' });
 
   const { data, error } = await supabase
     .from('access_codes')
-    .select('id, code, label')
+    .select('id, code, label, access_hc, access_wh')
     .eq('code', code.trim())
     .single();
 
   if (error || !data) return res.status(401).json({ error: 'Kode akses tidak valid' });
 
-  res.json({ valid: true, label: data.label });
+  res.json({
+    valid: true,
+    label: data.label,
+    access_hc: data.access_hc ?? true,
+    access_wh: data.access_wh ?? true,
+  });
 });
 
 // List all codes (admin)
@@ -31,12 +36,17 @@ router.get('/', async (req, res) => {
 
 // Create code (admin)
 router.post('/', async (req, res) => {
-  const { code, label } = req.body;
+  const { code, label, access_hc, access_wh } = req.body;
   if (!code || !label) return res.status(400).json({ error: 'Kode dan label wajib diisi' });
 
   const { data, error } = await supabase
     .from('access_codes')
-    .insert({ code: code.trim(), label: label.trim() })
+    .insert({
+      code: code.trim(),
+      label: label.trim(),
+      access_hc: access_hc !== false,
+      access_wh: access_wh !== false,
+    })
     .select()
     .single();
 

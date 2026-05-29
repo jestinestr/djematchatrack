@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import AddParcelModal from './AddParcelModal';
+import { Fragment } from 'react';
 
 function formatRupiah(n) {
   return 'Rp ' + Number(n).toLocaleString('id-ID');
 }
 
-export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded, onParcelDeleted, readOnly = false }) {
+export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded, onParcelDeleted, onParcelEdited, readOnly = false }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [editingParcel, setEditingParcel] = useState(null);
   const [showParcels, setShowParcels] = useState(true);
   const [completing, setCompleting] = useState(false);
 
@@ -123,15 +125,24 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
                       )}
                     </div>
                   </div>
-                  {/* Delete */}
+                  {/* Actions */}
                   {isActive && !readOnly && (
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors p-1 flex-shrink-0"
-                      title="Hapus resi"
-                    >
-                      🗑
-                    </button>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => setEditingParcel(p)}
+                        className="text-gray-300 hover:text-matcha-600 transition-colors p-1"
+                        title="Edit resi"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                        title="Hapus resi"
+                      >
+                        🗑
+                      </button>
+                    </div>
                   )}
                 </div>
               ))
@@ -146,6 +157,15 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
           batchId={batch.id}
           onClose={() => setShowAdd(false)}
           onAdded={parcel => { onParcelAdded?.(batch.id, parcel); setShowAdd(false); }}
+        />
+      )}
+
+      {editingParcel && (
+        <AddParcelModal
+          type={type}
+          parcel={editingParcel}
+          onClose={() => setEditingParcel(null)}
+          onEdited={updated => { onParcelEdited?.(batch.id, updated); setEditingParcel(null); }}
         />
       )}
     </>

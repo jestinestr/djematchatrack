@@ -20,6 +20,16 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Kode tidak valid'); return; }
+
+      // Cek permission berdasarkan panel yang dipilih
+      if (modal === 'hc' && !data.access_hc) {
+        setError('Kode ini tidak memiliki akses ke Hand Carry');
+        return;
+      }
+      if (modal === 'wh' && !data.access_wh) {
+        setError('Kode ini tidak memiliki akses ke Warehouse');
+        return;
+      }
       navigate(modal === 'hc' ? '/hc' : '/wh');
     } catch {
       setError('Koneksi gagal. Coba lagi.');

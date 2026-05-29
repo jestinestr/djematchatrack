@@ -27,6 +27,12 @@ export default function AdminWH() {
     ));
   }
 
+  function handleParcelEdited(batchId, updated) {
+    setBatches(prev => prev.map(b =>
+      b.id === batchId ? { ...b, parcels: (b.parcels || []).map(p => p.id === updated.id ? updated : p) } : b
+    ));
+  }
+
   const totalResi = batches.reduce((s, b) => s + (b.parcels?.length || 0), 0);
 
   return (
@@ -59,6 +65,7 @@ export default function AdminWH() {
             onComplete={load}
             onParcelAdded={(batchId, p) => handleParcelAdded(batchId, p)}
             onParcelDeleted={(batchId, pid) => handleParcelDeleted(batchId, pid)}
+            onParcelEdited={(batchId, updated) => handleParcelEdited(batchId, updated)}
           />
         ))
       )}
