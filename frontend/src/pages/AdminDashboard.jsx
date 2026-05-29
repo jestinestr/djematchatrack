@@ -110,7 +110,7 @@ function BatchCard({ batchData, type, onComplete, onParcelAdded, onParcelDeleted
                     <p className="text-xs text-gray-500 font-mono truncate">{p.tracking_number}</p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       <span className="text-xs bg-matcha-100 text-matcha-700 px-1.5 py-0.5 rounded-full">
-                        {p.type === 'paperbased' ? '📄 Dokumen' : '📦 Barang'}
+                        {p.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
                       </span>
                       {type === 'HC' && p.estimated_weight_grams > 0 && (
                         <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full">{p.estimated_weight_grams}g</span>

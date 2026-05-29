@@ -43,7 +43,7 @@ export default function ParcelCard({ parcel, type }) {
 
           <div className="flex flex-wrap gap-1.5">
             <span className="badge-type">
-              {parcel.type === 'paperbased' ? '📄 Dokumen' : '📦 Barang'}
+              {parcel.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
             </span>
 
             {type === 'hc' && (

@@ -109,7 +109,7 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
                     <p className="text-xs text-gray-400 font-mono truncate">{p.tracking_number}</p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       <span className="text-xs bg-matcha-50 text-matcha-700 px-1.5 py-0.5 rounded-full border border-matcha-100">
-                        {p.type === 'paperbased' ? '📄 Dokumen' : '📦 Barang'}
+                        {p.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
                       </span>
                       {type === 'HC' && p.estimated_weight_grams > 0 && (
                         <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">{p.estimated_weight_grams}g</span>
@@ -126,7 +126,7 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
                     </div>
                   </div>
                   {/* Actions */}
-                  {isActive && !readOnly && (
+                  {!readOnly && (
                     <div className="flex gap-1 flex-shrink-0">
                       <button
                         onClick={() => setEditingParcel(p)}

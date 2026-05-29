@@ -18,6 +18,22 @@ export default function AdminArchive() {
     });
   }, []);
 
+  function handleParcelEdited(batchId, updated, listSetter) {
+    listSetter(prev => prev.map(b =>
+      b.id === batchId
+        ? { ...b, parcels: b.parcels.map(p => p.id === updated.id ? updated : p) }
+        : b
+    ));
+  }
+
+  function handleParcelDeleted(batchId, parcelId, listSetter) {
+    listSetter(prev => prev.map(b =>
+      b.id === batchId
+        ? { ...b, parcels: b.parcels.filter(p => p.id !== parcelId) }
+        : b
+    ));
+  }
+
   const showHC = filter === 'all' || filter === 'HC';
   const showWH = filter === 'all' || filter === 'WH';
   const totalArchived = hcBatches.length + whBatches.length;
@@ -71,7 +87,11 @@ export default function AdminArchive() {
                 <span className="text-xs text-gray-400">({hcBatches.length} batch)</span>
               </div>
               {hcBatches.map(b => (
-                <AdminBatchCard key={b.id} batch={b} type="HC" readOnly />
+                <AdminBatchCard
+                  key={b.id} batch={b} type="HC"
+                  onParcelEdited={(batchId, updated) => handleParcelEdited(batchId, updated, setHcBatches)}
+                  onParcelDeleted={(parcelId) => handleParcelDeleted(b.id, parcelId, setHcBatches)}
+                />
               ))}
             </div>
           )}
@@ -85,7 +105,11 @@ export default function AdminArchive() {
                 <span className="text-xs text-gray-400">({whBatches.length} batch)</span>
               </div>
               {whBatches.map(b => (
-                <AdminBatchCard key={b.id} batch={b} type="WH" readOnly />
+                <AdminBatchCard
+                  key={b.id} batch={b} type="WH"
+                  onParcelEdited={(batchId, updated) => handleParcelEdited(batchId, updated, setWhBatches)}
+                  onParcelDeleted={(parcelId) => handleParcelDeleted(b.id, parcelId, setWhBatches)}
+                />
               ))}
             </div>
           )}

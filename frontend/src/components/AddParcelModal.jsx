@@ -113,7 +113,7 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
                 <label key={t} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form.parcel_type === t ? 'border-matcha-600 bg-matcha-50 text-matcha-800' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
                   <input type="radio" name="parcel_type" value={t} checked={form.parcel_type === t} onChange={() => setForm(f => ({ ...f, parcel_type: t }))} className="sr-only" />
                   <span>{t === 'barang' ? '📦' : '📄'}</span>
-                  <span className="text-sm font-medium">{t === 'barang' ? 'Barang' : 'Dokumen'}</span>
+                  <span className="text-sm font-medium">{t === 'barang' ? 'Barang' : 'Paperbased'}</span>
                 </label>
               ))}
             </div>
