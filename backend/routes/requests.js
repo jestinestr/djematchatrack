@@ -1,6 +1,20 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
 const supabase = require('../supabase');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
+
+async function uploadPhoto(file) {
+  if (!file) return null;
+  const ext = path.extname(file.originalname) || '.jpg';
+  const filename = `co-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+  const { error } = await supabase.storage.from('parcel-photos').upload(filename, file.buffer, { contentType: file.mimetype });
+  if (error) throw new Error('Upload foto gagal: ' + error.message);
+  const { data } = supabase.storage.from('parcel-photos').getPublicUrl(filename);
+  return data.publicUrl;
+}
 
 // ── GET all requests (admin) ─────────────────────────────
 // ?status=pending|approved|rejected|all
@@ -29,40 +43,52 @@ router.get('/count', async (req, res) => {
   res.json({ count });
 });
 
-// ── POST submit requests (user) — max 10 ────────────────
-router.post('/', async (req, res) => {
-  const { type, items } = req.body; // type: 'HC'|'WH', items: array
+// ── POST submit requests (user) — max 10, with CO photos ────────────────
+router.post('/', upload.any(), async (req, res) => {
+  const { type, items: itemsJson } = req.body;
+
+  let items;
+  try { items = JSON.parse(itemsJson); } catch { return res.status(400).json({ error: 'Data tidak valid' }); }
 
   if (!type || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Data tidak valid' });
   }
   if (items.length > 10) {
-    return res.status(400).json({ error: 'Maksimal 10 resi per request' });
+    return res.status(400).json({ error: 'Maksimal 10 resi per setor' });
   }
 
-  const rows = items.map(item => ({
-    type,
-    tracking_number: item.tracking_number?.trim(),
-    recipient_name: item.recipient_name?.trim(),
-    parcel_type: item.parcel_type || 'barang',
-    notes: item.notes?.trim() || null,
-    status: 'pending',
-  }));
+  // Map co_photo files by index
+  const coPhotoFiles = {};
+  (req.files || []).forEach(f => {
+    const match = f.fieldname.match(/^co_photo_(\d+)$/);
+    if (match) coPhotoFiles[parseInt(match[1])] = f;
+  });
 
-  // Validate all rows
-  for (const r of rows) {
-    if (!r.tracking_number || !r.recipient_name) {
-      return res.status(400).json({ error: 'Nomor resi dan nama penerima wajib diisi' });
+  // Validate
+  for (const [i, item] of items.entries()) {
+    if (!item.tracking_number?.trim() || !item.recipient_name?.trim()) {
+      return res.status(400).json({ error: `Baris ${i + 1}: nomor resi dan nama penerima wajib diisi` });
     }
   }
 
-  const { data, error } = await supabase
-    .from('parcel_requests')
-    .insert(rows)
-    .select();
+  try {
+    // Upload CO photos & build rows
+    const rows = await Promise.all(items.map(async (item, i) => ({
+      type,
+      tracking_number: item.tracking_number.trim(),
+      recipient_name: item.recipient_name.trim(),
+      parcel_type: item.parcel_type || 'barang',
+      notes: item.notes?.trim() || null,
+      co_photo_url: await uploadPhoto(coPhotoFiles[i] || null),
+      status: 'pending',
+    })));
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+    const { data, error } = await supabase.from('parcel_requests').insert(rows).select();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── PATCH approve ────────────────────────────────────────
@@ -98,6 +124,7 @@ router.patch('/:id/approve', async (req, res) => {
     tracking_number: req_data.tracking_number,
     recipient_name: req_data.recipient_name,
     type: req_data.parcel_type,
+    co_photo_url: req_data.co_photo_url || null,
     status: 'active',
     is_manual_input: false,
     fine_amount: 0,

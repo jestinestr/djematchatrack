@@ -61,8 +61,8 @@ export default function AdminRequests() {
       <div className="flex items-center gap-3 mb-6">
         <span className="text-3xl">📬</span>
         <div>
-          <h1 className="text-xl font-bold text-matcha-800">Request Resi</h1>
-          <p className="text-sm text-gray-500">Permintaan masuk dari pengguna</p>
+          <h1 className="text-xl font-bold text-matcha-800">Setor Resi</h1>
+          <p className="text-sm text-gray-500">Resi yang disetor pengguna</p>
         </div>
       </div>
 
@@ -116,6 +116,14 @@ export default function AdminRequests() {
               {/* Card body */}
               <div className="px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
+                  {/* CO Photo thumbnail */}
+                  {r.co_photo_url && (
+                    <div className="relative flex-shrink-0 cursor-pointer" onClick={() => window.open(r.co_photo_url, '_blank')}>
+                      <img src={r.co_photo_url} alt="CO" className="w-14 h-14 object-cover rounded-xl border border-amber-200" />
+                      <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-[9px] font-bold px-1 rounded-full leading-4">CO</span>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800">{r.recipient_name}</p>
                     <p className="text-sm font-mono text-gray-500 mt-0.5">{r.tracking_number}</p>

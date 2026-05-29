@@ -45,7 +45,7 @@ export default function WHPanel() {
           className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-dashed border-matcha-300 text-matcha-700 font-semibold text-sm hover:bg-matcha-50 hover:border-matcha-400 transition-all"
         >
           <span className="text-lg">📝</span>
-          {showRequest ? 'Tutup Form Request' : 'Request Resi WH'}
+          {showRequest ? 'Tutup Form' : '📨 Setor Resi WH'}
         </button>
 
         {/* Request form */}

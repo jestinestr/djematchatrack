@@ -5,7 +5,7 @@ const navItems = [
   { to: '/admin/dashboard', icon: '📊', label: 'Dashboard' },
   { to: '/admin/hc', icon: '✈️', label: 'Hand Carry' },
   { to: '/admin/wh', icon: '🏭', label: 'Warehouse' },
-  { to: '/admin/requests', icon: '📬', label: 'Request', badge: true },
+  { to: '/admin/requests', icon: '📬', label: 'Setor Resi', badge: true },
   { to: '/admin/archive', icon: '📁', label: 'Arsip' },
   { to: '/admin/codes', icon: '🔑', label: 'Kode Akses' },
 ];
