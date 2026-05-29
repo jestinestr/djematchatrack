@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AddParcelModal from './AddParcelModal';
+import ParcelDetailModal from './ParcelDetailModal';
 import { Fragment } from 'react';
 
 function formatRupiah(n) {
@@ -9,6 +10,7 @@ function formatRupiah(n) {
 export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded, onParcelDeleted, onParcelEdited, readOnly = false }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingParcel, setEditingParcel] = useState(null);
+  const [detailParcel, setDetailParcel] = useState(null);
   const [showParcels, setShowParcels] = useState(true);
   const [completing, setCompleting] = useState(false);
 
@@ -94,7 +96,7 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
               <p className="text-center text-gray-400 text-sm py-6">Belum ada resi di batch ini</p>
             ) : (
               parcels.map(p => (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setDetailParcel(p)}>
                   {/* Photos */}
                   <div className="flex gap-1 flex-shrink-0">
                     {p.photo_url ? (
@@ -133,7 +135,7 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
                   </div>
                   {/* Actions */}
                   {!readOnly && (
-                    <div className="flex gap-1 flex-shrink-0">
+                    <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={() => setEditingParcel(p)}
                         className="text-gray-300 hover:text-matcha-600 transition-colors p-1"
@@ -172,6 +174,15 @@ export default function AdminBatchCard({ batch, type, onComplete, onParcelAdded,
           parcel={editingParcel}
           onClose={() => setEditingParcel(null)}
           onEdited={updated => { onParcelEdited?.(batch.id, updated); setEditingParcel(null); }}
+        />
+      )}
+
+      {detailParcel && (
+        <ParcelDetailModal
+          parcel={detailParcel}
+          type={type}
+          isAdmin={true}
+          onClose={() => setDetailParcel(null)}
         />
       )}
     </>

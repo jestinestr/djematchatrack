@@ -1,23 +1,26 @@
 import { useState } from 'react';
+import ParcelDetailModal from './ParcelDetailModal';
 
 function formatRupiah(n) {
   return 'Rp ' + Number(n).toLocaleString('id-ID');
 }
 
 export default function ParcelCard({ parcel, type }) {
-  const [zoomPhoto, setZoomPhoto] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
   return (
     <>
-      <div className="card flex gap-3">
+      <div
+        className="card flex gap-3 cursor-pointer hover:shadow-soft-md hover:border-matcha-200 transition-all active:scale-[0.99]"
+        onClick={() => setShowDetail(true)}
+      >
         {/* Photo */}
         <div className="flex-shrink-0">
           {parcel.photo_url ? (
             <img
               src={parcel.photo_url}
               alt="foto"
-              className="w-16 h-16 object-cover rounded-lg cursor-zoom-in border border-cream-200 hover:border-matcha-400 transition-colors"
-              onClick={() => setZoomPhoto(true)}
+              className="w-16 h-16 object-cover rounded-lg border border-cream-200"
             />
           ) : (
             <div className="w-16 h-16 bg-cream-100 rounded-lg border border-cream-200 flex items-center justify-center text-2xl text-gray-300">
@@ -45,22 +48,16 @@ export default function ParcelCard({ parcel, type }) {
             <span className="badge-type">
               {parcel.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
             </span>
-
-            {type === 'hc' && (
-              <>
-                {parcel.estimated_weight_grams > 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">
-                    ⚖️ {parcel.estimated_weight_grams}g
-                  </span>
-                )}
-                {parcel.estimated_quantity > 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 border border-purple-100">
-                    🔢 {parcel.estimated_quantity} pcs
-                  </span>
-                )}
-              </>
+            {type === 'hc' && parcel.estimated_weight_grams > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">
+                ⚖️ {parcel.estimated_weight_grams}g
+              </span>
             )}
-
+            {type === 'hc' && parcel.estimated_quantity > 1 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 border border-purple-100">
+                🔢 {parcel.estimated_quantity} pcs
+              </span>
+            )}
             {type === 'wh' && parcel.wh_fee > 0 && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-100">
                 💰 {formatRupiah(parcel.wh_fee)}
@@ -68,17 +65,18 @@ export default function ParcelCard({ parcel, type }) {
             )}
           </div>
         </div>
+
+        {/* Chevron hint */}
+        <div className="flex-shrink-0 self-center text-gray-300 text-lg">›</div>
       </div>
 
-      {/* Photo zoom */}
-      {zoomPhoto && parcel.photo_url && (
-        <div className="photo-zoom-overlay" onClick={() => setZoomPhoto(false)}>
-          <img
-            src={parcel.photo_url}
-            alt="foto besar"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
-          />
-        </div>
+      {showDetail && (
+        <ParcelDetailModal
+          parcel={parcel}
+          type={type}
+          isAdmin={false}
+          onClose={() => setShowDetail(false)}
+        />
       )}
     </>
   );
