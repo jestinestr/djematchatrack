@@ -17,12 +17,12 @@ async function uploadPhoto(file) {
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
 
   const { error } = await supabase.storage
-    .from('parcel-photos')
+    .from('TrackFolder')
     .upload(filename, file.buffer, { contentType: file.mimetype });
 
   if (error) throw new Error('Upload foto gagal: ' + error.message);
 
-  const { data } = supabase.storage.from('parcel-photos').getPublicUrl(filename);
+  const { data } = supabase.storage.from('TrackFolder').getPublicUrl(filename);
   return data.publicUrl;
 }
 
