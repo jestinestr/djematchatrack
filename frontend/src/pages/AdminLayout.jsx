@@ -32,8 +32,8 @@ export default function AdminLayout() {
         {/* Brand */}
         <div className="px-5 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-xl border border-white/10">
-              🍵
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
+              <img src="/ava.png" alt="Djematcha" className="w-full h-full object-cover" />
             </div>
             <div>
               <p className="text-white font-bold text-sm leading-tight">Djematcha</p>
@@ -93,7 +93,9 @@ export default function AdminLayout() {
           >
             ☰
           </button>
-          <span className="text-xl">🍵</span>
+          <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
+            <img src="/ava.png" alt="Djematcha" className="w-full h-full object-cover" />
+          </div>
           <span className="font-bold text-sm">Djematcha Admin</span>
         </div>
 

@@ -33,7 +33,9 @@ export default function AdminLogin() {
          style={{ background: 'linear-gradient(135deg, #2A4A40 0%, #3D6B5E 50%, #4D8578 100%)' }}>
       <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-soft-lg p-8 w-full max-w-sm border border-white/60">
         <div className="text-center mb-7">
-          <div className="text-5xl mb-3">🍵</div>
+          <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3 shadow-soft border border-white/40">
+            <img src="/ava.png" alt="Djematcha" className="w-full h-full object-cover" />
+          </div>
           <h1 className="text-2xl font-bold text-matcha-800">Admin Djematcha</h1>
           <p className="text-gray-400 text-sm mt-1">Masuk ke panel admin</p>
         </div>

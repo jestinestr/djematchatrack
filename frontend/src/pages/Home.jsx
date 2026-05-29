@@ -54,8 +54,8 @@ export default function Home() {
 
       {/* Brand */}
       <div className="relative text-center mb-10">
-        <div className="w-20 h-20 rounded-3xl bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-5 shadow-soft-lg border border-white/20">
-          <span className="text-4xl">🍵</span>
+        <div className="w-24 h-24 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center mx-auto mb-5 shadow-soft-lg border border-white/20 overflow-hidden">
+          <img src="/ava.png" alt="Djematcha" className="w-full h-full object-cover" />
         </div>
         <h1 className="text-4xl font-bold text-white tracking-tight">Djematcha</h1>
         <p className="text-matcha-200 mt-2 text-base font-medium opacity-80">Sistem Tracking Paket</p>
