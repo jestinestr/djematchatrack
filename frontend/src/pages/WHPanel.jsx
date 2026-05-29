@@ -9,6 +9,7 @@ export default function WHPanel() {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [showRequest, setShowRequest] = useState(false);
+  const [search, setSearch]           = useState('');
 
   useEffect(() => {
     fetch('/api/parcels/wh/active')
@@ -18,6 +19,16 @@ export default function WHPanel() {
   }, []);
 
   const totalResi = batches.reduce((sum, b) => sum + (b.parcels?.length || 0), 0);
+
+  const filteredBatches = search.trim()
+    ? batches.map(b => ({
+        ...b,
+        parcels: (b.parcels || []).filter(p =>
+          p.recipient_name?.toLowerCase().includes(search.toLowerCase()) ||
+          p.tracking_number?.toLowerCase().includes(search.toLowerCase())
+        ),
+      })).filter(b => b.parcels.length > 0)
+    : batches;
 
   return (
     <div className="min-h-screen bg-cream-100">
@@ -34,6 +45,25 @@ export default function WHPanel() {
           <button onClick={() => navigate('/')} className="text-matcha-200 hover:text-white text-sm underline underline-offset-2">
             ← Kembali
           </button>
+        </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="bg-matcha-900/30 px-4 py-3">
+        <div className="max-w-2xl mx-auto">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-matcha-300 text-sm">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cari nama atau nomor resi..."
+              className="w-full bg-white/15 text-white placeholder-matcha-300 border border-white/20 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:bg-white/20 focus:border-white/40 transition-all"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-matcha-300 hover:text-white text-lg leading-none">×</button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -70,7 +100,13 @@ export default function WHPanel() {
             <p>Belum ada paket aktif</p>
           </div>
         )}
-        {!loading && batches.map(b => (
+        {!loading && !error && batches.length > 0 && filteredBatches.length === 0 && (
+          <div className="card text-center py-12 text-gray-400">
+            <div className="text-3xl mb-2">🔍</div>
+            <p>Tidak ada resi untuk <strong>"{search}"</strong></p>
+          </div>
+        )}
+        {!loading && filteredBatches.map(b => (
           <BatchSection key={b.id} batch={b} type="wh" />
         ))}
       </div>
