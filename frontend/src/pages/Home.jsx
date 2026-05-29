@@ -21,7 +21,6 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Kode tidak valid'); return; }
 
-      // Cek permission berdasarkan panel yang dipilih
       if (modal === 'hc' && !data.access_hc) {
         setError('Kode ini tidak memiliki akses ke Hand Carry');
         return;
@@ -38,51 +37,58 @@ export default function Home() {
     }
   }
 
-  function openModal(type) {
-    setModal(type);
-    setCode('');
-    setError('');
-  }
-
-  function closeModal() {
-    setModal(null);
-    setCode('');
-    setError('');
-  }
+  function openModal(type) { setModal(type); setCode(''); setError(''); }
+  function closeModal()     { setModal(null);  setCode(''); setError(''); }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-matcha-800 via-matcha-700 to-matcha-600 flex flex-col items-center justify-center p-6">
-      {/* Brand */}
-      <div className="text-center mb-12">
-        <div className="text-7xl mb-4">🍵</div>
-        <h1 className="text-4xl font-bold text-white tracking-tight">Djematcha</h1>
-        <p className="text-matcha-200 mt-2 text-lg font-medium">Sistem Tracking Paket</p>
-        <div className="mt-3 h-0.5 w-16 bg-cream-200 mx-auto rounded-full opacity-60" />
+    <div className="min-h-screen flex flex-col items-center justify-center p-6"
+         style={{ background: 'linear-gradient(135deg, #2A4A40 0%, #3D6B5E 50%, #4D8578 100%)' }}>
+
+      {/* Soft glow orbs for depth */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-20"
+             style={{ background: 'radial-gradient(circle, #7BB4A4, transparent)' }} />
+        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full opacity-15"
+             style={{ background: 'radial-gradient(circle, #AACFC3, transparent)' }} />
       </div>
 
-      {/* Buttons */}
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
+      {/* Brand */}
+      <div className="relative text-center mb-10">
+        <div className="w-20 h-20 rounded-3xl bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-5 shadow-soft-lg border border-white/20">
+          <span className="text-4xl">🍵</span>
+        </div>
+        <h1 className="text-4xl font-bold text-white tracking-tight">Djematcha</h1>
+        <p className="text-matcha-200 mt-2 text-base font-medium opacity-80">Sistem Tracking Paket</p>
+        <div className="mt-3 h-px w-12 bg-white/30 mx-auto rounded-full" />
+      </div>
+
+      {/* Panel buttons */}
+      <div className="relative flex flex-col sm:flex-row gap-4 w-full max-w-xs sm:max-w-sm">
         <button
           onClick={() => openModal('hc')}
-          className="flex-1 bg-white hover:bg-cream-100 text-matcha-800 font-bold py-5 px-6 rounded-2xl shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl"
+          className="flex-1 group bg-white/90 backdrop-blur-sm hover:bg-white text-matcha-800 font-bold
+                     py-6 px-5 rounded-3xl shadow-soft-lg transition-all duration-200
+                     hover:scale-[1.03] hover:shadow-soft-lg border border-white/60"
         >
-          <div className="text-3xl mb-2">✈️</div>
-          <div className="text-lg">Hand Carry</div>
+          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-200">✈️</div>
+          <div className="text-base">Hand Carry</div>
           <div className="text-xs text-matcha-500 font-normal mt-0.5">Paket Bawaan</div>
         </button>
         <button
           onClick={() => openModal('wh')}
-          className="flex-1 bg-white hover:bg-cream-100 text-matcha-800 font-bold py-5 px-6 rounded-2xl shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl"
+          className="flex-1 group bg-white/90 backdrop-blur-sm hover:bg-white text-matcha-800 font-bold
+                     py-6 px-5 rounded-3xl shadow-soft-lg transition-all duration-200
+                     hover:scale-[1.03] hover:shadow-soft-lg border border-white/60"
         >
-          <div className="text-3xl mb-2">🏭</div>
-          <div className="text-lg">Warehouse</div>
+          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-200">🏭</div>
+          <div className="text-base">Warehouse</div>
           <div className="text-xs text-matcha-500 font-normal mt-0.5">Paket Gudang</div>
         </button>
       </div>
 
-      <p className="mt-10 text-matcha-300 text-xs">
+      <p className="relative mt-10 text-matcha-300 text-xs opacity-70">
         Admin?{' '}
-        <a href="/admin" className="text-cream-200 underline underline-offset-2 hover:text-white">
+        <a href="/admin" className="text-white/80 underline underline-offset-2 hover:text-white transition-colors">
           Masuk sini
         </a>
       </p>
@@ -91,15 +97,17 @@ export default function Home() {
       {modal && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div
-            className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm"
+            className="bg-white rounded-3xl shadow-soft-lg p-7 w-full max-w-sm border border-cream-200"
             onClick={e => e.stopPropagation()}
           >
-            <div className="text-center mb-5">
-              <div className="text-4xl mb-2">{modal === 'hc' ? '✈️' : '🏭'}</div>
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-matcha-50 flex items-center justify-center mx-auto mb-3 text-3xl border border-matcha-100">
+                {modal === 'hc' ? '✈️' : '🏭'}
+              </div>
               <h2 className="text-xl font-bold text-matcha-800">
                 {modal === 'hc' ? 'Hand Carry' : 'Warehouse'}
               </h2>
-              <p className="text-gray-500 text-sm mt-1">Masukkan kode akses untuk melihat paket</p>
+              <p className="text-gray-400 text-sm mt-1">Masukkan kode akses</p>
             </div>
 
             <form onSubmit={handleVerify}>
@@ -113,7 +121,7 @@ export default function Home() {
                 required
               />
               {error && (
-                <p className="text-red-600 text-sm text-center mb-3 bg-red-50 py-2 px-3 rounded-lg">
+                <p className="text-rose-500 text-sm text-center mb-3 bg-rose-50 py-2 px-3 rounded-xl border border-rose-100">
                   {error}
                 </p>
               )}

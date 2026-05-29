@@ -4,45 +4,67 @@
 
 @layer base {
   body {
-    @apply bg-cream-100 text-gray-800 font-sans;
+    @apply bg-cream-100 text-gray-700 font-sans;
   }
 }
 
 @layer components {
+  /* ── Buttons ───────────────────────────── */
   .btn-primary {
-    @apply bg-matcha-800 hover:bg-matcha-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-matcha-800 hover:bg-matcha-700 text-white font-semibold py-2 px-4 rounded-xl
+           transition-all duration-200 shadow-soft hover:shadow-soft-md
+           disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-secondary {
-    @apply bg-cream-200 hover:bg-cream-300 text-matcha-800 font-semibold py-2 px-4 rounded-lg transition-colors duration-200 border border-cream-300;
+    @apply bg-cream-50 hover:bg-cream-100 text-matcha-700 font-semibold py-2 px-4 rounded-xl
+           transition-all duration-200 border border-cream-300 hover:border-cream-400;
   }
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-rose-400 hover:bg-rose-500 text-white font-semibold py-2 px-4 rounded-xl
+           transition-all duration-200;
   }
+
+  /* ── Form inputs ───────────────────────── */
   .input-field {
-    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-matcha-600 focus:border-transparent bg-white;
+    @apply w-full border border-cream-300 rounded-xl px-3.5 py-2.5 text-sm
+           focus:outline-none focus:ring-2 focus:ring-matcha-300 focus:border-matcha-400
+           bg-white placeholder-gray-300 transition-all duration-150;
   }
+
+  /* ── Cards ─────────────────────────────── */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-cream-200 p-4;
+    @apply bg-white rounded-2xl shadow-soft border border-cream-200 p-4;
   }
+
+  /* ── Badges ─────────────────────────────  */
   .badge-fine {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold
+           bg-pastel-rose text-rose-600 border border-rose-200;
   }
   .badge-type {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-matcha-100 text-matcha-800;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
+           bg-pastel-sage text-matcha-700 border border-matcha-200;
+  }
+  .badge-weight {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
+           bg-pastel-sky text-blue-600 border border-blue-100;
+  }
+  .badge-fee {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
+           bg-pastel-amber text-amber-700 border border-amber-200;
   }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #F5F0E8; }
-::-webkit-scrollbar-thumb { background: #9dc46a; border-radius: 3px; }
+/* ── Scrollbar ─────────────────────────── */
+::-webkit-scrollbar       { width: 5px; }
+::-webkit-scrollbar-track { background: #F5F1E8; }
+::-webkit-scrollbar-thumb { background: #AACFC3; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #7BB4A4; }
 
-/* Modal backdrop */
+/* ── Overlays ──────────────────────────── */
 .modal-backdrop {
-  @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4;
+  @apply fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4;
 }
-
-/* Photo zoom overlay */
 .photo-zoom-overlay {
-  @apply fixed inset-0 bg-black/80 flex items-center justify-center z-50 cursor-zoom-out;
+  @apply fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 cursor-zoom-out;
 }

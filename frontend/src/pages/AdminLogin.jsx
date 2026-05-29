@@ -29,8 +29,9 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-matcha-800 to-matcha-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center p-4"
+         style={{ background: 'linear-gradient(135deg, #2A4A40 0%, #3D6B5E 50%, #4D8578 100%)' }}>
+      <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-soft-lg p-8 w-full max-w-sm border border-white/60">
         <div className="text-center mb-7">
           <div className="text-5xl mb-3">🍵</div>
           <h1 className="text-2xl font-bold text-matcha-800">Admin Djematcha</h1>

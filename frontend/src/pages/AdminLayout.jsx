@@ -23,18 +23,21 @@ export default function AdminLayout() {
 
       {/* ── Sidebar ─────────────────────────────── */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-56 bg-matcha-800 flex flex-col shadow-xl
+        fixed inset-y-0 left-0 z-40 w-56 flex flex-col
         transition-transform duration-300
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         md:relative md:translate-x-0
-      `}>
+      `}
+      style={{ background: 'linear-gradient(180deg, #2A4A40 0%, #1E3D35 100%)' }}>
         {/* Brand */}
-        <div className="px-5 py-5 border-b border-matcha-700/60">
+        <div className="px-5 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <span className="text-3xl leading-none">🍵</span>
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-xl border border-white/10">
+              🍵
+            </div>
             <div>
-              <p className="text-white font-bold text-base leading-tight">Djematcha</p>
-              <p className="text-matcha-300 text-xs">Admin Panel</p>
+              <p className="text-white font-bold text-sm leading-tight">Djematcha</p>
+              <p className="text-matcha-300 text-xs opacity-70">Admin Panel</p>
             </div>
           </div>
         </div>
@@ -49,8 +52,8 @@ export default function AdminLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                   isActive
-                    ? 'bg-white/20 text-white shadow-sm'
-                    : 'text-matcha-200 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white/15 text-white border border-white/10'
+                    : 'text-white/60 hover:bg-white/8 hover:text-white/90'
                 }`
               }
             >
@@ -61,10 +64,10 @@ export default function AdminLayout() {
         </nav>
 
         {/* Logout */}
-        <div className="px-3 py-4 border-t border-matcha-700/60">
+        <div className="px-3 py-4 border-t border-white/10">
           <button
             onClick={logout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-matcha-300 hover:bg-white/10 hover:text-white transition-all"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all"
           >
             <span className="text-base w-5 text-center">🚪</span>
             Keluar
