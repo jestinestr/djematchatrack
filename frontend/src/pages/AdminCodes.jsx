@@ -55,22 +55,22 @@ export default function AdminCodes() {
         <form onSubmit={handleAdd} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Label <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nama Pelanggan <span className="text-red-500">*</span></label>
               <input
                 className="input-field"
                 value={form.label}
                 onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-                placeholder="Kode Toko A"
+                placeholder="cth: Alin"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Kode Akses <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password Akses <span className="text-red-500">*</span></label>
               <input
                 className="input-field font-mono"
                 value={form.code}
                 onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-                placeholder="kode123"
+                placeholder="cth: alin123"
                 required
               />
             </div>
