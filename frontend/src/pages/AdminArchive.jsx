@@ -63,12 +63,20 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
           ) : (
             parcels.map(p => (
               <div key={p.id} className="flex items-center gap-3 px-5 py-3 hover:bg-cream-50 transition-colors">
-                {/* Photo */}
-                {p.photo_url ? (
-                  <img src={p.photo_url} alt="" className="w-11 h-11 object-cover rounded-lg flex-shrink-0 border border-gray-100" />
-                ) : (
-                  <div className="w-11 h-11 bg-cream-100 rounded-lg flex-shrink-0 flex items-center justify-center text-gray-300 text-lg border border-gray-100">📦</div>
-                )}
+                {/* Photos */}
+                <div className="flex gap-1 flex-shrink-0">
+                  {p.photo_url ? (
+                    <img src={p.photo_url} alt="arrival" title="Foto Arrival" className="w-11 h-11 object-cover rounded-lg border border-gray-100" />
+                  ) : (
+                    <div className="w-11 h-11 bg-cream-100 rounded-lg flex items-center justify-center text-gray-300 text-lg border border-gray-100">📦</div>
+                  )}
+                  {p.co_photo_url && (
+                    <div className="relative">
+                      <img src={p.co_photo_url} alt="CO" title="Foto CO" className="w-11 h-11 object-cover rounded-lg border border-amber-200" />
+                      <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-[9px] font-bold px-1 rounded-full leading-4">CO</span>
+                    </div>
+                  )}
+                </div>
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-gray-800 truncate">{p.recipient_name}</p>

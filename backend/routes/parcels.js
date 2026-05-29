@@ -26,6 +26,12 @@ async function uploadPhoto(file) {
   return data.publicUrl;
 }
 
+// Multi-field upload: 'photo' (arrival) + 'co_photo' (CO, admin-only)
+const uploadFields = upload.fields([
+  { name: 'photo',    maxCount: 1 },
+  { name: 'co_photo', maxCount: 1 },
+]);
+
 // ── HC ─────────────────────────────────────────────────────────────────
 
 // Get active HC parcels grouped by batch (user view)
@@ -71,7 +77,7 @@ router.get('/hc/all', async (req, res) => {
 });
 
 // Add HC parcel
-router.post('/hc', upload.single('photo'), async (req, res) => {
+router.post('/hc', uploadFields, async (req, res) => {
   const { batch_id, tracking_number, recipient_name, type, estimated_weight_grams, estimated_quantity, is_manual_input } = req.body;
 
   if (!batch_id || !tracking_number || !recipient_name || !type) {
@@ -82,7 +88,10 @@ router.post('/hc', upload.single('photo'), async (req, res) => {
   const fine = isManual ? 2000 : 0;
 
   try {
-    const photoUrl = await uploadPhoto(req.file);
+    const photoFile   = req.files?.['photo']?.[0];
+    const coPhotoFile = req.files?.['co_photo']?.[0];
+    const photoUrl   = await uploadPhoto(photoFile);
+    const coPhotoUrl = await uploadPhoto(coPhotoFile);
 
     const { data, error } = await supabase
       .from('hc_parcels')
@@ -91,6 +100,7 @@ router.post('/hc', upload.single('photo'), async (req, res) => {
         tracking_number: tracking_number.trim(),
         recipient_name: recipient_name.trim(),
         photo_url: photoUrl,
+        co_photo_url: coPhotoUrl,
         type,
         estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
         estimated_quantity: parseInt(estimated_quantity) || 1,
@@ -108,12 +118,15 @@ router.post('/hc', upload.single('photo'), async (req, res) => {
 });
 
 // Edit HC parcel
-router.patch('/hc/:id', upload.single('photo'), async (req, res) => {
+router.patch('/hc/:id', uploadFields, async (req, res) => {
   const { tracking_number, recipient_name, type, estimated_weight_grams, estimated_quantity, is_manual_input } = req.body;
   const isManual = is_manual_input === 'true';
   const fine = isManual ? 2000 : 0;
 
   try {
+    const photoFile   = req.files?.['photo']?.[0];
+    const coPhotoFile = req.files?.['co_photo']?.[0];
+
     const updates = {
       tracking_number: tracking_number?.trim(),
       recipient_name: recipient_name?.trim(),
@@ -123,7 +136,8 @@ router.patch('/hc/:id', upload.single('photo'), async (req, res) => {
       is_manual_input: isManual,
       fine_amount: fine,
     };
-    if (req.file) updates.photo_url = await uploadPhoto(req.file);
+    if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
+    if (coPhotoFile) updates.co_photo_url = await uploadPhoto(coPhotoFile);
 
     const { data, error } = await supabase.from('hc_parcels').update(updates).eq('id', req.params.id).select().single();
     if (error) return res.status(500).json({ error: error.message });
@@ -184,7 +198,7 @@ router.get('/wh/all', async (req, res) => {
 });
 
 // Add WH parcel
-router.post('/wh', upload.single('photo'), async (req, res) => {
+router.post('/wh', uploadFields, async (req, res) => {
   const { batch_id, tracking_number, recipient_name, type, wh_fee, is_manual_input } = req.body;
 
   if (!batch_id || !tracking_number || !recipient_name || !type) {
@@ -195,7 +209,10 @@ router.post('/wh', upload.single('photo'), async (req, res) => {
   const fine = isManual ? 2000 : 0;
 
   try {
-    const photoUrl = await uploadPhoto(req.file);
+    const photoFile   = req.files?.['photo']?.[0];
+    const coPhotoFile = req.files?.['co_photo']?.[0];
+    const photoUrl   = await uploadPhoto(photoFile);
+    const coPhotoUrl = await uploadPhoto(coPhotoFile);
 
     const { data, error } = await supabase
       .from('wh_parcels')
@@ -204,6 +221,7 @@ router.post('/wh', upload.single('photo'), async (req, res) => {
         tracking_number: tracking_number.trim(),
         recipient_name: recipient_name.trim(),
         photo_url: photoUrl,
+        co_photo_url: coPhotoUrl,
         type,
         wh_fee: parseInt(wh_fee) || 0,
         is_manual_input: isManual,
@@ -220,12 +238,15 @@ router.post('/wh', upload.single('photo'), async (req, res) => {
 });
 
 // Edit WH parcel
-router.patch('/wh/:id', upload.single('photo'), async (req, res) => {
+router.patch('/wh/:id', uploadFields, async (req, res) => {
   const { tracking_number, recipient_name, type, wh_fee, is_manual_input } = req.body;
   const isManual = is_manual_input === 'true';
   const fine = isManual ? 2000 : 0;
 
   try {
+    const photoFile   = req.files?.['photo']?.[0];
+    const coPhotoFile = req.files?.['co_photo']?.[0];
+
     const updates = {
       tracking_number: tracking_number?.trim(),
       recipient_name: recipient_name?.trim(),
@@ -234,7 +255,8 @@ router.patch('/wh/:id', upload.single('photo'), async (req, res) => {
       is_manual_input: isManual,
       fine_amount: fine,
     };
-    if (req.file) updates.photo_url = await uploadPhoto(req.file);
+    if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
+    if (coPhotoFile) updates.co_photo_url = await uploadPhoto(coPhotoFile);
 
     const { data, error } = await supabase.from('wh_parcels').update(updates).eq('id', req.params.id).select().single();
     if (error) return res.status(500).json({ error: error.message });

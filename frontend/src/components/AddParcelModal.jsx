@@ -16,6 +16,8 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
   });
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(parcel?.photo_url || null);
+  const [coPhoto, setCoPhoto] = useState(null);
+  const [coPreview, setCoPreview] = useState(parcel?.co_photo_url || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,6 +26,13 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
     if (!file) return;
     setPhoto(file);
     setPreview(URL.createObjectURL(file));
+  }
+
+  function handleCoPhotoChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCoPhoto(file);
+    setCoPreview(URL.createObjectURL(file));
   }
 
   async function handleSubmit(e) {
@@ -38,6 +47,7 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
     fd.append('type', form.parcel_type);
     fd.append('is_manual_input', form.is_manual_input ? 'true' : 'false');
     if (photo) fd.append('photo', photo);
+    if (coPhoto) fd.append('co_photo', coPhoto);
 
     if (isHC) {
       fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
@@ -141,17 +151,39 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
             </div>
           )}
 
-          {/* Photo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Foto Paket</label>
-            {preview && (
-              <img src={preview} alt="preview" className="w-full h-32 object-cover rounded-lg mb-2 border border-cream-200" />
-            )}
-            <label className="flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-matcha-400 text-gray-500 text-sm transition-colors">
-              <span>📷</span>
-              <span>{preview ? 'Ganti foto' : 'Pilih foto'}</span>
-              <input type="file" accept="image/*" onChange={handlePhotoChange} className="sr-only" />
-            </label>
+          {/* Photos */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Foto Arrival / Unboxing */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                📷 Foto Arrival
+                <span className="text-xs text-gray-400 font-normal ml-1">(tampil ke user)</span>
+              </label>
+              {preview && (
+                <img src={preview} alt="preview" className="w-full h-24 object-cover rounded-lg mb-1.5 border border-cream-200" />
+              )}
+              <label className="flex items-center justify-center gap-1.5 w-full p-2.5 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-matcha-400 text-gray-500 text-xs transition-colors">
+                <span>📷</span>
+                <span>{preview ? 'Ganti' : 'Pilih foto'}</span>
+                <input type="file" accept="image/*" onChange={handlePhotoChange} className="sr-only" />
+              </label>
+            </div>
+
+            {/* Foto CO — admin only */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                🗂 Foto CO
+                <span className="text-xs text-amber-600 font-normal ml-1">(admin only)</span>
+              </label>
+              {coPreview && (
+                <img src={coPreview} alt="co preview" className="w-full h-24 object-cover rounded-lg mb-1.5 border border-amber-200" />
+              )}
+              <label className="flex items-center justify-center gap-1.5 w-full p-2.5 border-2 border-dashed border-amber-300 rounded-xl cursor-pointer hover:border-amber-400 text-amber-500 text-xs transition-colors">
+                <span>🗂</span>
+                <span>{coPreview ? 'Ganti' : 'Pilih foto CO'}</span>
+                <input type="file" accept="image/*" onChange={handleCoPhotoChange} className="sr-only" />
+              </label>
+            </div>
           </div>
 
           {/* Manual input flag */}
