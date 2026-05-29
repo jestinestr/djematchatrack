@@ -1,10 +1,11 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const navItems = [
   { to: '/admin/dashboard', icon: '📊', label: 'Dashboard' },
   { to: '/admin/hc', icon: '✈️', label: 'Hand Carry' },
   { to: '/admin/wh', icon: '🏭', label: 'Warehouse' },
+  { to: '/admin/requests', icon: '📬', label: 'Request', badge: true },
   { to: '/admin/archive', icon: '📁', label: 'Arsip' },
   { to: '/admin/codes', icon: '🔑', label: 'Kode Akses' },
 ];
@@ -12,6 +13,19 @@ const navItems = [
 export default function AdminLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    function fetchCount() {
+      fetch('/api/requests/count')
+        .then(r => r.json())
+        .then(d => setPendingCount(d.count || 0))
+        .catch(() => {});
+    }
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   function logout() {
     sessionStorage.removeItem('admin_token');
@@ -58,7 +72,12 @@ export default function AdminLayout() {
               }
             >
               <span className="text-base w-5 text-center">{item.icon}</span>
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badge && pendingCount > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none min-w-[18px] text-center">
+                  {pendingCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

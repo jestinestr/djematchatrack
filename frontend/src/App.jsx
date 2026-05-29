@@ -9,6 +9,7 @@ import AdminHC from './pages/AdminHC';
 import AdminWH from './pages/AdminWH';
 import AdminArchive from './pages/AdminArchive';
 import AdminCodes from './pages/AdminCodes';
+import AdminRequests from './pages/AdminRequests';
 
 function RequireAdmin({ children }) {
   const token = sessionStorage.getItem('admin_token');
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/admin/dashboard" element={<AdminOverview />} />
         <Route path="/admin/hc" element={<AdminHC />} />
         <Route path="/admin/wh" element={<AdminWH />} />
+        <Route path="/admin/requests" element={<AdminRequests />} />
         <Route path="/admin/archive" element={<AdminArchive />} />
         <Route path="/admin/codes" element={<AdminCodes />} />
       </Route>
