@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BatchSection from '../components/BatchSection';
 import RequestForm from '../components/RequestForm';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function WHPanel() {
   const navigate = useNavigate();
@@ -87,12 +88,7 @@ export default function WHPanel() {
         )}
 
         {/* Parcel list */}
-        {loading && (
-          <div className="text-center py-16 text-matcha-600">
-            <div className="text-4xl mb-3 animate-pulse">📦</div>
-            <p>Memuat data...</p>
-          </div>
-        )}
+        {loading && <LoadingSpinner text="Memuat data..." />}
         {error && <div className="card text-center py-8 text-red-600"><p>{error}</p></div>}
         {!loading && !error && batches.length === 0 && (
           <div className="card text-center py-16 text-gray-400">

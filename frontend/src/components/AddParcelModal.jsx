@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 // Pass `parcel` prop to enter edit mode (pre-fills form, calls PATCH instead of POST)
-export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded, onEdited }) {
+export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, onClose, onAdded, onEdited }) {
   const isHC = type === 'HC';
   const isEdit = !!parcel;
 
@@ -54,6 +54,7 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
       fd.append('estimated_quantity', form.estimated_quantity || '1');
     } else {
       fd.append('wh_fee', form.wh_fee || '0');
+      fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
     }
 
     const endpoint = isHC ? 'hc' : 'wh';
@@ -134,20 +135,61 @@ export default function AddParcelModal({ type, batchId, parcel, onClose, onAdded
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Estimasi Berat (g)</label>
-                <input type="number" min="0" className="input-field" value={form.estimated_weight_grams} onChange={e => setForm(f => ({ ...f, estimated_weight_grams: e.target.value }))} placeholder="0" />
+                <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
+                  onChange={e => setForm(f => ({ ...f, estimated_weight_grams: e.target.value }))} placeholder="0" />
+                {feePerGram > 0 && form.estimated_weight_grams > 0 && (
+                  <p className="text-xs text-matcha-600 mt-1 font-medium">
+                    💰 Est. fee: Rp {(parseInt(form.estimated_weight_grams) * feePerGram).toLocaleString('id-ID')}
+                    <span className="text-gray-400 font-normal"> ({form.estimated_weight_grams}g × Rp {feePerGram.toLocaleString('id-ID')}/g)</span>
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Qty (pcs)</label>
-                <input type="number" min="1" className="input-field" value={form.estimated_quantity} onChange={e => setForm(f => ({ ...f, estimated_quantity: e.target.value }))} placeholder="1" />
+                <input type="number" min="1" className="input-field" value={form.estimated_quantity}
+                  onChange={e => setForm(f => ({ ...f, estimated_quantity: e.target.value }))} placeholder="1" />
               </div>
             </div>
           )}
 
           {/* WH-specific */}
           {!isHC && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Biaya WH (Rp)</label>
-              <input type="number" min="0" className="input-field" value={form.wh_fee} onChange={e => setForm(f => ({ ...f, wh_fee: e.target.value }))} placeholder="0" />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Berat (g)</label>
+                <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
+                  onChange={e => {
+                    const w = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      estimated_weight_grams: w,
+                      // auto-fill wh_fee if rate is set and not manually overridden
+                      ...(feePerGram > 0 && w ? { wh_fee: String(Math.round(parseInt(w) * feePerGram)) } : {}),
+                    }));
+                  }}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Biaya WH (Rp)
+                  {feePerGram > 0 && (
+                    <span className="text-xs text-matcha-500 font-normal ml-1.5">tarif: Rp {feePerGram.toLocaleString('id-ID')}/g</span>
+                  )}
+                </label>
+                <input type="number" min="0" className="input-field" value={form.wh_fee}
+                  onChange={e => setForm(f => ({ ...f, wh_fee: e.target.value }))} placeholder="0" />
+                {feePerGram > 0 && form.estimated_weight_grams > 0 && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Auto: {form.estimated_weight_grams}g × Rp {feePerGram.toLocaleString('id-ID')}/g
+                    {' '}→{' '}
+                    <button type="button" className="text-matcha-600 underline"
+                      onClick={() => setForm(f => ({ ...f, wh_fee: String(Math.round(parseInt(f.estimated_weight_grams) * feePerGram)) }))}>
+                      Rp {(Math.round(parseInt(form.estimated_weight_grams) * feePerGram)).toLocaleString('id-ID')}
+                    </button>
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

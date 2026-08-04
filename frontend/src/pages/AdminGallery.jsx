@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function slugify(str) {
   return str?.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30) || 'foto';
@@ -173,10 +174,7 @@ export default function AdminGallery() {
 
       {/* Gallery */}
       {loading ? (
-        <div className="text-center py-20 text-matcha-600">
-          <div className="text-4xl mb-3 animate-pulse">📸</div>
-          <p className="text-sm">Memuat foto...</p>
-        </div>
+        <LoadingSpinner text="Memuat foto..." />
       ) : parcels.length === 0 ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-16 text-center text-gray-400">
           <div className="text-4xl mb-3">🖼️</div>

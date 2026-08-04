@@ -32,6 +32,22 @@ router.get('/all/:type', async (req, res) => {
   res.json(data);
 });
 
+// Update fee_per_gram for a batch
+router.patch('/:id/fee', async (req, res) => {
+  const { fee_per_gram } = req.body;
+  if (fee_per_gram === undefined || isNaN(Number(fee_per_gram))) {
+    return res.status(400).json({ error: 'fee_per_gram tidak valid' });
+  }
+  const { data, error } = await supabase
+    .from('batches')
+    .update({ fee_per_gram: Math.max(0, Math.round(Number(fee_per_gram))) })
+    .eq('id', req.params.id)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 // Complete batch and start new one
 router.post('/:id/complete', async (req, res) => {
   const { id } = req.params;

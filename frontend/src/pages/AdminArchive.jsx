@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AddParcelModal from '../components/AddParcelModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function formatRupiah(n) {
   return 'Rp ' + Number(n).toLocaleString('id-ID');
@@ -258,10 +259,7 @@ export default function AdminArchive() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-center py-16 text-matcha-600">
-          <div className="text-3xl mb-2 animate-pulse">📁</div>
-          <p className="text-sm">Memuat arsip...</p>
-        </div>
+        <LoadingSpinner text="Memuat arsip..." />
       ) : rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">🗄️</div>

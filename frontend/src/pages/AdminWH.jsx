@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminBatchCard from '../components/AdminBatchCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function AdminWH() {
   const [batches, setBatches] = useState([]);
@@ -34,8 +35,10 @@ export default function AdminWH() {
       b.id === batchId ? { ...b, parcels: (b.parcels || []).map(p => p.id === updated.id ? updated : p) } : b
     ));
   }
-
-  const totalResi = batches.reduce((s, b) => s + (b.parcels?.length || 0), 0);
+  const totalResi   = batches.reduce((s, b) => s + (b.parcels?.length || 0), 0);
+  const totalWeight = batches.reduce((s, b) => s + (b.parcels || []).reduce((ps, p) => ps + (p.estimated_weight_grams || 0), 0), 0);
+  const totalFee    = batches.reduce((s, b) => s + (b.parcels || []).reduce((ps, p) => ps + (p.wh_fee || 0), 0), 0);
+  const totalFine   = batches.reduce((s, b) => s + (b.parcels || []).reduce((ps, p) => ps + (p.fine_amount || 0), 0), 0);
 
   const isFiltering = search.trim() || filterType !== 'all' || filterFine !== 'all' || filterFee !== 'all';
 
@@ -66,7 +69,7 @@ export default function AdminWH() {
   return (
     <div className="p-5 md:p-7 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-4">
         <span className="text-3xl">🏭</span>
         <div>
           <h1 className="text-xl font-bold text-matcha-800">Warehouse</h1>
@@ -75,6 +78,26 @@ export default function AdminWH() {
           </p>
         </div>
       </div>
+
+      {/* Totals summary */}
+      {!loading && batches.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+          {[
+            { icon: '📦', label: 'Total Resi',   value: totalResi, color: 'text-matcha-800' },
+            { icon: '⚖️', label: 'Total Berat',  value: totalWeight >= 1000 ? (totalWeight/1000).toFixed(2)+' kg' : totalWeight ? totalWeight+' g' : '—', color: 'text-blue-600' },
+            { icon: '💰', label: 'Total WH Fee', value: totalFee > 0 ? 'Rp '+totalFee.toLocaleString('id-ID') : '—', color: 'text-amber-600' },
+            { icon: '⚠️', label: 'Total Denda',  value: totalFine > 0 ? 'Rp '+totalFine.toLocaleString('id-ID') : '—', color: 'text-red-500' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-cream-200 shadow-soft px-3 py-2.5 flex items-center gap-2.5">
+              <span className="text-xl">{s.icon}</span>
+              <div>
+                <p className="text-[10px] text-gray-400 font-medium leading-none mb-0.5">{s.label}</p>
+                <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Search + Filter bar */}
       <div className="bg-white rounded-2xl border border-cream-200 shadow-soft p-3 mb-5 space-y-2.5">
@@ -136,10 +159,7 @@ export default function AdminWH() {
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-matcha-600">
-          <div className="text-3xl mb-2 animate-pulse">📦</div>
-          <p className="text-sm">Memuat data...</p>
-        </div>
+        <LoadingSpinner text="Memuat data..." />
       ) : batches.length === 0 ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">📭</div>

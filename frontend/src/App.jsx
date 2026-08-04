@@ -11,10 +11,17 @@ import AdminArchive from './pages/AdminArchive';
 import AdminCodes from './pages/AdminCodes';
 import AdminRequests from './pages/AdminRequests';
 import AdminGallery from './pages/AdminGallery';
+import AdminTarif from './pages/AdminTarif';
 
 function RequireAdmin({ children }) {
   const token = sessionStorage.getItem('admin_token');
   if (!token) return <Navigate to="/admin" replace />;
+  return children;
+}
+
+function RequireAccess({ panel, children }) {
+  const ok = sessionStorage.getItem(`access_${panel}`);
+  if (!ok) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -23,8 +30,8 @@ export default function App() {
     <Routes>
       {/* User routes */}
       <Route path="/" element={<Home />} />
-      <Route path="/hc" element={<HCPanel />} />
-      <Route path="/wh" element={<WHPanel />} />
+      <Route path="/hc" element={<RequireAccess panel="hc"><HCPanel /></RequireAccess>} />
+      <Route path="/wh" element={<RequireAccess panel="wh"><WHPanel /></RequireAccess>} />
 
       {/* Admin login */}
       <Route path="/admin" element={<AdminLogin />} />
@@ -43,6 +50,7 @@ export default function App() {
         <Route path="/admin/gallery"  element={<AdminGallery />} />
         <Route path="/admin/requests" element={<AdminRequests />} />
         <Route path="/admin/archive" element={<AdminArchive />} />
+        <Route path="/admin/tarif" element={<AdminTarif />} />
         <Route path="/admin/codes" element={<AdminCodes />} />
       </Route>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function AdminCodes() {
   const [codes, setCodes] = useState([]);
@@ -108,7 +109,7 @@ export default function AdminCodes() {
           </h2>
         </div>
         {loading ? (
-          <p className="text-center text-gray-400 py-8 text-sm">Memuat...</p>
+          <LoadingSpinner text="Memuat..." className="py-4" />
         ) : codes.length === 0 ? (
           <p className="text-center text-gray-400 py-10 text-sm">Belum ada kode akses</p>
         ) : (

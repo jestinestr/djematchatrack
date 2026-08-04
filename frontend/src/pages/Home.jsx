@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 export default function Home() {
   const navigate = useNavigate();
   const [modal, setModal] = useState(null); // 'hc' | 'wh' | null
+  const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ export default function Home() {
       const res = await fetch('/api/codes/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ name, code }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Kode tidak valid'); return; }
@@ -29,6 +30,9 @@ export default function Home() {
         setError('Kode ini tidak memiliki akses ke Warehouse');
         return;
       }
+      // Simpan status akses supaya rute /hc dan /wh terlindungi
+      if (data.access_hc) sessionStorage.setItem('access_hc', '1');
+      if (data.access_wh) sessionStorage.setItem('access_wh', '1');
       navigate(modal === 'hc' ? '/hc' : '/wh');
     } catch {
       setError('Koneksi gagal. Coba lagi.');
@@ -37,19 +41,24 @@ export default function Home() {
     }
   }
 
-  function openModal(type) { setModal(type); setCode(''); setError(''); }
-  function closeModal()     { setModal(null);  setCode(''); setError(''); }
+  function openModal(type) { setModal(type); setName(''); setCode(''); setError(''); }
+  function closeModal()     { setModal(null);  setName(''); setCode(''); setError(''); }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"
          style={{ background: 'linear-gradient(135deg, #2A4A40 0%, #3D6B5E 50%, #4D8578 100%)' }}>
 
-      {/* Soft glow orbs for depth */}
+      {/* Soft glow orbs + strawberry deco */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-20"
              style={{ background: 'radial-gradient(circle, #7BB4A4, transparent)' }} />
         <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full opacity-15"
              style={{ background: 'radial-gradient(circle, #AACFC3, transparent)' }} />
+        {/* Floating strawberry decorations */}
+        <span className="absolute top-8 right-10 text-3xl opacity-30 animate-float" style={{ animationDelay: '0s' }}>🍓</span>
+        <span className="absolute top-24 left-8 text-xl opacity-20 animate-float" style={{ animationDelay: '0.7s' }}>🌿</span>
+        <span className="absolute bottom-24 right-16 text-2xl opacity-25 animate-float" style={{ animationDelay: '1.4s' }}>🍓</span>
+        <span className="absolute bottom-12 left-12 text-lg opacity-20 animate-float" style={{ animationDelay: '0.3s' }}>✨</span>
       </div>
 
       {/* Brand */}
@@ -57,9 +66,11 @@ export default function Home() {
         <div className="w-24 h-24 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center mx-auto mb-5 shadow-soft-lg border border-white/20 overflow-hidden">
           <img src="/ava.png" alt="Djematcha" className="w-full h-full object-cover" />
         </div>
-        <h1 className="text-4xl font-bold text-white tracking-tight">Djematcha</h1>
-        <p className="text-matcha-200 mt-2 text-base font-medium opacity-80">Sistem Tracking Paket</p>
-        <div className="mt-3 h-px w-12 bg-white/30 mx-auto rounded-full" />
+        <h1 className="text-4xl font-black text-white tracking-tight">Djematcha</h1>
+        <p className="text-matcha-200 mt-2 text-sm font-bold opacity-80 flex items-center justify-center gap-1.5">
+          <span>🍓</span> Sistem Tracking Paket <span>🍓</span>
+        </p>
+        <div className="mt-3 h-1 w-12 bg-berry-400/60 mx-auto rounded-full" />
       </div>
 
       {/* Panel buttons */}
@@ -113,11 +124,19 @@ export default function Home() {
             <form onSubmit={handleVerify}>
               <input
                 type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Nama pelanggan..."
+                className="input-field text-center text-lg mb-3"
+                autoFocus
+                required
+              />
+              <input
+                type="text"
                 value={code}
                 onChange={e => setCode(e.target.value)}
                 placeholder="Kode akses..."
                 className="input-field text-center text-lg tracking-widest mb-3"
-                autoFocus
                 required
               />
               {error && (

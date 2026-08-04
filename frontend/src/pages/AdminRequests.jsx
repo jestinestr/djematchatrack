@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function formatDate(str) {
   if (!str) return '-';
@@ -18,9 +19,10 @@ export default function AdminRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState('pending');
-  const [acting, setActing]     = useState(null);
-  const [selected, setSelected] = useState(new Set());
+  const [acting, setActing]         = useState(null);
+  const [selected, setSelected]     = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'HC' | 'WH'
 
   function load(status) {
     setLoading(true);
@@ -31,7 +33,7 @@ export default function AdminRequests() {
       .catch(() => setLoading(false));
   }
 
-  useEffect(() => { load(tab); }, [tab]);
+  useEffect(() => { load(tab); setFilterType('all'); }, [tab]);
 
   function toggleSelect(id) {
     setSelected(prev => {
@@ -42,9 +44,10 @@ export default function AdminRequests() {
   }
 
   function toggleAll() {
-    const pending = requests.filter(r => r.status === 'pending');
-    if (selected.size === pending.length) setSelected(new Set());
-    else setSelected(new Set(pending.map(r => r.id)));
+    const visiblePending = requests
+      .filter(r => r.status === 'pending' && (filterType === 'all' || r.type === filterType));
+    if (selected.size === visiblePending.length) setSelected(new Set());
+    else setSelected(new Set(visiblePending.map(r => r.id)));
   }
 
   async function handleApprove(id) {
@@ -88,8 +91,12 @@ export default function AdminRequests() {
     setRequests(prev => prev.filter(r => r.id !== id));
   }
 
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-  const allSelected = pendingRequests.length > 0 && selected.size === pendingRequests.length;
+  const filtered = useMemo(() =>
+    filterType === 'all' ? requests : requests.filter(r => r.type === filterType),
+  [requests, filterType]);
+
+  const pendingFiltered = filtered.filter(r => r.status === 'pending');
+  const allSelected = pendingFiltered.length > 0 && selected.size === pendingFiltered.length;
 
   return (
     <div className="p-5 md:p-7 max-w-3xl mx-auto">
@@ -102,18 +109,50 @@ export default function AdminRequests() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1.5 mb-5 bg-white border border-cream-200 rounded-xl p-1 w-fit">
-        {STATUS_TAB.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-colors ${tab === t.key ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'}`}>
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs + Type filter row */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {/* Status tabs */}
+        <div className="flex gap-1.5 bg-white border border-cream-200 rounded-xl p-1">
+          {STATUS_TAB.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-colors ${tab === t.key ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Type filter pills */}
+        <div className="flex gap-1.5">
+          {[
+            { key: 'all', label: 'Semua' },
+            { key: 'HC',  label: '✈️ HC' },
+            { key: 'WH',  label: '🏭 WH' },
+          ].map(f => (
+            <button key={f.key} onClick={() => { setFilterType(f.key); setSelected(new Set()); }}
+              className={`text-xs px-3 py-1.5 rounded-full font-semibold border transition-all duration-150 ${
+                filterType === f.key
+                  ? f.key === 'HC'
+                    ? 'bg-sky-100 text-sky-700 border-sky-300 shadow-clay-sm'
+                    : f.key === 'WH'
+                    ? 'bg-amber-100 text-amber-700 border-amber-300 shadow-clay-sm'
+                    : 'bg-matcha-800 text-white border-matcha-800 shadow-clay-sm'
+                  : 'bg-white text-gray-500 border-cream-300 hover:border-matcha-300 hover:text-matcha-700'
+              }`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Count badge */}
+        {!loading && (
+          <span className="text-xs text-gray-400 font-medium ml-auto">
+            {filtered.length} resi
+          </span>
+        )}
       </div>
 
       {/* Bulk action bar — only on pending tab */}
-      {tab === 'pending' && !loading && requests.length > 0 && (
+      {tab === 'pending' && !loading && filtered.length > 0 && (
         <div className="flex items-center gap-2 mb-4 bg-white border border-cream-200 rounded-xl px-3 py-2 shadow-soft">
           <label className="flex items-center gap-2 cursor-pointer select-none" onClick={toggleAll}>
             <div className={`w-4.5 h-4.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${allSelected ? 'bg-matcha-700 border-matcha-700' : 'border-gray-300 hover:border-matcha-400'}`}>
@@ -144,20 +183,20 @@ export default function AdminRequests() {
 
       {/* List */}
       {loading ? (
-        <div className="text-center py-16 text-matcha-600">
-          <div className="text-3xl mb-2 animate-pulse">📬</div>
-          <p className="text-sm">Memuat...</p>
-        </div>
-      ) : requests.length === 0 ? (
+        <LoadingSpinner text="Memuat..." />
+      ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">{tab === 'pending' ? '✅' : tab === 'approved' ? '📭' : '🗑️'}</div>
           <p className="font-medium">
-            {tab === 'pending' ? 'Tidak ada resi menunggu' : `Tidak ada resi ${tab === 'approved' ? 'yang disetujui' : 'yang ditolak'}`}
+            {filterType !== 'all'
+              ? `Tidak ada resi ${filterType} ${tab === 'pending' ? 'menunggu' : tab === 'approved' ? 'yang disetujui' : 'yang ditolak'}`
+              : tab === 'pending' ? 'Tidak ada resi menunggu' : `Tidak ada resi ${tab === 'approved' ? 'yang disetujui' : 'yang ditolak'}`
+            }
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {requests.map(r => {
+          {filtered.map(r => {
             const isSelected = selected.has(r.id);
             return (
               <div key={r.id}

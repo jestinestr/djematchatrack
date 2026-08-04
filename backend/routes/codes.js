@@ -4,16 +4,17 @@ const supabase = require('../supabase');
 
 // Verify access code — returns which panels the code can access
 router.post('/verify', async (req, res) => {
-  const { code } = req.body;
-  if (!code) return res.status(400).json({ error: 'Kode tidak boleh kosong' });
+  const { name, code } = req.body;
+  if (!name || !code) return res.status(400).json({ error: 'Nama dan kode wajib diisi' });
 
   const { data, error } = await supabase
     .from('access_codes')
     .select('id, code, label, access_hc, access_wh')
     .eq('code', code.trim())
+    .ilike('label', name.trim())
     .single();
 
-  if (error || !data) return res.status(401).json({ error: 'Kode akses tidak valid' });
+  if (error || !data) return res.status(401).json({ error: 'Nama atau kode akses tidak valid' });
 
   res.json({
     valid: true,

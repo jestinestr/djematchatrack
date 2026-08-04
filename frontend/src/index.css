@@ -9,57 +9,66 @@
 }
 
 @layer components {
-  /* ── Buttons ───────────────────────────── */
+  /* ── Buttons ── Clay style ─────────────────────────── */
   .btn-primary {
-    @apply bg-matcha-800 hover:bg-matcha-700 text-white font-semibold py-2 px-4 rounded-xl
-           transition-all duration-200 shadow-soft hover:shadow-soft-md
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-matcha-800 hover:bg-matcha-700 active:bg-matcha-900
+           text-white font-bold py-2 px-4 rounded-2xl
+           transition-all duration-150
+           shadow-clay hover:shadow-clay-sm active:shadow-none
+           active:translate-y-[2px]
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0;
   }
   .btn-secondary {
-    @apply bg-cream-50 hover:bg-cream-100 text-matcha-700 font-semibold py-2 px-4 rounded-xl
-           transition-all duration-200 border border-cream-300 hover:border-cream-400;
+    @apply bg-cream-50 hover:bg-cream-100 active:bg-cream-200
+           text-matcha-700 font-bold py-2 px-4 rounded-2xl
+           transition-all duration-150
+           border-2 border-cream-300 hover:border-cream-400
+           shadow-clay-sm hover:shadow-none active:translate-y-[1px];
   }
   .btn-danger {
-    @apply bg-rose-400 hover:bg-rose-500 text-white font-semibold py-2 px-4 rounded-xl
-           transition-all duration-200;
+    @apply bg-rose-400 hover:bg-rose-500 active:bg-rose-600
+           text-white font-bold py-2 px-4 rounded-2xl
+           transition-all duration-150
+           active:translate-y-[2px];
   }
 
   /* ── Form inputs ───────────────────────── */
   .input-field {
-    @apply w-full border border-cream-300 rounded-xl px-3.5 py-2.5 text-sm
-           focus:outline-none focus:ring-2 focus:ring-matcha-300 focus:border-matcha-400
+    @apply w-full border-2 border-cream-300 rounded-2xl px-3.5 py-2.5 text-sm font-semibold
+           focus:outline-none focus:border-matcha-400
            bg-white placeholder-gray-300 transition-all duration-150;
   }
 
-  /* ── Cards ─────────────────────────────── */
+  /* ── Cards ── Clay feel ─────────────────────────── */
   .card {
-    @apply bg-white rounded-2xl shadow-soft border border-cream-200 p-4;
+    @apply bg-white rounded-3xl shadow-soft border-2 border-cream-200 p-4
+           transition-all duration-150;
   }
 
   /* ── Badges ─────────────────────────────  */
   .badge-fine {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold
-           bg-pastel-rose text-rose-600 border border-rose-200;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold
+           bg-berry-50 text-berry-600 border-2 border-berry-200;
   }
   .badge-type {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-           bg-pastel-sage text-matcha-700 border border-matcha-200;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold
+           bg-pastel-sage text-matcha-700 border-2 border-matcha-200;
   }
   .badge-weight {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
-           bg-pastel-sky text-blue-600 border border-blue-100;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
+           bg-pastel-sky text-blue-600 border-2 border-blue-100;
   }
   .badge-fee {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
-           bg-pastel-amber text-amber-700 border border-amber-200;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
+           bg-pastel-amber text-amber-700 border-2 border-amber-200;
   }
 }
 
-/* ── Scrollbar ─────────────────────────── */
+/* ── Scrollbar ── Berry themed ──────────────────── */
 ::-webkit-scrollbar       { width: 5px; }
 ::-webkit-scrollbar-track { background: #F5F1E8; }
-::-webkit-scrollbar-thumb { background: #AACFC3; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #7BB4A4; }
+::-webkit-scrollbar-thumb { background: #FFB3BE; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #FF8A9A; }
 
 /* ── Overlays ──────────────────────────── */
 .modal-backdrop {
@@ -67,4 +76,11 @@
 }
 .photo-zoom-overlay {
   @apply fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 cursor-zoom-out;
+}
+
+/* ── Reduce motion ──────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-berry-bounce,
+  .animate-float,
+  .animate-wiggle { animation: none !important; }
 }

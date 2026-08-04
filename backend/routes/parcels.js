@@ -199,7 +199,7 @@ router.get('/wh/all', async (req, res) => {
 
 // Add WH parcel
 router.post('/wh', uploadFields, async (req, res) => {
-  const { batch_id, tracking_number, recipient_name, type, wh_fee, is_manual_input } = req.body;
+  const { batch_id, tracking_number, recipient_name, type, wh_fee, estimated_weight_grams, is_manual_input } = req.body;
 
   if (!batch_id || !tracking_number || !recipient_name || !type) {
     return res.status(400).json({ error: 'Field wajib tidak lengkap' });
@@ -224,6 +224,7 @@ router.post('/wh', uploadFields, async (req, res) => {
         co_photo_url: coPhotoUrl,
         type,
         wh_fee: parseInt(wh_fee) || 0,
+        estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
         is_manual_input: isManual,
         fine_amount: fine,
       })
@@ -239,7 +240,7 @@ router.post('/wh', uploadFields, async (req, res) => {
 
 // Edit WH parcel
 router.patch('/wh/:id', uploadFields, async (req, res) => {
-  const { tracking_number, recipient_name, type, wh_fee, is_manual_input } = req.body;
+  const { tracking_number, recipient_name, type, wh_fee, estimated_weight_grams, is_manual_input } = req.body;
   const isManual = is_manual_input === 'true';
   const fine = isManual ? 2000 : 0;
 
@@ -252,6 +253,7 @@ router.patch('/wh/:id', uploadFields, async (req, res) => {
       recipient_name: recipient_name?.trim(),
       type,
       wh_fee: parseInt(wh_fee) || 0,
+      estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
       is_manual_input: isManual,
       fine_amount: fine,
     };

@@ -7,6 +7,7 @@ const navItems = [
   { to: '/admin/wh', icon: '🏭', label: 'Warehouse' },
   { to: '/admin/gallery',  icon: '📸', label: 'Recap Foto' },
   { to: '/admin/requests', icon: '📬', label: 'Setor Resi', badge: true },
+  { to: '/admin/tarif', icon: '💰', label: 'Control Tarif' },
   { to: '/admin/archive', icon: '📁', label: 'Arsip' },
   { to: '/admin/codes', icon: '🔑', label: 'Kode Akses' },
 ];
