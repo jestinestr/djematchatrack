@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 export default function Home() {
   const navigate = useNavigate();
   const [modal, setModal] = useState(null); // 'hc' | 'wh' | null
-  const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +16,7 @@ export default function Home() {
       const res = await fetch('/api/codes/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, code }),
+        body: JSON.stringify({ code }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Kode tidak valid'); return; }
@@ -41,8 +40,8 @@ export default function Home() {
     }
   }
 
-  function openModal(type) { setModal(type); setName(''); setCode(''); setError(''); }
-  function closeModal()     { setModal(null);  setName(''); setCode(''); setError(''); }
+  function openModal(type) { setModal(type); setCode(''); setError(''); }
+  function closeModal()     { setModal(null);  setCode(''); setError(''); }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"
@@ -124,19 +123,11 @@ export default function Home() {
             <form onSubmit={handleVerify}>
               <input
                 type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Nama pelanggan..."
-                className="input-field text-center text-lg mb-3"
-                autoFocus
-                required
-              />
-              <input
-                type="text"
                 value={code}
                 onChange={e => setCode(e.target.value)}
                 placeholder="Kode akses..."
                 className="input-field text-center text-lg tracking-widest mb-3"
+                autoFocus
                 required
               />
               {error && (

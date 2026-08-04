@@ -4,17 +4,16 @@ const supabase = require('../supabase');
 
 // Verify access code — returns which panels the code can access
 router.post('/verify', async (req, res) => {
-  const { name, code } = req.body;
-  if (!name || !code) return res.status(400).json({ error: 'Nama dan kode wajib diisi' });
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Kode tidak boleh kosong' });
 
   const { data, error } = await supabase
     .from('access_codes')
     .select('id, code, label, access_hc, access_wh')
     .eq('code', code.trim())
-    .ilike('label', name.trim())
     .single();
 
-  if (error || !data) return res.status(401).json({ error: 'Nama atau kode akses tidak valid' });
+  if (error || !data) return res.status(401).json({ error: 'Kode akses tidak valid' });
 
   res.json({
     valid: true,
@@ -40,11 +39,25 @@ router.post('/', async (req, res) => {
   const { code, label, access_hc, access_wh } = req.body;
   if (!code || !label) return res.status(400).json({ error: 'Kode dan label wajib diisi' });
 
+  const trimmedCode = code.trim();
+  const trimmedLabel = label.trim();
+
+  // Cek nama & kode belum dipakai (case-insensitive)
+  const { data: existing } = await supabase
+    .from('access_codes')
+    .select('code, label')
+    .or(`code.ilike.${trimmedCode},label.ilike.${trimmedLabel}`);
+
+  if (existing?.some(e => e.label.toLowerCase() === trimmedLabel.toLowerCase()))
+    return res.status(409).json({ error: 'Nama sudah dipakai' });
+  if (existing?.some(e => e.code.toLowerCase() === trimmedCode.toLowerCase()))
+    return res.status(409).json({ error: 'Kode akses sudah dipakai' });
+
   const { data, error } = await supabase
     .from('access_codes')
     .insert({
-      code: code.trim(),
-      label: label.trim(),
+      code: trimmedCode,
+      label: trimmedLabel,
       access_hc: access_hc !== false,
       access_wh: access_wh !== false,
     })
