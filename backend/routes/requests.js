@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners } = require('../lib/owner');
+const { logActivity } = require('../lib/log');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
 
@@ -158,6 +159,17 @@ router.patch('/:id/owner', async (req, res) => {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  const { data: owner } = await supabase
+    .from('access_codes').select('label').eq('id', data.owner_code_id).single();
+
+  logActivity({
+    action: 'request_owner',
+    summary: `Setoran resi ${data.tracking_number} ditandai milik ${owner?.label || 'tanpa pemilik'}`,
+    ref_type: 'request',
+    ref_id: data.id,
+  });
+
   res.json(data);
 });
 
@@ -179,7 +191,7 @@ router.patch('/:id/approve', async (req, res) => {
   // 2. Find active batch of this type
   const { data: batch, error: batchErr } = await supabase
     .from('batches')
-    .select('id')
+    .select('id, type, batch_number')
     .eq('type', parcelType)
     .eq('status', 'active')
     .order('batch_number', { ascending: false })
@@ -222,6 +234,14 @@ router.patch('/:id/approve', async (req, res) => {
     .single();
 
   if (updateErr) return res.status(500).json({ error: updateErr.message });
+
+  logActivity({
+    action: 'request_approve',
+    summary: `Acc setoran resi ${req_data.tracking_number} (${req_data.recipient_name}) → Batch ${parcelType} #${batch.batch_number}`,
+    ref_type: 'request',
+    ref_id: req_data.id,
+  });
+
   res.json(updated);
 });
 
@@ -235,6 +255,14 @@ router.patch('/:id/reject', async (req, res) => {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  logActivity({
+    action: 'request_reject',
+    summary: `Tolak setoran resi ${data.tracking_number} (${data.recipient_name})`,
+    ref_type: 'request',
+    ref_id: data.id,
+  });
+
   res.json(data);
 });
 

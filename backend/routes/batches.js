@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
+const { logActivity, batchLabel } = require('../lib/log');
+
+const money = (n, cur) => `${cur === 'CNY' ? '¥' : 'Rp'} ${Number(n || 0).toLocaleString('id-ID')}`;
 
 // Get active batch for type
 router.get('/active/:type', async (req, res) => {
@@ -54,6 +57,15 @@ router.patch('/:id/fee', async (req, res) => {
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
+
+  logActivity({
+    action: 'batch_tarif',
+    summary: `Ubah tarif ${batchLabel(data)} → ${money(data.fee_per_gram, data.fee_currency)}/gram`,
+    detail: `Denda input manual: ${money(data.fine_amount, 'IDR')} per resi`,
+    ref_type: 'batch',
+    ref_id: data.id,
+  });
+
   res.json(data);
 });
 
@@ -71,6 +83,14 @@ router.patch('/:id/private', async (req, res) => {
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
+
+  logActivity({
+    action: 'batch_private',
+    summary: `Mode private ${batchLabel(data)} ${is_private ? 'dinyalakan' : 'dimatikan'}`,
+    ref_type: 'batch',
+    ref_id: data.id,
+  });
+
   res.json(data);
 });
 
@@ -113,6 +133,14 @@ router.post('/:id/complete', async (req, res) => {
     .single();
 
   if (newBatchErr) return res.status(500).json({ error: newBatchErr.message });
+
+  logActivity({
+    action: 'batch_complete',
+    summary: `Selesaikan ${batchLabel(batch)} — dilanjut Batch ${batch.type} #${newBatch.batch_number}`,
+    detail: 'Semua resi di batch tersebut dipindah ke arsip',
+    ref_type: 'batch',
+    ref_id: batch.id,
+  });
 
   res.json({ completed: batch, new: newBatch });
 });

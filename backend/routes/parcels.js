@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners, maskParcel, norm } = require('../lib/owner');
+const { logActivity, batchLabel, parcelLabel } = require('../lib/log');
 
 // Use memory storage — file goes to Supabase Storage, not disk
 const upload = multer({
@@ -44,11 +45,14 @@ const currencyOf = v => (String(v).toUpperCase() === 'CNY' ? 'CNY' : 'IDR');
 
 // Besaran denda diambil dari setelan batch (halaman Control Tarif),
 // bukan angka mati di kode.
-async function fineAmountOfBatch(batchId) {
-  if (!batchId) return 0;
-  const { data } = await supabase.from('batches').select('fine_amount').eq('id', batchId).single();
-  return Math.max(0, num(data?.fine_amount, 0));
+async function getBatch(batchId) {
+  if (!batchId) return null;
+  const { data } = await supabase
+    .from('batches').select('id, type, batch_number, fine_amount').eq('id', batchId).single();
+  return data || null;
 }
+
+const fineOf = batch => Math.max(0, num(batch?.fine_amount, 0));
 
 // Field yang dikirim dari form admin -> kolom tabel
 function buildPayload(kind, body, fine = 0) {
@@ -190,8 +194,8 @@ function registerCrud(kind) {
     }
 
     try {
-      const fine = await fineAmountOfBatch(parseInt(batch_id));
-      const payload = buildPayload(kind, req.body, fine);
+      const batch = await getBatch(parseInt(batch_id));
+      const payload = buildPayload(kind, req.body, fineOf(batch));
       payload.batch_id = parseInt(batch_id);
       payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
       payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
@@ -200,7 +204,16 @@ function registerCrud(kind) {
       if (error) return res.status(500).json({ error: error.message });
 
       const codes = await fetchCodes();
-      res.json(attachOwners([data], codes)[0]);
+      const saved = attachOwners([data], codes)[0];
+
+      logActivity({
+        action: 'parcel_add',
+        summary: `Tambah resi ${parcelLabel(saved, saved.owner?.label)} di ${batchLabel(batch)}`,
+        ref_type: `${kind}_parcel`,
+        ref_id: saved.id,
+      });
+
+      res.json(saved);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -210,9 +223,9 @@ function registerCrud(kind) {
     try {
       // Denda mengikuti batch tempat resi ini berada
       const { data: current } = await supabase
-        .from(table).select('batch_id').eq('id', req.params.id).single();
-      const fine = await fineAmountOfBatch(current?.batch_id);
-      const updates = buildPayload(kind, req.body, fine);
+        .from(table).select('batch_id, owner_code_id, tracking_number').eq('id', req.params.id).single();
+      const batch = await getBatch(current?.batch_id);
+      const updates = buildPayload(kind, req.body, fineOf(batch));
       const photoFile = req.files?.['photo']?.[0];
       const coPhotoFile = req.files?.['co_photo']?.[0];
       if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
@@ -223,15 +236,45 @@ function registerCrud(kind) {
       if (error) return res.status(500).json({ error: error.message });
 
       const codes = await fetchCodes();
-      res.json(attachOwners([data], codes)[0]);
+      const saved = attachOwners([data], codes)[0];
+
+      // Perpindahan pemilik dicatat terpisah — ini yang paling sering
+      // perlu diingat lagi belakangan.
+      const ownerBefore = codes.find(c => String(c.id) === String(current?.owner_code_id));
+      const ownerChanged = String(current?.owner_code_id ?? '') !== String(saved.owner_code_id ?? '');
+
+      logActivity({
+        action: ownerChanged ? 'parcel_owner' : 'parcel_edit',
+        summary: ownerChanged
+          ? `Resi ${saved.tracking_number} jadi milik ${saved.owner?.label || 'tanpa pemilik'} di ${batchLabel(batch)}`
+          : `Edit resi ${parcelLabel(saved, saved.owner?.label)} di ${batchLabel(batch)}`,
+        detail: ownerChanged
+          ? `Sebelumnya: ${ownerBefore?.label || 'tanpa pemilik'}`
+          : null,
+        ref_type: `${kind}_parcel`,
+        ref_id: saved.id,
+      });
+
+      res.json(saved);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
   router.delete(`/${kind}/:id`, async (req, res) => {
+    const { data: before } = await supabase
+      .from(table).select('tracking_number, recipient_name').eq('id', req.params.id).single();
+
     const { error } = await supabase.from(table).delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
+
+    logActivity({
+      action: 'parcel_delete',
+      summary: `Hapus resi ${parcelLabel(before, before?.recipient_name)}`,
+      ref_type: `${kind}_parcel`,
+      ref_id: req.params.id,
+    });
+
     res.json({ success: true });
   });
 }

@@ -1,6 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
+const { logActivity } = require('../lib/log');
+
+// Ringkas perubahan hak akses jadi kalimat, mis. "WH dimatikan"
+function accessDiff(before, after) {
+  const parts = [];
+  for (const [key, name] of [['access_hc', 'HC'], ['access_wh', 'WH']]) {
+    const was = before[key] ?? true;
+    const now = after[key] ?? true;
+    if (was !== now) parts.push(`${name} ${now ? 'dinyalakan' : 'dimatikan'}`);
+  }
+  return parts.join(', ');
+}
 
 // Verify access code — returns which panels the code can access
 router.post('/verify', async (req, res) => {
@@ -70,6 +82,14 @@ router.post('/', async (req, res) => {
     if (error.code === '23505') return res.status(409).json({ error: 'Kode sudah ada' });
     return res.status(500).json({ error: error.message });
   }
+
+  logActivity({
+    action: 'code_add',
+    summary: `Tambah kode akses ${data.label} (${data.code})`,
+    ref_type: 'code',
+    ref_id: data.id,
+  });
+
   res.json(data);
 });
 
@@ -129,17 +149,43 @@ router.patch('/:id', async (req, res) => {
     .from('access_codes').update(updates).eq('id', req.params.id).select().single();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  const akses = accessDiff(current, data);
+  const renamed = current.label !== data.label || current.code !== data.code;
+
+  logActivity({
+    action: 'code_edit',
+    summary: akses
+      ? `Akses ${data.label} diubah: ${akses}`
+      : `Ubah kode akses ${data.label} (${data.code})`,
+    detail: renamed ? `Sebelumnya: ${current.label} (${current.code})` : null,
+    ref_type: 'code',
+    ref_id: data.id,
+  });
+
   res.json(data);
 });
 
 // Delete code (admin)
 router.delete('/:id', async (req, res) => {
+  const { data: before } = await supabase
+    .from('access_codes').select('label, code').eq('id', req.params.id).single();
+
   const { error } = await supabase
     .from('access_codes')
     .delete()
     .eq('id', req.params.id);
 
   if (error) return res.status(500).json({ error: error.message });
+
+  logActivity({
+    action: 'code_delete',
+    summary: `Hapus kode akses ${before?.label || req.params.id}${before?.code ? ` (${before.code})` : ''}`,
+    detail: 'Resi milik pelanggan ini tetap ada, tapi pemiliknya jadi kosong',
+    ref_type: 'code',
+    ref_id: req.params.id,
+  });
+
   res.json({ success: true });
 });
 

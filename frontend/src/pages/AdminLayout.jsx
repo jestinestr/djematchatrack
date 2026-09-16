@@ -11,6 +11,7 @@ const navItems = [
   { to: '/admin/tarif', icon: '💰', label: 'Control Tarif' },
   { to: '/admin/archive', icon: '📁', label: 'Arsip' },
   { to: '/admin/codes', icon: '🔑', label: 'Kode Akses' },
+  { to: '/admin/log', icon: '📝', label: 'Catatan' },
 ];
 
 export default function AdminLayout() {
