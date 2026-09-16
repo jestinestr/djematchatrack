@@ -34,7 +34,7 @@ router.get('/all/:type', async (req, res) => {
 
 // Update fee_per_gram (+ mata uangnya) for a batch
 router.patch('/:id/fee', async (req, res) => {
-  const { fee_per_gram, fee_currency } = req.body;
+  const { fee_per_gram, fee_currency, fine_amount } = req.body;
   if (fee_per_gram === undefined || isNaN(Number(fee_per_gram))) {
     return res.status(400).json({ error: 'fee_per_gram tidak valid' });
   }
@@ -42,6 +42,9 @@ router.patch('/:id/fee', async (req, res) => {
   const updates = { fee_per_gram: Math.max(0, Number(fee_per_gram)) };
   if (fee_currency !== undefined) {
     updates.fee_currency = String(fee_currency).toUpperCase() === 'CNY' ? 'CNY' : 'IDR';
+  }
+  if (fine_amount !== undefined && !isNaN(Number(fine_amount))) {
+    updates.fine_amount = Math.max(0, Number(fine_amount));
   }
 
   const { data, error } = await supabase

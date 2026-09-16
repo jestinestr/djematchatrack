@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CURRENCIES, money, normCurrency } from '../utils/format';
+import { CURRENCIES, money, rupiah, normCurrency } from '../utils/format';
 
 // Pass `parcel` prop to enter edit mode (pre-fills form, calls PATCH instead of POST)
 export default function AddParcelModal({
@@ -8,6 +8,7 @@ export default function AddParcelModal({
   parcel,
   feePerGram = 0,
   feeCurrency = 'IDR',
+  fineAmount = 0,
   onClose,
   onAdded,
   onEdited,
@@ -302,14 +303,18 @@ export default function AddParcelModal({
             <input type="checkbox" checked={form.is_manual_input} onChange={e => setField('is_manual_input', e.target.checked)} className="w-4 h-4 accent-matcha-700" />
             <div>
               <div className="text-sm font-semibold text-amber-800">Input Manual?</div>
-              <div className="text-xs text-amber-600">Jika dicentang, denda Rp 2.000 otomatis ditambahkan</div>
+              <div className="text-xs text-amber-600">
+                {fineAmount > 0
+                  ? `Centang kalau resi ini diketik manual — denda ${rupiah(fineAmount)} otomatis ditambahkan`
+                  : 'Batch ini tidak punya denda input manual (diatur di Control Tarif)'}
+              </div>
             </div>
           </label>
 
-          {form.is_manual_input && (
+          {form.is_manual_input && fineAmount > 0 && (
             <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
               <span>⚠️</span>
-              <span>Denda <strong>Rp 2.000</strong> akan diterapkan pada resi ini</span>
+              <span>Denda <strong>{rupiah(fineAmount)}</strong> akan diterapkan pada resi ini</span>
             </div>
           )}
 

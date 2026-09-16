@@ -185,6 +185,14 @@ export default function AdminBatchCard({
           )}
         </div>
 
+        {/* Penjelasan mode private */}
+        {isPrivate && (
+          <div className="px-4 py-2 bg-amber-50/70 border-b border-amber-100 text-xs text-amber-700">
+            🔒 Pelanggan hanya melihat resi miliknya secara utuh. Resi pelanggan lain tampil
+            sebagai 4 digit terakhir + nama, fotonya disembunyikan.
+          </div>
+        )}
+
         {/* Bar pilih label */}
         {labelMode && (
           <div className="px-4 py-2 border-b border-matcha-100 bg-matcha-50/70 flex items-center gap-2 flex-wrap">
@@ -226,6 +234,9 @@ export default function AdminBatchCard({
                 {label}
               </button>
             ))}
+            <span className="ml-auto text-[11px] text-gray-400 hidden sm:block">
+              Klik baris resi → detail &amp; foto · ✏️ edit · 🏷 Label untuk cetak
+            </span>
           </div>
         )}
 
@@ -288,6 +299,7 @@ export default function AdminBatchCard({
           batchId={batch.id}
           feePerGram={feePerGram}
           feeCurrency={feeCurrency}
+          fineAmount={Number(batch.fine_amount ?? 2000)}
           onClose={() => setShowAdd(false)}
           onAdded={parcel => { onParcelAdded?.(batch.id, parcel); setShowAdd(false); }}
         />
@@ -299,6 +311,7 @@ export default function AdminBatchCard({
           parcel={editingParcel}
           feePerGram={feePerGram}
           feeCurrency={feeCurrency}
+          fineAmount={Number(batch.fine_amount ?? 2000)}
           onClose={() => setEditingParcel(null)}
           onEdited={updated => { onParcelEdited?.(batch.id, updated); setEditingParcel(null); }}
         />
@@ -400,9 +413,22 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected,
 
       {/* Aksi */}
       {!readOnly && !selectable && (
-        <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-          <button onClick={onEdit} className="text-gray-300 hover:text-matcha-600 transition-colors p-1" title="Edit resi">✏️</button>
-          <button onClick={onDelete} className="text-gray-300 hover:text-red-500 transition-colors p-1" title="Hapus resi">🗑</button>
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={onEdit}
+            className="text-gray-400 hover:text-matcha-700 hover:bg-matcha-50 transition-colors p-1.5 rounded-lg"
+            title="Edit resi — berat, biaya, pemilik, foto"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors p-1.5 rounded-lg"
+            title="Hapus resi"
+          >
+            🗑
+          </button>
+          <span className="text-gray-300 text-lg pl-0.5" title="Klik baris untuk lihat detail">›</span>
         </div>
       )}
     </div>

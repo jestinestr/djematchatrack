@@ -42,8 +42,16 @@ const num = (v, fallback = 0) => {
 };
 const currencyOf = v => (String(v).toUpperCase() === 'CNY' ? 'CNY' : 'IDR');
 
+// Besaran denda diambil dari setelan batch (halaman Control Tarif),
+// bukan angka mati di kode.
+async function fineAmountOfBatch(batchId) {
+  if (!batchId) return 0;
+  const { data } = await supabase.from('batches').select('fine_amount').eq('id', batchId).single();
+  return Math.max(0, num(data?.fine_amount, 0));
+}
+
 // Field yang dikirim dari form admin -> kolom tabel
-function buildPayload(kind, body) {
+function buildPayload(kind, body, fine = 0) {
   const isManual = body.is_manual_input === 'true' || body.is_manual_input === true;
   const payload = {
     tracking_number: body.tracking_number?.trim(),
@@ -53,7 +61,7 @@ function buildPayload(kind, body) {
     additional_fee: Math.max(0, num(body.additional_fee)),
     owner_code_id: body.owner_code_id ? parseInt(body.owner_code_id) : null,
     is_manual_input: isManual,
-    fine_amount: isManual ? 2000 : 0, // denda selalu dalam Rupiah
+    fine_amount: isManual ? fine : 0, // denda selalu dalam Rupiah
   };
   if (kind === 'hc') {
     payload.estimated_weight_grams = parseInt(body.estimated_weight_grams) || 0;
@@ -182,7 +190,8 @@ function registerCrud(kind) {
     }
 
     try {
-      const payload = buildPayload(kind, req.body);
+      const fine = await fineAmountOfBatch(parseInt(batch_id));
+      const payload = buildPayload(kind, req.body, fine);
       payload.batch_id = parseInt(batch_id);
       payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
       payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
@@ -199,7 +208,11 @@ function registerCrud(kind) {
 
   router.patch(`/${kind}/:id`, uploadFields, async (req, res) => {
     try {
-      const updates = buildPayload(kind, req.body);
+      // Denda mengikuti batch tempat resi ini berada
+      const { data: current } = await supabase
+        .from(table).select('batch_id').eq('id', req.params.id).single();
+      const fine = await fineAmountOfBatch(current?.batch_id);
+      const updates = buildPayload(kind, req.body, fine);
       const photoFile = req.files?.['photo']?.[0];
       const coPhotoFile = req.files?.['co_photo']?.[0];
       if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);

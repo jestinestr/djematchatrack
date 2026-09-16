@@ -82,6 +82,7 @@ export default function AdminParcels({ type }) {
   }, [batches, search, filterType, filterFine, filterFee, filterOwner, isFiltering, type]);
 
   const filteredTotal = filteredBatches.reduce((s, b) => s + b.parcels.length, 0);
+  const orphanCount = allParcels.filter(p => !p.owner).length;
 
   function resetAll() {
     setSearch(''); setFilterType('all'); setFilterFine('all');
@@ -171,6 +172,21 @@ export default function AdminParcels({ type }) {
           )}
         </div>
       </div>
+
+      {/* Peringatan resi yang belum punya pemilik */}
+      {!loading && orphanCount > 0 && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3 mb-5 flex items-start gap-2.5">
+          <span className="text-lg leading-none">⚠️</span>
+          <div className="text-xs text-amber-800">
+            <p className="font-semibold">{orphanCount} resi belum punya pemilik</p>
+            <p className="text-amber-700 mt-0.5">
+              Resi tanpa pemilik tidak muncul di panel pelanggan mana pun. Buka ✏️ pada resi
+              tersebut lalu pilih Kode Akses pemiliknya — atau saring lewat filter
+              <strong> 👤 Semua pelanggan → Tanpa pemilik</strong> untuk melihat daftarnya.
+            </p>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <LoadingSpinner text="Memuat data..." />

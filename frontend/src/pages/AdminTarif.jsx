@@ -1,17 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { CURRENCIES, money, normCurrency, formatWeight, sumParcels, formatMulti } from '../utils/format';
+import { CURRENCIES, money, rupiah, normCurrency, formatWeight, sumParcels, formatMulti } from '../utils/format';
 
 function BatchTarifCard({ batch, type, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [input, setInput]     = useState(batch.fee_per_gram?.toString() || '0');
   const [cur, setCur]         = useState(normCurrency(batch.fee_currency));
+  const [fineInput, setFineInput] = useState((batch.fine_amount ?? 2000).toString());
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
 
   const parcels     = batch.parcels || [];
   const feePerGram  = batch.fee_per_gram || 0;
   const feeCurrency = normCurrency(batch.fee_currency);
+  const fineAmount  = Number(batch.fine_amount ?? 2000);
   const totals      = sumParcels(parcels, type);
   const totalWeight = totals.weight;
   const isActive    = batch.status === 'active';
@@ -27,7 +29,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
     const res = await fetch(`/api/batches/${batch.id}/fee`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fee_per_gram: val, fee_currency: cur }),
+      body: JSON.stringify({ fee_per_gram: val, fee_currency: cur, fine_amount: Math.max(0, Number(fineInput) || 0) }),
     });
     setSaving(false);
     if (res.ok) {
@@ -35,7 +37,11 @@ function BatchTarifCard({ batch, type, onSaved }) {
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      onSaved?.(batch.id, data.fee_per_gram ?? val, data.fee_currency ?? cur);
+      onSaved?.(batch.id, {
+        fee_per_gram: data.fee_per_gram ?? val,
+        fee_currency: data.fee_currency ?? cur,
+        fine_amount: data.fine_amount ?? (Number(fineInput) || 0),
+      });
     }
   }
 
@@ -76,6 +82,9 @@ function BatchTarifCard({ batch, type, onSaved }) {
             ) : (
               <p className="text-sm text-gray-300 italic">Belum diset</p>
             )}
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Denda input manual: <span className="font-bold text-red-500">{fineAmount > 0 ? rupiah(fineAmount) : 'tidak ada'}</span>
+            </p>
           </div>
 
           {/* Right: total fee */}
@@ -99,8 +108,12 @@ function BatchTarifCard({ batch, type, onSaved }) {
 
         {/* Edit form */}
         {editing ? (
-          <div className="mt-3 flex items-center gap-2">
-            <div className="flex items-center flex-1 gap-1.5 bg-cream-50 border-2 border-matcha-300 rounded-xl px-3 py-2 focus-within:border-matcha-500 transition-colors">
+          <div className="mt-3 space-y-2">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                Tarif per gram
+              </label>
+              <div className="flex items-center gap-1.5 bg-cream-50 border-2 border-matcha-300 rounded-xl px-3 py-2 focus-within:border-matcha-500 transition-colors">
               <select
                 value={cur}
                 onChange={e => setCur(e.target.value)}
@@ -119,16 +132,48 @@ function BatchTarifCard({ batch, type, onSaved }) {
                 placeholder="0"
                 autoFocus
               />
-              <span className="text-xs text-gray-400 shrink-0">/gram</span>
+                <span className="text-xs text-gray-400 shrink-0">/gram</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Dipakai mengisi otomatis kolom biaya saat admin menimbang resi. Bisa ditimpa manual per resi.
+              </p>
             </div>
-            <button onClick={save} disabled={saving}
-              className="btn-primary text-sm px-4 py-2 shrink-0 disabled:opacity-50">
-              {saving ? 'Simpan...' : 'Simpan'}
-            </button>
-            <button onClick={() => { setEditing(false); setInput(batch.fee_per_gram?.toString() || '0'); }}
-              className="btn-secondary text-sm px-3 py-2 shrink-0">
-              Batal
-            </button>
+
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                Denda input manual
+              </label>
+              <div className="flex items-center gap-1.5 bg-cream-50 border-2 border-red-200 rounded-xl px-3 py-2 focus-within:border-red-400 transition-colors">
+                <span className="text-xs font-bold text-red-400 shrink-0">Rp</span>
+                <input
+                  type="number" min="0"
+                  value={fineInput}
+                  onChange={e => setFineInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+                  className="flex-1 text-sm font-mono font-bold bg-transparent outline-none text-red-600 min-w-0"
+                  placeholder="0"
+                />
+                <span className="text-xs text-gray-400 shrink-0">/resi</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Dikenakan otomatis kalau resi ditandai "Input Manual". Isi 0 kalau batch ini tanpa denda.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-0.5">
+              <button onClick={save} disabled={saving}
+                className="btn-primary text-sm px-4 py-2 flex-1 disabled:opacity-50">
+                {saving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button onClick={() => {
+                  setEditing(false);
+                  setInput(batch.fee_per_gram?.toString() || '0');
+                  setFineInput((batch.fine_amount ?? 2000).toString());
+                }}
+                className="btn-secondary text-sm px-3 py-2">
+                Batal
+              </button>
+            </div>
           </div>
         ) : (
           <div className="mt-3 flex items-center gap-2">
@@ -140,7 +185,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
                   : 'bg-matcha-800 border-matcha-800 text-white hover:bg-matcha-700 shadow-clay-sm active:shadow-none active:translate-y-[1px]'
               }`}
             >
-              {feePerGram > 0 ? '✏️ Ubah Tarif' : '+ Set Tarif'}
+              {feePerGram > 0 ? '✏️ Ubah Tarif & Denda' : '+ Set Tarif & Denda'}
             </button>
             {saved && (
               <span className="text-xs text-green-600 font-semibold animate-pop-in">✓ Tersimpan!</span>
@@ -171,8 +216,8 @@ export default function AdminTarif() {
 
   useEffect(() => { load(); }, [load]);
 
-  function handleSaved(batchId, fee_per_gram, fee_currency, setter) {
-    setter(prev => prev.map(b => b.id === batchId ? { ...b, fee_per_gram, fee_currency } : b));
+  function handleSaved(batchId, patch, setter) {
+    setter(prev => prev.map(b => (b.id === batchId ? { ...b, ...patch } : b)));
   }
 
   const hcActive   = hcBatches.filter(b => b.status === 'active');
@@ -187,7 +232,7 @@ export default function AdminTarif() {
         <span className="text-3xl">💰</span>
         <div>
           <h1 className="text-xl font-bold text-matcha-800">Control Tarif</h1>
-          <p className="text-sm text-gray-500">Atur tarif per gram untuk setiap batch HC & WH</p>
+          <p className="text-sm text-gray-500">Atur tarif per gram dan denda untuk setiap batch HC & WH</p>
         </div>
       </div>
 
@@ -215,13 +260,13 @@ export default function AdminTarif() {
                 {/* Active first */}
                 {hcActive.map(b => (
                   <BatchTarifCard key={b.id} batch={b} type="HC"
-                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setHcBatches)} />
+                    onSaved={(id, patch) => handleSaved(id, patch, setHcBatches)} />
                 ))}
 
                 {/* Archived - collapsible */}
                 {hcArchived.length > 0 && (
                   <ArchivedSection batches={hcArchived} type="HC"
-                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setHcBatches)} />
+                    onSaved={(id, patch) => handleSaved(id, patch, setHcBatches)} />
                 )}
               </div>
             )}
@@ -245,12 +290,12 @@ export default function AdminTarif() {
               <div className="space-y-3">
                 {whActive.map(b => (
                   <BatchTarifCard key={b.id} batch={b} type="WH"
-                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setWhBatches)} />
+                    onSaved={(id, patch) => handleSaved(id, patch, setWhBatches)} />
                 ))}
 
                 {whArchived.length > 0 && (
                   <ArchivedSection batches={whArchived} type="WH"
-                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setWhBatches)} />
+                    onSaved={(id, patch) => handleSaved(id, patch, setWhBatches)} />
                 )}
               </div>
             )}

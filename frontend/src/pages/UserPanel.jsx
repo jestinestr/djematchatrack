@@ -298,6 +298,9 @@ export default function UserPanel({ type }) {
                     <span className="text-xs text-gray-400">{mineShown.length} resi</span>
                     <div className="flex-1 h-px bg-cream-200" />
                   </div>
+                  <p className="text-xs text-gray-400 mb-3 -mt-1">
+                    Ketuk satu resi untuk melihat detail, foto, dan resi kamu yang lain di batch ini.
+                  </p>
 
                   {mineShown.length === 0 ? (
                     <div className="card text-center py-10 text-gray-400">
@@ -333,6 +336,11 @@ export default function UserPanel({ type }) {
                       <span className="text-xs text-gray-400">{othersShown.length} resi</span>
                       <div className="flex-1 h-px bg-cream-200" />
                     </div>
+                    <p className="text-xs text-gray-400 mb-3 -mt-1">
+                      {batch.is_private
+                        ? 'Resi milik pelanggan lain di batch yang sama. Nomor dan fotonya sengaja disembunyikan demi privasi mereka.'
+                        : 'Resi milik pelanggan lain yang berangkat di batch yang sama.'}
+                    </p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {othersShown.map(p => (
                         <ParcelCard
