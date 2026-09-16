@@ -90,12 +90,16 @@ router.post('/', upload.any(), async (req, res) => {
   // Siapa yang menyetor — diambil dari kode akses di header, bukan dari body,
   // supaya pengirim tidak bisa mengaku-aku sebagai pelanggan lain.
   const rawCode = (req.get('X-Access-Code') || '').trim();
-  let ownerCodeId = null;
-  if (rawCode) {
-    const { data: codeRow } = await supabase
-      .from('access_codes').select('id').ilike('code', rawCode).single();
-    ownerCodeId = codeRow?.id ?? null;
-  }
+  if (!rawCode) return res.status(401).json({ error: 'Kode akses tidak dikirim' });
+
+  const { data: codeRow } = await supabase
+    .from('access_codes').select('id, label').ilike('code', rawCode).single();
+  if (!codeRow) return res.status(401).json({ error: 'Kode akses tidak valid' });
+
+  const ownerCodeId = codeRow.id;
+  // Nama penerima tidak lagi diketik user — pakai nama pemilik kode akses
+  // supaya kepemilikan tidak bisa dikarang dari isian bebas.
+  const ownerLabel = codeRow.label;
 
   let items;
   try { items = JSON.parse(itemsJson); } catch { return res.status(400).json({ error: 'Data tidak valid' }); }
@@ -116,8 +120,8 @@ router.post('/', upload.any(), async (req, res) => {
 
   // Validate
   for (const [i, item] of items.entries()) {
-    if (!item.tracking_number?.trim() || !item.recipient_name?.trim()) {
-      return res.status(400).json({ error: `Baris ${i + 1}: nomor resi dan nama penerima wajib diisi` });
+    if (!item.tracking_number?.trim()) {
+      return res.status(400).json({ error: `Baris ${i + 1}: nomor resi wajib diisi` });
     }
   }
 
@@ -126,7 +130,7 @@ router.post('/', upload.any(), async (req, res) => {
     const rows = await Promise.all(items.map(async (item, i) => ({
       type,
       tracking_number: item.tracking_number.trim(),
-      recipient_name: item.recipient_name.trim(),
+      recipient_name: ownerLabel,
       parcel_type: item.parcel_type || 'barang',
       notes: item.notes?.trim() || null,
       co_photo_url: await uploadPhoto(coPhotoFiles[i] || null),

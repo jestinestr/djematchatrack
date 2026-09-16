@@ -3,7 +3,6 @@ import { fetchAsUser } from '../utils/format';
 
 const emptyRow = () => ({
   tracking_number: '',
-  recipient_name: '',
   parcel_type: 'barang',
   notes: '',
   coPhoto: null,
@@ -42,8 +41,8 @@ export default function RequestForm({ type, onSubmitted }) {
     setError('');
 
     for (const [i, item] of items.entries()) {
-      if (!item.tracking_number.trim() || !item.recipient_name.trim()) {
-        setError(`Resi #${i + 1}: nomor resi dan nama penerima wajib diisi`);
+      if (!item.tracking_number.trim()) {
+        setError(`Resi #${i + 1}: nomor resi wajib diisi`);
         return;
       }
     }
@@ -54,8 +53,8 @@ export default function RequestForm({ type, onSubmitted }) {
       fd.append('type', type);
 
       // Append items as JSON (without file objects)
-      const itemsData = items.map(({ tracking_number, recipient_name, parcel_type, notes }) => ({
-        tracking_number, recipient_name, parcel_type, notes,
+      const itemsData = items.map(({ tracking_number, parcel_type, notes }) => ({
+        tracking_number, parcel_type, notes,
       }));
       fd.append('items', JSON.stringify(itemsData));
 
@@ -125,15 +124,6 @@ export default function RequestForm({ type, onSubmitted }) {
               placeholder="Nomor resi (cth: JD1234567890)"
               value={item.tracking_number}
               onChange={e => updateRow(idx, 'tracking_number', e.target.value)}
-              required
-            />
-
-            {/* Recipient */}
-            <input
-              className="input-field text-sm"
-              placeholder="Nama penerima"
-              value={item.recipient_name}
-              onChange={e => updateRow(idx, 'recipient_name', e.target.value)}
               required
             />
 
