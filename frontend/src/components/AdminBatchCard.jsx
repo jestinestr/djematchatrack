@@ -300,6 +300,7 @@ export default function AdminBatchCard({
           feePerGram={feePerGram}
           feeCurrency={feeCurrency}
           fineAmount={Number(batch.fine_amount ?? 2000)}
+          batchNumber={batch.batch_number}
           onClose={() => setShowAdd(false)}
           onAdded={parcel => { onParcelAdded?.(batch.id, parcel); setShowAdd(false); }}
         />
@@ -312,6 +313,7 @@ export default function AdminBatchCard({
           feePerGram={feePerGram}
           feeCurrency={feeCurrency}
           fineAmount={Number(batch.fine_amount ?? 2000)}
+          batchNumber={batch.batch_number}
           onClose={() => setEditingParcel(null)}
           onEdited={updated => { onParcelEdited?.(batch.id, updated); setEditingParcel(null); }}
         />
@@ -403,6 +405,11 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected,
           {extra > 0 && (
             <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
               ➕ {money(extra, p.currency)}
+            </span>
+          )}
+          {p.is_manual_input && (
+            <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-300 font-semibold" title="Resi ini diketik manual">
+              ✍️ Manual
             </span>
           )}
           {p.fine_amount > 0 && (

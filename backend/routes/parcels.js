@@ -52,10 +52,13 @@ async function getBatch(batchId) {
   return data || null;
 }
 
-const fineOf = batch => Math.max(0, num(batch?.fine_amount, 0));
 
 // Field yang dikirim dari form admin -> kolom tabel
-function buildPayload(kind, body, fine = 0) {
+//
+// Catatan: menandai resi sebagai "input manual" TIDAK lagi otomatis
+// menambah denda. Tanda itu murni penanda; besaran denda diisi admin
+// sendiri di kolom Denda (tombol isi cepat memakai setelan batch).
+function buildPayload(kind, body) {
   const isManual = body.is_manual_input === 'true' || body.is_manual_input === true;
   const payload = {
     tracking_number: body.tracking_number?.trim(),
@@ -65,7 +68,7 @@ function buildPayload(kind, body, fine = 0) {
     additional_fee: Math.max(0, num(body.additional_fee)),
     owner_code_id: body.owner_code_id ? parseInt(body.owner_code_id) : null,
     is_manual_input: isManual,
-    fine_amount: isManual ? fine : 0, // denda selalu dalam Rupiah
+    fine_amount: Math.max(0, num(body.fine_amount)), // selalu dalam Rupiah
   };
   if (kind === 'hc') {
     payload.estimated_weight_grams = parseInt(body.estimated_weight_grams) || 0;
@@ -195,7 +198,7 @@ function registerCrud(kind) {
 
     try {
       const batch = await getBatch(parseInt(batch_id));
-      const payload = buildPayload(kind, req.body, fineOf(batch));
+      const payload = buildPayload(kind, req.body);
       payload.batch_id = parseInt(batch_id);
       payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
       payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
@@ -225,7 +228,7 @@ function registerCrud(kind) {
       const { data: current } = await supabase
         .from(table).select('batch_id, owner_code_id, tracking_number').eq('id', req.params.id).single();
       const batch = await getBatch(current?.batch_id);
-      const updates = buildPayload(kind, req.body, fineOf(batch));
+      const updates = buildPayload(kind, req.body);
       const photoFile = req.files?.['photo']?.[0];
       const coPhotoFile = req.files?.['co_photo']?.[0];
       if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);

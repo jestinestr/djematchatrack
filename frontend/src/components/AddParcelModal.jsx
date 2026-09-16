@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CURRENCIES, money, rupiah, normCurrency } from '../utils/format';
+import LabelPrintModal from './LabelPrintModal';
 
 // Pass `parcel` prop to enter edit mode (pre-fills form, calls PATCH instead of POST)
 export default function AddParcelModal({
@@ -9,6 +10,7 @@ export default function AddParcelModal({
   feePerGram = 0,
   feeCurrency = 'IDR',
   fineAmount = 0,
+  batchNumber,
   onClose,
   onAdded,
   onEdited,
@@ -28,8 +30,10 @@ export default function AddParcelModal({
     hc_fee: parcel?.hc_fee?.toString() || '',
     wh_fee: parcel?.wh_fee?.toString() || '',
     additional_fee: parcel?.additional_fee?.toString() || '',
+    fine_amount: parcel?.fine_amount ? String(parcel.fine_amount) : '',
     is_manual_input: parcel?.is_manual_input || false,
   });
+  const [showLabel, setShowLabel] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(parcel?.photo_url || null);
   const [coPhoto, setCoPhoto] = useState(null);
@@ -101,6 +105,7 @@ export default function AddParcelModal({
     fd.append('type', form.parcel_type);
     fd.append('currency', form.currency);
     fd.append('additional_fee', form.additional_fee || '0');
+    fd.append('fine_amount', form.fine_amount || '0');
     fd.append('owner_code_id', form.owner_code_id || '');
     fd.append('is_manual_input', form.is_manual_input ? 'true' : 'false');
     fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
@@ -298,25 +303,41 @@ export default function AddParcelModal({
             </div>
           </div>
 
-          {/* Input manual */}
+          {/* Penanda input manual — cuma tanda, tidak menambah denda */}
           <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">
-            <input type="checkbox" checked={form.is_manual_input} onChange={e => setField('is_manual_input', e.target.checked)} className="w-4 h-4 accent-matcha-700" />
+            <input type="checkbox" checked={form.is_manual_input} onChange={e => setField('is_manual_input', e.target.checked)} className="w-4 h-4 accent-amber-600" />
             <div>
-              <div className="text-sm font-semibold text-amber-800">Input Manual?</div>
+              <div className="text-sm font-semibold text-amber-800">✍️ Tandai sebagai input manual</div>
               <div className="text-xs text-amber-600">
-                {fineAmount > 0
-                  ? `Centang kalau resi ini diketik manual — denda ${rupiah(fineAmount)} otomatis ditambahkan`
-                  : 'Batch ini tidak punya denda input manual (diatur di Control Tarif)'}
+                Sekadar penanda — tidak menambah denda. Muncul sebagai label kuning di daftar resi
+                dan sebagai kolom tersendiri saat export CSV.
               </div>
             </div>
           </label>
 
-          {form.is_manual_input && fineAmount > 0 && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              <span>⚠️</span>
-              <span>Denda <strong>{rupiah(fineAmount)}</strong> akan diterapkan pada resi ini</span>
-            </div>
-          )}
+          {/* Denda — diisi sendiri, tidak otomatis */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Denda (Rp)
+              <span className="text-xs text-gray-400 font-normal ml-1">opsional, diisi sendiri</span>
+            </label>
+            <input
+              type="number" min="0"
+              className="input-field"
+              value={form.fine_amount}
+              onChange={e => setField('fine_amount', e.target.value)}
+              placeholder="0"
+            />
+            {fineAmount > 0 && String(form.fine_amount) !== String(fineAmount) && (
+              <p className="text-xs text-gray-400 mt-1">
+                Denda batch ini:{' '}
+                <button type="button" className="text-red-500 underline font-medium"
+                  onClick={() => setField('fine_amount', String(fineAmount))}>
+                  pakai {rupiah(fineAmount)}
+                </button>
+              </p>
+            )}
+          </div>
 
           {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
@@ -326,8 +347,32 @@ export default function AddParcelModal({
               {loading ? 'Menyimpan...' : isEdit ? '💾 Simpan Perubahan' : 'Simpan Resi'}
             </button>
           </div>
+
+          {/* Cetak label resi ini — hanya saat mengedit resi yang sudah tersimpan */}
+          {isEdit && (
+            <button
+              type="button"
+              onClick={() => setShowLabel(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border-2 border-dashed border-matcha-300 text-matcha-700 font-semibold text-sm hover:bg-matcha-50 hover:border-matcha-400 transition-all"
+            >
+              🏷 Cetak Label Resi Ini
+            </button>
+          )}
         </form>
       </div>
+
+      {showLabel && (
+        <LabelPrintModal
+          parcels={[{
+            id: parcel.id,
+            recipient_name: form.recipient_name,
+            tracking_number: form.tracking_number,
+          }]}
+          batchNumber={batchNumber ?? parcel.batch_id}
+          type={type}
+          onClose={() => setShowLabel(false)}
+        />
+      )}
     </div>
   );
 }

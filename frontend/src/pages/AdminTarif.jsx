@@ -83,7 +83,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
               <p className="text-sm text-gray-300 italic">Belum diset</p>
             )}
             <p className="text-[11px] text-gray-400 mt-1.5">
-              Denda input manual: <span className="font-bold text-red-500">{fineAmount > 0 ? rupiah(fineAmount) : 'tidak ada'}</span>
+              Denda bawaan: <span className="font-bold text-red-500">{fineAmount > 0 ? rupiah(fineAmount) : 'tidak ada'}</span>
             </p>
           </div>
 
@@ -156,7 +156,8 @@ function BatchTarifCard({ batch, type, onSaved }) {
                 <span className="text-xs text-gray-400 shrink-0">/resi</span>
               </div>
               <p className="text-[11px] text-gray-400 mt-1">
-                Dikenakan otomatis kalau resi ditandai "Input Manual". Isi 0 kalau batch ini tanpa denda.
+                Nilai bawaan untuk tombol isi cepat denda di form resi. Tidak dikenakan otomatis —
+                denda tetap kamu isi sendiri per resi.
               </p>
             </div>
 

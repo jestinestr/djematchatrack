@@ -126,26 +126,7 @@ export default function AdminInvoice() {
   }
 
   // ── Export CSV ────────────────────────────────────────────────────
-  function exportCSV() {
-    const rows = [[
-      'Pelanggan', 'Kode Akses', 'Jumlah Resi',
-      'Biaya Rp', 'Biaya Yuan', 'Denda Rp', 'Total Rp', 'Total Yuan',
-    ]];
-    for (const c of customers) {
-      rows.push([
-        c.owner?.label || 'Tanpa Pemilik',
-        c.owner?.code || '-',
-        c.parcel_count,
-        c.totals.IDR.fee + c.totals.IDR.additional,
-        c.totals.CNY.fee + c.totals.CNY.additional,
-        c.totals.IDR.fine,
-        c.totals.IDR.total,
-        c.totals.CNY.total,
-      ]);
-    }
-    rows.push([]);
-    rows.push(['TOTAL', '', grand.parcels, grand.IDR, grand.CNY, grand.fine, grand.IDR + grand.fine, grand.CNY]);
-
+  function downloadCSV(rows, suffix) {
     const csv = rows
       .map(r => r.map(cell => {
         const v = String(cell ?? '');
@@ -156,9 +137,62 @@ export default function AdminInvoice() {
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `invoice_${type}_batch_${batch?.batch_number || batchId}.csv`;
+    a.download = `${suffix}_${type}_batch_${batch?.batch_number || batchId}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // Rekap per pelanggan
+  function exportCSV() {
+    const rows = [[
+      'Pelanggan', 'Kode Akses', 'Jumlah Resi', 'Resi Input Manual',
+      'Biaya Rp', 'Biaya Yuan', 'Denda Rp', 'Total Rp', 'Total Yuan',
+    ]];
+    let manualAll = 0;
+    for (const c of customers) {
+      const manual = c.parcels.filter(p => p.is_manual_input).length;
+      manualAll += manual;
+      rows.push([
+        c.owner?.label || 'Tanpa Pemilik',
+        c.owner?.code || '-',
+        c.parcel_count,
+        manual || '',
+        c.totals.IDR.fee + c.totals.IDR.additional,
+        c.totals.CNY.fee + c.totals.CNY.additional,
+        c.totals.IDR.fine,
+        c.totals.IDR.total,
+        c.totals.CNY.total,
+      ]);
+    }
+    rows.push([]);
+    rows.push(['TOTAL', '', grand.parcels, manualAll || '', grand.IDR, grand.CNY, grand.fine, grand.IDR + grand.fine, grand.CNY]);
+    downloadCSV(rows, 'rekap');
+  }
+
+  // Rincian per resi — kolom INPUT MANUAL jadi penanda yang gampang disorot
+  function exportDetailCSV() {
+    const rows = [[
+      'Pelanggan', 'Kode Akses', 'Nomor Resi', 'Nama Penerima', 'Jenis',
+      'Input Manual', 'Berat (g)', 'Biaya', 'Mata Uang', 'Additional Fee', 'Denda Rp',
+    ]];
+    for (const c of customers) {
+      for (const p of c.parcels) {
+        rows.push([
+          c.owner?.label || 'Tanpa Pemilik',
+          c.owner?.code || '-',
+          p.tracking_number,
+          p.recipient_name,
+          p.type === 'paperbased' ? 'Paperbased' : 'Barang',
+          p.is_manual_input ? 'MANUAL' : '',
+          p.estimated_weight_grams || '',
+          baseFee(p, type) || '',
+          normCurrency(p.currency),
+          p.additional_fee || '',
+          p.fine_amount || '',
+        ]);
+      }
+    }
+    downloadCSV(rows, 'rincian');
   }
 
   return (
@@ -203,9 +237,18 @@ export default function AdminInvoice() {
         <button
           onClick={exportCSV}
           disabled={!customers.length}
+          title="Satu baris per pelanggan — total tagihannya"
           className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40"
         >
-          ⬇️ Export CSV
+          ⬇️ Rekap CSV
+        </button>
+        <button
+          onClick={exportDetailCSV}
+          disabled={!customers.length}
+          title="Satu baris per resi, lengkap dengan kolom penanda Input Manual"
+          className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40"
+        >
+          ⬇️ Rincian Resi
         </button>
         <button
           onClick={printInvoices}
@@ -358,7 +401,14 @@ export default function AdminInvoice() {
                       {c.parcels.map(p => (
                         <div key={p.id} className="flex items-center gap-3 px-4 py-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-700 truncate">{p.recipient_name}</p>
+                            <p className="text-xs font-semibold text-gray-700 truncate">
+                              {p.recipient_name}
+                              {p.is_manual_input && (
+                                <span className="ml-1.5 text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-full align-middle">
+                                  ✍️ MANUAL
+                                </span>
+                              )}
+                            </p>
                             <p className="text-[11px] font-mono text-gray-400 truncate">{p.tracking_number}</p>
                           </div>
                           <div className="text-right text-[11px] flex-shrink-0">
@@ -394,7 +444,7 @@ function buildInvoicesHTML(batch, customers, type) {
       <tr>
         <td class="num">${i + 1}</td>
         <td>
-          <div class="name">${esc(p.recipient_name)}</div>
+          <div class="name">${esc(p.recipient_name)}${p.is_manual_input ? ' <span class="tag">MANUAL</span>' : ''}</div>
           <div class="mono">${esc(p.tracking_number)}</div>
         </td>
         <td>${p.type === 'paperbased' ? 'Paperbased' : 'Barang'}</td>
@@ -495,6 +545,9 @@ function buildInvoicesHTML(batch, customers, type) {
   .items td { font-size: 12px; padding: 8px; border-bottom: 1px solid #f3f4f6;
               vertical-align: top; }
   .items .name { font-weight: 600; }
+  .tag { display: inline-block; font-size: 8pt; font-weight: 700; letter-spacing: .04em;
+         background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+         border-radius: 999px; padding: 0 5px; vertical-align: middle; }
   .summary { margin-top: 18px; margin-left: auto; width: 320px; }
   .summary td { font-size: 12px; padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
   .summary .grand td { font-weight: 800; font-size: 13px; color: #2A4A40;

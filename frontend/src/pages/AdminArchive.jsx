@@ -119,6 +119,7 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
           feePerGram={batch.fee_per_gram || 0}
           feeCurrency={batch.fee_currency || 'IDR'}
           fineAmount={Number(batch.fine_amount ?? 2000)}
+          batchNumber={batch.batch_number}
           onClose={() => setEditingParcel(null)}
           onEdited={updated => { onParcelEdited(updated); setEditingParcel(null); }}
         />
