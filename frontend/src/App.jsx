@@ -11,6 +11,7 @@ import AdminArchive from './pages/AdminArchive';
 import AdminCodes from './pages/AdminCodes';
 import AdminRequests from './pages/AdminRequests';
 import AdminGallery from './pages/AdminGallery';
+import AdminInvoice from './pages/AdminInvoice';
 import AdminTarif from './pages/AdminTarif';
 
 function RequireAdmin({ children }) {
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/admin/gallery"  element={<AdminGallery />} />
         <Route path="/admin/requests" element={<AdminRequests />} />
         <Route path="/admin/archive" element={<AdminArchive />} />
+        <Route path="/admin/invoice" element={<AdminInvoice />} />
         <Route path="/admin/tarif" element={<AdminTarif />} />
         <Route path="/admin/codes" element={<AdminCodes />} />
       </Route>

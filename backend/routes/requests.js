@@ -30,8 +30,44 @@ router.get('/', async (req, res) => {
 
   const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  res.json(await markDuplicates(data || []));
 });
+
+// Tandai resi yang sudah pernah masuk — baik sudah jadi parcel maupun
+// disetor dua kali di daftar request yang sama.
+const normTn = s => (s || '').trim().toLowerCase();
+
+async function markDuplicates(requests) {
+  if (!requests.length) return requests;
+
+  const numbers = [...new Set(requests.map(r => (r.tracking_number || '').trim()).filter(Boolean))];
+
+  const [hc, wh] = await Promise.all([
+    supabase.from('hc_parcels').select('tracking_number, batch_id').in('tracking_number', numbers),
+    supabase.from('wh_parcels').select('tracking_number, batch_id').in('tracking_number', numbers),
+  ]);
+
+  const existing = new Set([...(hc.data || []), ...(wh.data || [])].map(p => normTn(p.tracking_number)));
+
+  // Hitung berapa kali nomor yang sama muncul di daftar request ini
+  const seen = new Map();
+  for (const r of requests) {
+    const key = normTn(r.tracking_number);
+    seen.set(key, (seen.get(key) || 0) + 1);
+  }
+
+  return requests.map(r => {
+    const key = normTn(r.tracking_number);
+    const inParcels = existing.has(key);
+    const repeated = (seen.get(key) || 0) > 1;
+    return {
+      ...r,
+      duplicate_of: inParcels ? 'parcel' : repeated ? 'request' : null,
+      duplicate_count: seen.get(key) || 1,
+    };
+  });
+}
 
 // ── GET pending count (for badge) ───────────────────────
 router.get('/count', async (req, res) => {
@@ -46,6 +82,16 @@ router.get('/count', async (req, res) => {
 // ── POST submit requests (user) — max 10, with CO photos ────────────────
 router.post('/', upload.any(), async (req, res) => {
   const { type, items: itemsJson } = req.body;
+
+  // Siapa yang menyetor — diambil dari kode akses di header, bukan dari body,
+  // supaya pengirim tidak bisa mengaku-aku sebagai pelanggan lain.
+  const rawCode = (req.get('X-Access-Code') || '').trim();
+  let ownerCodeId = null;
+  if (rawCode) {
+    const { data: codeRow } = await supabase
+      .from('access_codes').select('id').ilike('code', rawCode).single();
+    ownerCodeId = codeRow?.id ?? null;
+  }
 
   let items;
   try { items = JSON.parse(itemsJson); } catch { return res.status(400).json({ error: 'Data tidak valid' }); }
@@ -80,6 +126,7 @@ router.post('/', upload.any(), async (req, res) => {
       parcel_type: item.parcel_type || 'barang',
       notes: item.notes?.trim() || null,
       co_photo_url: await uploadPhoto(coPhotoFiles[i] || null),
+      owner_code_id: ownerCodeId,
       status: 'pending',
     })));
 
@@ -125,6 +172,9 @@ router.patch('/:id/approve', async (req, res) => {
     recipient_name: req_data.recipient_name,
     type: req_data.parcel_type,
     co_photo_url: req_data.co_photo_url || null,
+    owner_code_id: req_data.owner_code_id || null,
+    currency: 'IDR',
+    additional_fee: 0,
     status: 'active',
     is_manual_input: false,
     fine_amount: 0,
@@ -132,6 +182,7 @@ router.patch('/:id/approve', async (req, res) => {
   if (parcelType === 'HC') {
     insertData.estimated_weight_grams = 0;
     insertData.estimated_quantity = 1;
+    insertData.hc_fee = 0;
   } else {
     insertData.wh_fee = 0;
   }

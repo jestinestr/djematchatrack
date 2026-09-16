@@ -29,3 +29,6 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Backup isi database (berisi data pelanggan)
+backups/

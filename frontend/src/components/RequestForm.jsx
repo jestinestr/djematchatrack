@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fetchAsUser } from '../utils/format';
 
 const emptyRow = () => ({
   tracking_number: '',
@@ -63,7 +64,7 @@ export default function RequestForm({ type, onSubmitted }) {
         if (item.coPhoto) fd.append(`co_photo_${i}`, item.coPhoto);
       });
 
-      const res = await fetch('/api/requests', { method: 'POST', body: fd });
+      const res = await fetchAsUser('/api/requests', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Gagal mengirim'); return; }
 

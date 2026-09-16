@@ -1,17 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CURRENCIES, money, normCurrency } from '../utils/format';
 
 // Pass `parcel` prop to enter edit mode (pre-fills form, calls PATCH instead of POST)
-export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, onClose, onAdded, onEdited }) {
+export default function AddParcelModal({
+  type,
+  batchId,
+  parcel,
+  feePerGram = 0,
+  feeCurrency = 'IDR',
+  onClose,
+  onAdded,
+  onEdited,
+}) {
   const isHC = type === 'HC';
   const isEdit = !!parcel;
 
+  const [codes, setCodes] = useState([]);
   const [form, setForm] = useState({
+    owner_code_id: parcel?.owner_code_id ? String(parcel.owner_code_id) : (parcel?.owner?.id ? String(parcel.owner.id) : ''),
     recipient_name: parcel?.recipient_name || '',
     tracking_number: parcel?.tracking_number || '',
     parcel_type: parcel?.type || 'barang',
+    currency: normCurrency(parcel?.currency || feeCurrency),
     estimated_weight_grams: parcel?.estimated_weight_grams?.toString() || '',
     estimated_quantity: parcel?.estimated_quantity?.toString() || '1',
+    hc_fee: parcel?.hc_fee?.toString() || '',
     wh_fee: parcel?.wh_fee?.toString() || '',
+    additional_fee: parcel?.additional_fee?.toString() || '',
     is_manual_input: parcel?.is_manual_input || false,
   });
   const [photo, setPhoto] = useState(null);
@@ -20,6 +35,44 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
   const [coPreview, setCoPreview] = useState(parcel?.co_photo_url || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/codes').then(r => r.json()).then(setCodes).catch(() => {});
+  }, []);
+
+  const feeField = isHC ? 'hc_fee' : 'wh_fee';
+  const weight = parseInt(form.estimated_weight_grams) || 0;
+  const autoFee = feePerGram > 0 && weight > 0 ? Math.round(weight * feePerGram * 100) / 100 : 0;
+
+  function setField(key, value) {
+    setForm(f => ({ ...f, [key]: value }));
+  }
+
+  // Pilih pemilik -> nama penerima ikut terisi kalau masih kosong/sama
+  function pickOwner(id) {
+    const chosen = codes.find(c => String(c.id) === String(id));
+    setForm(f => {
+      const prevOwner = codes.find(c => String(c.id) === String(f.owner_code_id));
+      const nameIsAuto = !f.recipient_name.trim() || f.recipient_name === prevOwner?.label;
+      return {
+        ...f,
+        owner_code_id: id,
+        recipient_name: chosen && nameIsAuto ? chosen.label : f.recipient_name,
+      };
+    });
+  }
+
+  function handleWeightChange(v) {
+    setForm(f => {
+      const w = parseInt(v) || 0;
+      const next = { ...f, estimated_weight_grams: v };
+      // isi otomatis biaya kalau tarif per gram sudah diset
+      if (feePerGram > 0 && w > 0) {
+        next[feeField] = String(Math.round(w * feePerGram * 100) / 100);
+      }
+      return next;
+    });
+  }
 
   function handlePhotoChange(e) {
     const file = e.target.files[0];
@@ -45,16 +98,19 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
     fd.append('tracking_number', form.tracking_number);
     fd.append('recipient_name', form.recipient_name);
     fd.append('type', form.parcel_type);
+    fd.append('currency', form.currency);
+    fd.append('additional_fee', form.additional_fee || '0');
+    fd.append('owner_code_id', form.owner_code_id || '');
     fd.append('is_manual_input', form.is_manual_input ? 'true' : 'false');
+    fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
     if (photo) fd.append('photo', photo);
     if (coPhoto) fd.append('co_photo', coPhoto);
 
     if (isHC) {
-      fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
       fd.append('estimated_quantity', form.estimated_quantity || '1');
+      fd.append('hc_fee', form.hc_fee || '0');
     } else {
       fd.append('wh_fee', form.wh_fee || '0');
-      fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
     }
 
     const endpoint = isHC ? 'hc' : 'wh';
@@ -65,11 +121,8 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
       const res = await fetch(url, { method, body: fd });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Gagal menyimpan resi'); return; }
-      if (isEdit) {
-        onEdited?.(data);
-      } else {
-        onAdded?.(data);
-      }
+      if (isEdit) onEdited?.(data);
+      else onAdded?.(data);
       onClose();
     } catch {
       setError('Koneksi gagal');
@@ -92,37 +145,60 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Recipient */}
+          {/* Pemilik */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Pemilik (Kode Akses)
+              <span className="text-xs text-gray-400 font-normal ml-1">menentukan siapa yang bisa lihat</span>
+            </label>
+            <select
+              className="input-field"
+              value={form.owner_code_id}
+              onChange={e => pickOwner(e.target.value)}
+            >
+              <option value="">— Belum ditentukan —</option>
+              {codes.map(c => (
+                <option key={c.id} value={c.id}>{c.label} ({c.code})</option>
+              ))}
+            </select>
+            {!form.owner_code_id && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Tanpa pemilik, resi ini tidak muncul di panel pelanggan mana pun
+              </p>
+            )}
+          </div>
+
+          {/* Nama penerima */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penerima <span className="text-red-500">*</span></label>
             <input
               className="input-field"
               value={form.recipient_name}
-              onChange={e => setForm(f => ({ ...f, recipient_name: e.target.value }))}
+              onChange={e => setField('recipient_name', e.target.value)}
               placeholder="Nama lengkap penerima"
               required
             />
           </div>
 
-          {/* Tracking number */}
+          {/* Nomor resi */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Resi <span className="text-red-500">*</span></label>
             <input
               className="input-field font-mono"
               value={form.tracking_number}
-              onChange={e => setForm(f => ({ ...f, tracking_number: e.target.value }))}
+              onChange={e => setField('tracking_number', e.target.value)}
               placeholder="JD1234567890..."
               required
             />
           </div>
 
-          {/* Parcel type */}
+          {/* Jenis paket */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Paket <span className="text-red-500">*</span></label>
             <div className="flex gap-3">
               {['barang', 'paperbased'].map(t => (
                 <label key={t} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form.parcel_type === t ? 'border-matcha-600 bg-matcha-50 text-matcha-800' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  <input type="radio" name="parcel_type" value={t} checked={form.parcel_type === t} onChange={() => setForm(f => ({ ...f, parcel_type: t }))} className="sr-only" />
+                  <input type="radio" name="parcel_type" value={t} checked={form.parcel_type === t} onChange={() => setField('parcel_type', t)} className="sr-only" />
                   <span>{t === 'barang' ? '📦' : '📄'}</span>
                   <span className="text-sm font-medium">{t === 'barang' ? 'Barang' : 'Paperbased'}</span>
                 </label>
@@ -130,72 +206,66 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
             </div>
           </div>
 
-          {/* HC-specific */}
-          {isHC && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estimasi Berat (g)</label>
-                <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
-                  onChange={e => setForm(f => ({ ...f, estimated_weight_grams: e.target.value }))} placeholder="0" />
-                {feePerGram > 0 && form.estimated_weight_grams > 0 && (
-                  <p className="text-xs text-matcha-600 mt-1 font-medium">
-                    💰 Est. fee: Rp {(parseInt(form.estimated_weight_grams) * feePerGram).toLocaleString('id-ID')}
-                    <span className="text-gray-400 font-normal"> ({form.estimated_weight_grams}g × Rp {feePerGram.toLocaleString('id-ID')}/g)</span>
-                  </p>
-                )}
-              </div>
+          {/* Berat + qty */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Berat (g)</label>
+              <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
+                onChange={e => handleWeightChange(e.target.value)} placeholder="0" />
+            </div>
+            {isHC ? (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Qty (pcs)</label>
                 <input type="number" min="1" className="input-field" value={form.estimated_quantity}
-                  onChange={e => setForm(f => ({ ...f, estimated_quantity: e.target.value }))} placeholder="1" />
+                  onChange={e => setField('estimated_quantity', e.target.value)} placeholder="1" />
               </div>
-            </div>
-          )}
+            ) : <div />}
+          </div>
 
-          {/* WH-specific */}
-          {!isHC && (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Berat (g)</label>
-                <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
-                  onChange={e => {
-                    const w = e.target.value;
-                    setForm(f => ({
-                      ...f,
-                      estimated_weight_grams: w,
-                      // auto-fill wh_fee if rate is set and not manually overridden
-                      ...(feePerGram > 0 && w ? { wh_fee: String(Math.round(parseInt(w) * feePerGram)) } : {}),
-                    }));
-                  }}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Biaya WH (Rp)
-                  {feePerGram > 0 && (
-                    <span className="text-xs text-matcha-500 font-normal ml-1.5">tarif: Rp {feePerGram.toLocaleString('id-ID')}/g</span>
-                  )}
+          {/* Mata uang */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mata Uang</label>
+            <div className="flex gap-3">
+              {Object.entries(CURRENCIES).map(([code, c]) => (
+                <label key={code} className={`flex-1 flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${form.currency === code ? 'border-matcha-600 bg-matcha-50 text-matcha-800' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                  <input type="radio" name="currency" value={code} checked={form.currency === code} onChange={() => setField('currency', code)} className="sr-only" />
+                  <span>{c.flag}</span>
+                  <span className="text-sm font-medium">{c.symbol} {c.label}</span>
                 </label>
-                <input type="number" min="0" className="input-field" value={form.wh_fee}
-                  onChange={e => setForm(f => ({ ...f, wh_fee: e.target.value }))} placeholder="0" />
-                {feePerGram > 0 && form.estimated_weight_grams > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Auto: {form.estimated_weight_grams}g × Rp {feePerGram.toLocaleString('id-ID')}/g
-                    {' '}→{' '}
-                    <button type="button" className="text-matcha-600 underline"
-                      onClick={() => setForm(f => ({ ...f, wh_fee: String(Math.round(parseInt(f.estimated_weight_grams) * feePerGram)) }))}>
-                      Rp {(Math.round(parseInt(form.estimated_weight_grams) * feePerGram)).toLocaleString('id-ID')}
-                    </button>
-                  </p>
-                )}
-              </div>
+              ))}
             </div>
-          )}
+          </div>
 
-          {/* Photos */}
+          {/* Biaya + additional fee */}
           <div className="grid grid-cols-2 gap-3">
-            {/* Foto Arrival / Unboxing */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Biaya {isHC ? 'HC' : 'WH'} ({CURRENCIES[form.currency].symbol})
+              </label>
+              <input type="number" min="0" step="0.01" className="input-field" value={form[feeField]}
+                onChange={e => setField(feeField, e.target.value)} placeholder="0" />
+              {autoFee > 0 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Auto:{' '}
+                  <button type="button" className="text-matcha-600 underline"
+                    onClick={() => setField(feeField, String(autoFee))}>
+                    {money(autoFee, form.currency)}
+                  </button>
+                  <span className="text-gray-300"> ({weight}g × {money(feePerGram, feeCurrency)})</span>
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Fee ({CURRENCIES[form.currency].symbol})
+              </label>
+              <input type="number" min="0" step="0.01" className="input-field" value={form.additional_fee}
+                onChange={e => setField('additional_fee', e.target.value)} placeholder="0" />
+            </div>
+          </div>
+
+          {/* Foto */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 📷 Foto Arrival
@@ -211,7 +281,6 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
               </label>
             </div>
 
-            {/* Foto CO — admin only */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 🗂 Foto CO
@@ -228,9 +297,9 @@ export default function AddParcelModal({ type, batchId, parcel, feePerGram = 0, 
             </div>
           </div>
 
-          {/* Manual input flag */}
+          {/* Input manual */}
           <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">
-            <input type="checkbox" checked={form.is_manual_input} onChange={e => setForm(f => ({ ...f, is_manual_input: e.target.checked }))} className="w-4 h-4 accent-matcha-700" />
+            <input type="checkbox" checked={form.is_manual_input} onChange={e => setField('is_manual_input', e.target.checked)} className="w-4 h-4 accent-matcha-700" />
             <div>
               <div className="text-sm font-semibold text-amber-800">Input Manual?</div>
               <div className="text-xs text-amber-600">Jika dicentang, denda Rp 2.000 otomatis ditambahkan</div>

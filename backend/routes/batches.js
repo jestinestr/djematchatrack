@@ -32,15 +32,38 @@ router.get('/all/:type', async (req, res) => {
   res.json(data);
 });
 
-// Update fee_per_gram for a batch
+// Update fee_per_gram (+ mata uangnya) for a batch
 router.patch('/:id/fee', async (req, res) => {
-  const { fee_per_gram } = req.body;
+  const { fee_per_gram, fee_currency } = req.body;
   if (fee_per_gram === undefined || isNaN(Number(fee_per_gram))) {
     return res.status(400).json({ error: 'fee_per_gram tidak valid' });
   }
+
+  const updates = { fee_per_gram: Math.max(0, Number(fee_per_gram)) };
+  if (fee_currency !== undefined) {
+    updates.fee_currency = String(fee_currency).toUpperCase() === 'CNY' ? 'CNY' : 'IDR';
+  }
+
   const { data, error } = await supabase
     .from('batches')
-    .update({ fee_per_gram: Math.max(0, Math.round(Number(fee_per_gram))) })
+    .update(updates)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Toggle mode private — saat aktif, user hanya melihat resi miliknya
+// secara utuh; resi orang lain disamarkan (4 digit terakhir + nama).
+router.patch('/:id/private', async (req, res) => {
+  const { is_private } = req.body;
+  if (typeof is_private !== 'boolean') {
+    return res.status(400).json({ error: 'is_private harus true/false' });
+  }
+  const { data, error } = await supabase
+    .from('batches')
+    .update({ is_private })
     .eq('id', req.params.id)
     .select()
     .single();

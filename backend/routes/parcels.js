@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const supabase = require('../supabase');
+const { fetchCodes, attachOwners, maskParcel, norm } = require('../lib/owner');
 
 // Use memory storage — file goes to Supabase Storage, not disk
 const upload = multer({
@@ -32,247 +33,198 @@ const uploadFields = upload.fields([
   { name: 'co_photo', maxCount: 1 },
 ]);
 
-// ── HC ─────────────────────────────────────────────────────────────────
+const TABLE = { hc: 'hc_parcels', wh: 'wh_parcels' };
+const BATCH_TYPE = { hc: 'HC', wh: 'WH' };
 
-// Get active HC parcels grouped by batch (user view)
-router.get('/hc/active', async (req, res) => {
-  const { data: batches, error } = await supabase
+const num = (v, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+const currencyOf = v => (String(v).toUpperCase() === 'CNY' ? 'CNY' : 'IDR');
+
+// Field yang dikirim dari form admin -> kolom tabel
+function buildPayload(kind, body) {
+  const isManual = body.is_manual_input === 'true' || body.is_manual_input === true;
+  const payload = {
+    tracking_number: body.tracking_number?.trim(),
+    recipient_name: body.recipient_name?.trim(),
+    type: body.type,
+    currency: currencyOf(body.currency),
+    additional_fee: Math.max(0, num(body.additional_fee)),
+    owner_code_id: body.owner_code_id ? parseInt(body.owner_code_id) : null,
+    is_manual_input: isManual,
+    fine_amount: isManual ? 2000 : 0, // denda selalu dalam Rupiah
+  };
+  if (kind === 'hc') {
+    payload.estimated_weight_grams = parseInt(body.estimated_weight_grams) || 0;
+    payload.estimated_quantity = parseInt(body.estimated_quantity) || 1;
+    payload.hc_fee = Math.max(0, num(body.hc_fee));
+  } else {
+    payload.wh_fee = Math.max(0, num(body.wh_fee));
+    payload.estimated_weight_grams = parseInt(body.estimated_weight_grams) || 0;
+  }
+  return payload;
+}
+
+const sortNewest = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+
+// Batch diurutkan: aktif dulu, lalu batch selesai dari yang terbaru
+const sortBatches = (a, b) => {
+  if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+  return (b.batch_number || 0) - (a.batch_number || 0);
+};
+
+async function loadBatches(kind, { onlyActive = false } = {}) {
+  const table = TABLE[kind];
+  let query = supabase
     .from('batches')
-    .select('*, hc_parcels(*)')
-    .eq('type', 'HC')
-    .eq('status', 'active')
-    .order('batch_number', { ascending: false });
+    .select(`*, ${table}(*)`)
+    .eq('type', BATCH_TYPE[kind]);
+  if (onlyActive) query = query.eq('status', 'active');
 
-  if (error) return res.status(500).json({ error: error.message });
+  const { data, error } = await query.order('batch_number', { ascending: false });
+  if (error) throw new Error(error.message);
 
-  // Only include active parcels, sorted newest first
-  const result = batches.map(b => ({
-    ...b,
-    parcels: (b.hc_parcels || [])
-      .filter(p => p.status === 'active')
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-    hc_parcels: undefined,
-  }));
+  return (data || []).map(b => {
+    const { [table]: rows, ...batch } = b;
+    return { ...batch, parcels: (rows || []).slice().sort(sortNewest) };
+  });
+}
 
-  res.json(result);
-});
+// ── Admin: semua batch + resi, lengkap dengan info pemilik ──────────
+function registerAdminList(kind) {
+  router.get(`/${kind}/all`, async (req, res) => {
+    try {
+      const [batches, codes] = await Promise.all([loadBatches(kind), fetchCodes()]);
+      res.json(batches.map(b => ({ ...b, parcels: attachOwners(b.parcels, codes) })));
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+}
 
-// Get all HC parcels grouped by batch (admin view — all statuses)
-router.get('/hc/all', async (req, res) => {
-  const { data: batches, error } = await supabase
-    .from('batches')
-    .select('*, hc_parcels(*)')
-    .eq('type', 'HC')
-    .order('batch_number', { ascending: false });
+// ── User: tampilan berbasis kepemilikan ─────────────────────────────
+//  Kode akses dikirim lewat header X-Access-Code (bukan query string).
+//
+//  Batch aktif  : semua resi tampil; kalau batch private, resi orang
+//                 lain disamarkan (4 digit terakhir + nama, foto disensor).
+//  Batch selesai: hanya resi milik sendiri, dan hanya batch yang memang
+//                 berisi resi miliknya.
+function registerUserView(kind) {
+  router.get(`/${kind}/view`, async (req, res) => {
+    const rawCode = (req.get('X-Access-Code') || '').trim();
+    if (!rawCode) return res.status(401).json({ error: 'Kode akses tidak dikirim' });
 
-  if (error) return res.status(500).json({ error: error.message });
+    try {
+      const codes = await fetchCodes();
+      const me = codes.find(c => norm(c.code) === norm(rawCode));
+      if (!me) return res.status(401).json({ error: 'Kode akses tidak valid' });
 
-  const result = batches.map(b => ({
-    ...b,
-    parcels: (b.hc_parcels || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-    hc_parcels: undefined,
-  }));
+      const allowed = kind === 'hc' ? (me.access_hc ?? true) : (me.access_wh ?? true);
+      if (!allowed) {
+        return res.status(403).json({ error: `Kode ini tidak memiliki akses ke ${BATCH_TYPE[kind]}` });
+      }
 
-  res.json(result);
-});
+      const batches = await loadBatches(kind);
+      const result = [];
 
-// Add HC parcel
-router.post('/hc', uploadFields, async (req, res) => {
-  const { batch_id, tracking_number, recipient_name, type, estimated_weight_grams, estimated_quantity, is_manual_input } = req.body;
+      for (const batch of batches) {
+        const withOwners = attachOwners(batch.parcels, codes);
+        const mine = withOwners.filter(p => p.owner && String(p.owner.id) === String(me.id));
+        const isActive = batch.status === 'active';
 
-  if (!batch_id || !tracking_number || !recipient_name || !type) {
-    return res.status(400).json({ error: 'Field wajib tidak lengkap' });
-  }
+        if (!isActive && mine.length === 0) continue; // batch lama tanpa resi dia
 
-  const isManual = is_manual_input === 'true';
-  const fine = isManual ? 2000 : 0;
+        let parcels;
+        if (!isActive) {
+          parcels = mine.map(p => ({ ...p, is_mine: true }));
+        } else if (batch.is_private) {
+          parcels = withOwners.map(p =>
+            p.owner && String(p.owner.id) === String(me.id)
+              ? { ...p, is_mine: true }
+              : maskParcel(p)
+          );
+        } else {
+          parcels = withOwners.map(p => ({
+            ...p,
+            is_mine: !!(p.owner && String(p.owner.id) === String(me.id)),
+          }));
+        }
 
-  try {
-    const photoFile   = req.files?.['photo']?.[0];
-    const coPhotoFile = req.files?.['co_photo']?.[0];
-    const photoUrl   = await uploadPhoto(photoFile);
-    const coPhotoUrl = await uploadPhoto(coPhotoFile);
+        result.push({
+          ...batch,
+          parcels,
+          mine_count: mine.length,
+          total_count: withOwners.length,
+        });
+      }
 
-    const { data, error } = await supabase
-      .from('hc_parcels')
-      .insert({
-        batch_id: parseInt(batch_id),
-        tracking_number: tracking_number.trim(),
-        recipient_name: recipient_name.trim(),
-        photo_url: photoUrl,
-        co_photo_url: coPhotoUrl,
-        type,
-        estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
-        estimated_quantity: parseInt(estimated_quantity) || 1,
-        is_manual_input: isManual,
-        fine_amount: fine,
-      })
-      .select()
-      .single();
+      res.json({
+        viewer: { id: me.id, label: me.label },
+        batches: result.sort(sortBatches),
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+}
 
+// ── CRUD ────────────────────────────────────────────────────────────
+function registerCrud(kind) {
+  const table = TABLE[kind];
+
+  router.post(`/${kind}`, uploadFields, async (req, res) => {
+    const { batch_id, tracking_number, recipient_name, type } = req.body;
+    if (!batch_id || !tracking_number || !recipient_name || !type) {
+      return res.status(400).json({ error: 'Field wajib tidak lengkap' });
+    }
+
+    try {
+      const payload = buildPayload(kind, req.body);
+      payload.batch_id = parseInt(batch_id);
+      payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
+      payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
+
+      const { data, error } = await supabase.from(table).insert(payload).select().single();
+      if (error) return res.status(500).json({ error: error.message });
+
+      const codes = await fetchCodes();
+      res.json(attachOwners([data], codes)[0]);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.patch(`/${kind}/:id`, uploadFields, async (req, res) => {
+    try {
+      const updates = buildPayload(kind, req.body);
+      const photoFile = req.files?.['photo']?.[0];
+      const coPhotoFile = req.files?.['co_photo']?.[0];
+      if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
+      if (coPhotoFile) updates.co_photo_url = await uploadPhoto(coPhotoFile);
+
+      const { data, error } = await supabase
+        .from(table).update(updates).eq('id', req.params.id).select().single();
+      if (error) return res.status(500).json({ error: error.message });
+
+      const codes = await fetchCodes();
+      res.json(attachOwners([data], codes)[0]);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete(`/${kind}/:id`, async (req, res) => {
+    const { error } = await supabase.from(table).delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+    res.json({ success: true });
+  });
+}
 
-// Edit HC parcel
-router.patch('/hc/:id', uploadFields, async (req, res) => {
-  const { tracking_number, recipient_name, type, estimated_weight_grams, estimated_quantity, is_manual_input } = req.body;
-  const isManual = is_manual_input === 'true';
-  const fine = isManual ? 2000 : 0;
-
-  try {
-    const photoFile   = req.files?.['photo']?.[0];
-    const coPhotoFile = req.files?.['co_photo']?.[0];
-
-    const updates = {
-      tracking_number: tracking_number?.trim(),
-      recipient_name: recipient_name?.trim(),
-      type,
-      estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
-      estimated_quantity: parseInt(estimated_quantity) || 1,
-      is_manual_input: isManual,
-      fine_amount: fine,
-    };
-    if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
-    if (coPhotoFile) updates.co_photo_url = await uploadPhoto(coPhotoFile);
-
-    const { data, error } = await supabase.from('hc_parcels').update(updates).eq('id', req.params.id).select().single();
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Delete HC parcel
-router.delete('/hc/:id', async (req, res) => {
-  const { error } = await supabase.from('hc_parcels').delete().eq('id', req.params.id);
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true });
-});
-
-// ── WH ─────────────────────────────────────────────────────────────────
-
-// Get active WH parcels grouped by batch (user view)
-router.get('/wh/active', async (req, res) => {
-  const { data: batches, error } = await supabase
-    .from('batches')
-    .select('*, wh_parcels(*)')
-    .eq('type', 'WH')
-    .eq('status', 'active')
-    .order('batch_number', { ascending: false });
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  const result = batches.map(b => ({
-    ...b,
-    parcels: (b.wh_parcels || [])
-      .filter(p => p.status === 'active')
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-    wh_parcels: undefined,
-  }));
-
-  res.json(result);
-});
-
-// Get all WH parcels grouped by batch (admin view)
-router.get('/wh/all', async (req, res) => {
-  const { data: batches, error } = await supabase
-    .from('batches')
-    .select('*, wh_parcels(*)')
-    .eq('type', 'WH')
-    .order('batch_number', { ascending: false });
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  const result = batches.map(b => ({
-    ...b,
-    parcels: (b.wh_parcels || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-    wh_parcels: undefined,
-  }));
-
-  res.json(result);
-});
-
-// Add WH parcel
-router.post('/wh', uploadFields, async (req, res) => {
-  const { batch_id, tracking_number, recipient_name, type, wh_fee, estimated_weight_grams, is_manual_input } = req.body;
-
-  if (!batch_id || !tracking_number || !recipient_name || !type) {
-    return res.status(400).json({ error: 'Field wajib tidak lengkap' });
-  }
-
-  const isManual = is_manual_input === 'true';
-  const fine = isManual ? 2000 : 0;
-
-  try {
-    const photoFile   = req.files?.['photo']?.[0];
-    const coPhotoFile = req.files?.['co_photo']?.[0];
-    const photoUrl   = await uploadPhoto(photoFile);
-    const coPhotoUrl = await uploadPhoto(coPhotoFile);
-
-    const { data, error } = await supabase
-      .from('wh_parcels')
-      .insert({
-        batch_id: parseInt(batch_id),
-        tracking_number: tracking_number.trim(),
-        recipient_name: recipient_name.trim(),
-        photo_url: photoUrl,
-        co_photo_url: coPhotoUrl,
-        type,
-        wh_fee: parseInt(wh_fee) || 0,
-        estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
-        is_manual_input: isManual,
-        fine_amount: fine,
-      })
-      .select()
-      .single();
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Edit WH parcel
-router.patch('/wh/:id', uploadFields, async (req, res) => {
-  const { tracking_number, recipient_name, type, wh_fee, estimated_weight_grams, is_manual_input } = req.body;
-  const isManual = is_manual_input === 'true';
-  const fine = isManual ? 2000 : 0;
-
-  try {
-    const photoFile   = req.files?.['photo']?.[0];
-    const coPhotoFile = req.files?.['co_photo']?.[0];
-
-    const updates = {
-      tracking_number: tracking_number?.trim(),
-      recipient_name: recipient_name?.trim(),
-      type,
-      wh_fee: parseInt(wh_fee) || 0,
-      estimated_weight_grams: parseInt(estimated_weight_grams) || 0,
-      is_manual_input: isManual,
-      fine_amount: fine,
-    };
-    if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
-    if (coPhotoFile) updates.co_photo_url = await uploadPhoto(coPhotoFile);
-
-    const { data, error } = await supabase.from('wh_parcels').update(updates).eq('id', req.params.id).select().single();
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Delete WH parcel
-router.delete('/wh/:id', async (req, res) => {
-  const { error } = await supabase.from('wh_parcels').delete().eq('id', req.params.id);
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true });
-});
+for (const kind of ['hc', 'wh']) {
+  registerAdminList(kind);
+  registerUserView(kind);
+  registerCrud(kind);
+}
 
 module.exports = router;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { rupiah, sumParcels, formatMulti } from '../utils/format';
 
 const CHEERS = [
   '🔥 Gaspol! Semangat kerja hari ini!',
@@ -11,10 +12,6 @@ const CHEERS = [
   '🏆 Tim terbaik, hasil terbaik!',
   '🍵 Santai tapi produktif!',
 ];
-
-function formatRupiah(n) {
-  return 'Rp ' + Number(n).toLocaleString('id-ID');
-}
 
 function StatCard({ icon, label, value, sub, color = 'matcha' }) {
   const colors = {
@@ -56,12 +53,13 @@ export default function AdminOverview() {
   const totalHCResi = hcActive.reduce((s, b) => s + (b.parcels?.length || 0), 0);
   const totalWHResi = whActive.reduce((s, b) => s + (b.parcels?.length || 0), 0);
 
-  const allActiveParcels = [
-    ...hcActive.flatMap(b => b.parcels || []),
-    ...whActive.flatMap(b => b.parcels || []),
-  ];
-  const totalFines = allActiveParcels.reduce((s, p) => s + (p.fine_amount || 0), 0);
-  const totalWHFees = whActive.flatMap(b => b.parcels || []).reduce((s, p) => s + (p.wh_fee || 0), 0);
+  const hcTotals = sumParcels(hcActive.flatMap(b => b.parcels || []), 'HC');
+  const whTotals = sumParcels(whActive.flatMap(b => b.parcels || []), 'WH');
+  const billing = {
+    IDR: hcTotals.IDR + whTotals.IDR,
+    CNY: hcTotals.CNY + whTotals.CNY,
+  };
+  const totalFines = hcTotals.fine + whTotals.fine;
 
   const hcCurrentBatch = hcActive[0];
   const whCurrentBatch = whActive[0];
@@ -87,8 +85,8 @@ export default function AdminOverview() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
             <StatCard icon="✈️" label="Resi HC Aktif" value={totalHCResi} sub={`Batch #${hcCurrentBatch?.batch_number || '-'}`} color="matcha" />
             <StatCard icon="🏭" label="Resi WH Aktif" value={totalWHResi} sub={`Batch #${whCurrentBatch?.batch_number || '-'}`} color="blue" />
-            <StatCard icon="⚠️" label="Total Denda" value={formatRupiah(totalFines)} color="red" />
-            <StatCard icon="💰" label="Total WH Fee" value={formatRupiah(totalWHFees)} color="amber" />
+            <StatCard icon="💰" label="Total Tagihan" value={formatMulti(billing)} color="amber" />
+            <StatCard icon="⚠️" label="Total Denda" value={totalFines ? rupiah(totalFines) : '—'} color="red" />
           </div>
 
           {/* Quick links */}

@@ -1,33 +1,33 @@
 import { useState } from 'react';
+import { money, rupiah, baseFee, formatWeight, formatDate } from '../utils/format';
 
-function formatRupiah(n) {
-  return 'Rp ' + Number(n).toLocaleString('id-ID');
-}
-function formatDate(str) {
-  if (!str) return '-';
-  return new Date(str).toLocaleString('id-ID', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
-
-// isAdmin: if true, show CO photo too
-export default function ParcelDetailModal({ parcel, type, isAdmin = false, onClose }) {
+// isAdmin: kalau true, foto CO ikut ditampilkan
+// siblings: resi lain milik pengguna di batch yang sama
+export default function ParcelDetailModal({
+  parcel,
+  type,
+  isAdmin = false,
+  siblings = [],
+  onSelectSibling,
+  onClose,
+}) {
   const [zoomUrl, setZoomUrl] = useState(null);
 
   if (!parcel) return null;
   const isHC = (type || '').toUpperCase() === 'HC';
+  const fee = baseFee(parcel, type);
+  const extra = Number(parcel.additional_fee) || 0;
+  const rest = (siblings || []).filter(p => p.id !== parcel.id);
 
   return (
     <>
       <div className="modal-backdrop" onClick={onClose}>
         <div
-          className="bg-white rounded-3xl shadow-soft-lg w-full max-w-sm overflow-hidden"
+          className="bg-white rounded-3xl shadow-soft-lg w-full max-w-sm overflow-hidden max-h-[90vh] flex flex-col"
           onClick={e => e.stopPropagation()}
         >
-          {/* Photos */}
-          <div className={`grid ${isAdmin && parcel.co_photo_url ? 'grid-cols-2' : 'grid-cols-1'} gap-0`}>
-            {/* Arrival photo */}
+          {/* Foto */}
+          <div className={`grid ${isAdmin && parcel.co_photo_url ? 'grid-cols-2' : 'grid-cols-1'} gap-0 flex-shrink-0`}>
             <div className="relative bg-cream-100">
               {parcel.photo_url ? (
                 <img
@@ -44,7 +44,7 @@ export default function ParcelDetailModal({ parcel, type, isAdmin = false, onClo
               </span>
             </div>
 
-            {/* CO photo — admin only */}
+            {/* Foto CO — admin only */}
             {isAdmin && parcel.co_photo_url && (
               <div className="relative bg-amber-50">
                 <img
@@ -60,26 +60,30 @@ export default function ParcelDetailModal({ parcel, type, isAdmin = false, onClo
             )}
           </div>
 
-          {/* Content */}
-          <div className="p-5">
-            {/* Name + close */}
+          {/* Isi */}
+          <div className="p-5 overflow-y-auto">
             <div className="flex items-start justify-between gap-2 mb-1">
               <h2 className="text-lg font-bold text-matcha-800 leading-tight">{parcel.recipient_name}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
             </div>
 
-            {/* Tracking number */}
             <p className="text-sm font-mono text-gray-400 mb-4 break-all">{parcel.tracking_number}</p>
 
-            {/* Detail rows */}
             <div className="space-y-2.5">
               <DetailRow icon="📦" label="Jenis">
                 {parcel.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
               </DetailRow>
 
-              {isHC && parcel.estimated_weight_grams > 0 && (
+              {isAdmin && parcel.owner && (
+                <DetailRow icon="👤" label="Pemilik">
+                  {parcel.owner.label}
+                  <span className="text-gray-400 font-mono text-xs ml-1.5">{parcel.owner.code}</span>
+                </DetailRow>
+              )}
+
+              {parcel.estimated_weight_grams > 0 && (
                 <DetailRow icon="⚖️" label="Estimasi Berat">
-                  {parcel.estimated_weight_grams} gram
+                  {formatWeight(parcel.estimated_weight_grams)}
                 </DetailRow>
               )}
               {isHC && parcel.estimated_quantity > 0 && (
@@ -87,15 +91,31 @@ export default function ParcelDetailModal({ parcel, type, isAdmin = false, onClo
                   {parcel.estimated_quantity} pcs
                 </DetailRow>
               )}
-              {!isHC && parcel.wh_fee > 0 && (
-                <DetailRow icon="💰" label="WH Fee">
-                  <span className="text-amber-700 font-semibold">{formatRupiah(parcel.wh_fee)}</span>
+              {fee > 0 && (
+                <DetailRow icon="💰" label={isHC ? 'Biaya HC' : 'Biaya WH'}>
+                  <span className="text-amber-700 font-semibold">{money(fee, parcel.currency)}</span>
+                </DetailRow>
+              )}
+              {extra > 0 && (
+                <DetailRow icon="➕" label="Additional Fee">
+                  <span className="text-orange-600 font-semibold">{money(extra, parcel.currency)}</span>
                 </DetailRow>
               )}
               {parcel.fine_amount > 0 && (
                 <DetailRow icon="⚠️" label="Denda">
-                  <span className="text-red-600 font-semibold">{formatRupiah(parcel.fine_amount)}</span>
+                  <span className="text-red-600 font-semibold">{rupiah(parcel.fine_amount)}</span>
                 </DetailRow>
+              )}
+              {(fee > 0 || extra > 0) && (
+                <div className="flex items-center justify-between gap-2 pt-2.5 mt-1 border-t-2 border-dashed border-cream-200">
+                  <span className="text-xs font-bold text-matcha-700">Total</span>
+                  <span className="text-sm font-black text-matcha-800">
+                    {money(fee + extra, parcel.currency)}
+                    {parcel.fine_amount > 0 && (
+                      <span className="text-xs text-red-500 font-semibold"> + {rupiah(parcel.fine_amount)}</span>
+                    )}
+                  </span>
+                </div>
               )}
               {parcel.created_at && (
                 <DetailRow icon="🕐" label="Ditambahkan">
@@ -104,12 +124,40 @@ export default function ParcelDetailModal({ parcel, type, isAdmin = false, onClo
               )}
             </div>
 
+            {/* Resi lain di batch yang sama */}
+            {rest.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-cream-200">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                  Resi lain di batch ini ({rest.length})
+                </p>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto -mx-1 px-1">
+                  {rest.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => onSelectSibling?.(p)}
+                      className="w-full flex items-center gap-2.5 p-2 rounded-xl border border-cream-200 hover:border-matcha-300 hover:bg-matcha-50 transition-all text-left"
+                    >
+                      {p.photo_url ? (
+                        <img src={p.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover border border-cream-200 flex-shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-cream-100 border border-cream-200 flex items-center justify-center text-sm flex-shrink-0">📦</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-700 truncate">{p.recipient_name}</p>
+                        <p className="text-[11px] font-mono text-gray-400 truncate">{p.tracking_number}</p>
+                      </div>
+                      <span className="text-gray-300 text-sm flex-shrink-0">›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button onClick={onClose} className="btn-primary w-full mt-5 py-2.5">Tutup</button>
           </div>
         </div>
       </div>
 
-      {/* Zoom overlay */}
       {zoomUrl && (
         <div className="photo-zoom-overlay" style={{ zIndex: 60 }} onClick={() => setZoomUrl(null)}>
           <img src={zoomUrl} alt="zoom" className="max-w-[92vw] max-h-[92vh] object-contain rounded-2xl shadow-2xl" />

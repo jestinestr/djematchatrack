@@ -1,22 +1,19 @@
 import { useEffect, useState } from 'react';
 import AddParcelModal from '../components/AddParcelModal';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { money, rupiah, baseFee, sumParcels, formatMulti } from '../utils/format';
 
-function formatRupiah(n) {
-  return 'Rp ' + Number(n).toLocaleString('id-ID');
-}
-
-function formatDate(str) {
-  if (!str) return '-';
-  return new Date(str).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+const formatDate = str => (str
+  ? new Date(str).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+  : '-');
 
 /* ── Detail Drawer ──────────────────────────────────────── */
 function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDeleted }) {
   const [editingParcel, setEditingParcel] = useState(null);
   const parcels = batch.parcels || [];
-  const totalFines = parcels.reduce((s, p) => s + (p.fine_amount || 0), 0);
-  const totalWHFee = type === 'WH' ? parcels.reduce((s, p) => s + (p.wh_fee || 0), 0) : 0;
+  const totals = sumParcels(parcels, type);
+  const totalFines = totals.fine;
+  const hasFee = totals.IDR > 0 || totals.CNY > 0;
 
   async function handleDelete(parcelId) {
     if (!window.confirm('Hapus resi ini?')) return;
@@ -50,8 +47,8 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
         {/* Stats bar */}
         <div className="flex gap-4 px-5 py-2.5 bg-white border-b border-cream-200 text-xs text-gray-500 flex-shrink-0">
           <span>📦 {parcels.length} resi</span>
-          {totalFines > 0 && <span className="text-red-500">⚠️ Denda {formatRupiah(totalFines)}</span>}
-          {type === 'WH' && totalWHFee > 0 && <span className="text-amber-600">💰 WH Fee {formatRupiah(totalWHFee)}</span>}
+          {totalFines > 0 && <span className="text-red-500">⚠️ Denda {rupiah(totalFines)}</span>}
+          {hasFee && <span className="text-amber-600">💰 {formatMulti(totals)}</span>}
         </div>
 
         {/* Parcel list */}
@@ -92,11 +89,14 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
                     {type === 'HC' && p.estimated_quantity > 1 && (
                       <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full">{p.estimated_quantity} pcs</span>
                     )}
-                    {type === 'WH' && p.wh_fee > 0 && (
-                      <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full">{formatRupiah(p.wh_fee)}</span>
+                    {baseFee(p, type) > 0 && (
+                      <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full">{money(baseFee(p, type), p.currency)}</span>
+                    )}
+                    {p.additional_fee > 0 && (
+                      <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full">➕ {money(p.additional_fee, p.currency)}</span>
                     )}
                     {p.fine_amount > 0 && (
-                      <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded-full border border-red-100">⚠️ Denda {formatRupiah(p.fine_amount)}</span>
+                      <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded-full border border-red-100">⚠️ Denda {rupiah(p.fine_amount)}</span>
                     )}
                   </div>
                 </div>
@@ -116,6 +116,8 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
         <AddParcelModal
           type={type}
           parcel={editingParcel}
+          feePerGram={batch.fee_per_gram || 0}
+          feeCurrency={batch.fee_currency || 'IDR'}
           onClose={() => setEditingParcel(null)}
           onEdited={updated => { onParcelEdited(updated); setEditingParcel(null); }}
         />
@@ -127,8 +129,9 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
 /* ── Batch Row (table row) ──────────────────────────────── */
 function BatchRow({ batch, type, onClick }) {
   const parcels = batch.parcels || [];
-  const totalFines = parcels.reduce((s, p) => s + (p.fine_amount || 0), 0);
-  const totalWHFee = type === 'WH' ? parcels.reduce((s, p) => s + (p.wh_fee || 0), 0) : 0;
+  const totals = sumParcels(parcels, type);
+  const totalFines = totals.fine;
+  const hasFee = totals.IDR > 0 || totals.CNY > 0;
 
   return (
     <tr
@@ -156,9 +159,9 @@ function BatchRow({ batch, type, onClick }) {
       {/* Fines / fees */}
       <td className="px-4 py-3 hidden md:table-cell">
         <div className="flex flex-col gap-0.5">
-          {totalFines > 0 && <span className="text-xs text-red-500">⚠️ {formatRupiah(totalFines)}</span>}
-          {type === 'WH' && totalWHFee > 0 && <span className="text-xs text-amber-600">💰 {formatRupiah(totalWHFee)}</span>}
-          {totalFines === 0 && totalWHFee === 0 && <span className="text-xs text-gray-300">—</span>}
+          {totalFines > 0 && <span className="text-xs text-red-500">⚠️ {rupiah(totalFines)}</span>}
+          {hasFee && <span className="text-xs text-amber-600">💰 {formatMulti(totals)}</span>}
+          {totalFines === 0 && !hasFee && <span className="text-xs text-gray-300">—</span>}
         </div>
       </td>
       {/* Date */}

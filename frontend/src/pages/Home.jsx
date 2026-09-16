@@ -32,6 +32,9 @@ export default function Home() {
       // Simpan status akses supaya rute /hc dan /wh terlindungi
       if (data.access_hc) sessionStorage.setItem('access_hc', '1');
       if (data.access_wh) sessionStorage.setItem('access_wh', '1');
+      // Kode dipakai lagi untuk memfilter resi milik pengguna ini
+      sessionStorage.setItem('access_code', code.trim());
+      sessionStorage.setItem('access_label', data.label || '');
       navigate(modal === 'hc' ? '/hc' : '/wh');
     } catch {
       setError('Koneksi gagal. Coba lagi.');

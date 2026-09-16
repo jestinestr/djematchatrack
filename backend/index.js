@@ -46,6 +46,7 @@ app.use('/api/codes', require('./routes/codes'));
 app.use('/api/batches', require('./routes/batches'));
 app.use('/api/parcels', require('./routes/parcels'));
 app.use('/api/requests', require('./routes/requests'));
+app.use('/api/invoices', require('./routes/invoices'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV || 'development' }));

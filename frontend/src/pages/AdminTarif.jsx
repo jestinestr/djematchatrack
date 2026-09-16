@@ -1,23 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
-
-function formatRupiah(n) {
-  return 'Rp ' + Number(n).toLocaleString('id-ID');
-}
+import { CURRENCIES, money, normCurrency, formatWeight, sumParcels, formatMulti } from '../utils/format';
 
 function BatchTarifCard({ batch, type, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [input, setInput]     = useState(batch.fee_per_gram?.toString() || '0');
+  const [cur, setCur]         = useState(normCurrency(batch.fee_currency));
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
 
-  const parcels    = batch.parcels || [];
-  const feePerGram = batch.fee_per_gram || 0;
-  const totalWeight = parcels.reduce((s, p) => s + (p.estimated_weight_grams || 0), 0);
-  const totalFee    = type === 'HC'
-    ? parcels.reduce((s, p) => s + (p.estimated_weight_grams || 0) * feePerGram, 0)
-    : parcels.reduce((s, p) => s + (p.wh_fee || 0), 0);
-  const isActive = batch.status === 'active';
+  const parcels     = batch.parcels || [];
+  const feePerGram  = batch.fee_per_gram || 0;
+  const feeCurrency = normCurrency(batch.fee_currency);
+  const totals      = sumParcels(parcels, type);
+  const totalWeight = totals.weight;
+  const isActive    = batch.status === 'active';
 
   // preview while typing
   const previewFee = editing && totalWeight > 0 && Number(input) > 0
@@ -25,12 +22,12 @@ function BatchTarifCard({ batch, type, onSaved }) {
     : null;
 
   async function save() {
-    const val = Math.max(0, Math.round(Number(input) || 0));
+    const val = Math.max(0, Number(input) || 0);
     setSaving(true);
     const res = await fetch(`/api/batches/${batch.id}/fee`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fee_per_gram: val }),
+      body: JSON.stringify({ fee_per_gram: val, fee_currency: cur }),
     });
     setSaving(false);
     if (res.ok) {
@@ -38,7 +35,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      onSaved?.(batch.id, data.fee_per_gram ?? val);
+      onSaved?.(batch.id, data.fee_per_gram ?? val, data.fee_currency ?? cur);
     }
   }
 
@@ -62,9 +59,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
         </span>
         <div className="ml-auto flex gap-3 text-xs text-gray-400">
           <span>📦 {parcels.length} resi</span>
-          {totalWeight > 0 && (
-            <span>⚖️ {totalWeight >= 1000 ? (totalWeight/1000).toFixed(2)+' kg' : totalWeight+' g'}</span>
-          )}
+          {totalWeight > 0 && <span>⚖️ {formatWeight(totalWeight)}</span>}
         </div>
       </div>
 
@@ -76,7 +71,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
             <p className="text-[11px] text-gray-400 font-medium mb-1">Tarif per gram</p>
             {feePerGram > 0 ? (
               <p className="text-xl font-black text-matcha-700">
-                {formatRupiah(feePerGram)}<span className="text-sm font-semibold text-matcha-400">/gram</span>
+                {money(feePerGram, feeCurrency)}<span className="text-sm font-semibold text-matcha-400">/gram</span>
               </p>
             ) : (
               <p className="text-sm text-gray-300 italic">Belum diset</p>
@@ -84,18 +79,18 @@ function BatchTarifCard({ batch, type, onSaved }) {
           </div>
 
           {/* Right: total fee */}
-          {(totalFee > 0 || (previewFee && previewFee > 0)) && (
+          {(totals.IDR > 0 || totals.CNY > 0 || (previewFee && previewFee > 0)) && (
             <div className="text-right">
               <p className="text-[11px] text-gray-400 font-medium mb-1">
-                {type === 'HC' ? 'Est. total fee' : 'Total WH Fee'}
+                {previewFee ? 'Estimasi kalau tarif ini dipakai' : 'Total biaya tercatat'}
               </p>
               <p className={`text-base font-bold ${previewFee ? 'text-amber-600' : 'text-matcha-700'}`}>
-                {previewFee ? formatRupiah(previewFee) : formatRupiah(totalFee)}
+                {previewFee ? money(previewFee, cur) : formatMulti(totals)}
                 {previewFee && <span className="text-xs text-amber-400 font-normal ml-1">(preview)</span>}
               </p>
-              {type === 'HC' && feePerGram > 0 && totalWeight > 0 && !previewFee && (
+              {feePerGram > 0 && totalWeight > 0 && !previewFee && (
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  {totalWeight >= 1000 ? (totalWeight/1000).toFixed(2)+' kg' : totalWeight+'g'} × {formatRupiah(feePerGram)}
+                  {formatWeight(totalWeight)} × {money(feePerGram, feeCurrency)}
                 </p>
               )}
             </div>
@@ -106,9 +101,17 @@ function BatchTarifCard({ batch, type, onSaved }) {
         {editing ? (
           <div className="mt-3 flex items-center gap-2">
             <div className="flex items-center flex-1 gap-1.5 bg-cream-50 border-2 border-matcha-300 rounded-xl px-3 py-2 focus-within:border-matcha-500 transition-colors">
-              <span className="text-xs text-gray-400 shrink-0">Rp</span>
+              <select
+                value={cur}
+                onChange={e => setCur(e.target.value)}
+                className="text-xs font-bold bg-transparent outline-none text-matcha-700 shrink-0 cursor-pointer"
+              >
+                {Object.entries(CURRENCIES).map(([code, c]) => (
+                  <option key={code} value={code}>{c.symbol}</option>
+                ))}
+              </select>
               <input
-                type="number" min="0"
+                type="number" min="0" step="0.01"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
@@ -168,8 +171,8 @@ export default function AdminTarif() {
 
   useEffect(() => { load(); }, [load]);
 
-  function handleSaved(batchId, fee_per_gram, setter) {
-    setter(prev => prev.map(b => b.id === batchId ? { ...b, fee_per_gram } : b));
+  function handleSaved(batchId, fee_per_gram, fee_currency, setter) {
+    setter(prev => prev.map(b => b.id === batchId ? { ...b, fee_per_gram, fee_currency } : b));
   }
 
   const hcActive   = hcBatches.filter(b => b.status === 'active');
@@ -212,13 +215,13 @@ export default function AdminTarif() {
                 {/* Active first */}
                 {hcActive.map(b => (
                   <BatchTarifCard key={b.id} batch={b} type="HC"
-                    onSaved={(id, fee) => handleSaved(id, fee, setHcBatches)} />
+                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setHcBatches)} />
                 ))}
 
                 {/* Archived - collapsible */}
                 {hcArchived.length > 0 && (
                   <ArchivedSection batches={hcArchived} type="HC"
-                    onSaved={(id, fee) => handleSaved(id, fee, setHcBatches)} />
+                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setHcBatches)} />
                 )}
               </div>
             )}
@@ -242,12 +245,12 @@ export default function AdminTarif() {
               <div className="space-y-3">
                 {whActive.map(b => (
                   <BatchTarifCard key={b.id} batch={b} type="WH"
-                    onSaved={(id, fee) => handleSaved(id, fee, setWhBatches)} />
+                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setWhBatches)} />
                 ))}
 
                 {whArchived.length > 0 && (
                   <ArchivedSection batches={whArchived} type="WH"
-                    onSaved={(id, fee) => handleSaved(id, fee, setWhBatches)} />
+                    onSaved={(id, fee, cur) => handleSaved(id, fee, cur, setWhBatches)} />
                 )}
               </div>
             )}

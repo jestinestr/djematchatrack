@@ -1,0 +1,513 @@
+import { useEffect, useMemo, useState } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import {
+  CURRENCIES, money, rupiah, baseFee, normCurrency,
+  formatWeight, formatDate,
+} from '../utils/format';
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
+));
+
+const hasMoney = t => t.fee > 0 || t.additional > 0 || t.fine > 0;
+
+export default function AdminInvoice() {
+  const [type, setType]       = useState('WH');
+  const [batchList, setBatchList] = useState([]);
+  const [batchId, setBatchId] = useState('');
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [drafts, setDrafts]   = useState({});   // ownerId -> {additional_fee, currency, note}
+  const [savingId, setSavingId] = useState(null);
+
+  // Daftar batch untuk tipe terpilih
+  useEffect(() => {
+    fetch(`/api/batches/all/${type}`)
+      .then(r => r.json())
+      .then(list => {
+        setBatchList(list || []);
+        setBatchId(String(list?.[0]?.id || ''));
+      })
+      .catch(() => setBatchList([]));
+  }, [type]);
+
+  // Rekap invoice batch terpilih
+  useEffect(() => {
+    if (!batchId) { setData(null); return; }
+    setLoading(true);
+    setSelected(new Set());
+    fetch(`/api/invoices/batch/${batchId}`)
+      .then(r => r.json())
+      .then(d => {
+        setData(d);
+        const next = {};
+        for (const c of d.customers || []) {
+          if (c.owner) {
+            next[c.owner.id] = {
+              additional_fee: c.invoice.additional_fee || '',
+              currency: normCurrency(c.invoice.additional_fee_currency),
+              note: c.invoice.additional_note || '',
+            };
+          }
+        }
+        setDrafts(next);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [batchId]);
+
+  const customers = data?.customers || [];
+  const batch = data?.batch;
+  const invoiceable = customers.filter(c => c.owner);
+
+  const grand = useMemo(() => {
+    const t = { IDR: 0, CNY: 0, fine: 0, parcels: 0 };
+    for (const c of customers) {
+      t.IDR += c.totals.IDR.fee + c.totals.IDR.additional;
+      t.CNY += c.totals.CNY.fee + c.totals.CNY.additional;
+      t.fine += c.totals.IDR.fine;
+      t.parcels += c.parcel_count;
+    }
+    return t;
+  }, [customers]);
+
+  function toggle(id) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === invoiceable.length) setSelected(new Set());
+    else setSelected(new Set(invoiceable.map(c => c.owner.id)));
+  }
+
+  function setDraft(ownerId, patch) {
+    setDrafts(prev => ({ ...prev, [ownerId]: { ...prev[ownerId], ...patch } }));
+  }
+
+  async function saveAdditional(ownerId) {
+    const d = drafts[ownerId] || {};
+    setSavingId(ownerId);
+    try {
+      const res = await fetch(`/api/invoices/batch/${batchId}/owner/${ownerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          additional_fee: Number(d.additional_fee) || 0,
+          additional_fee_currency: d.currency || 'IDR',
+          additional_note: d.note || '',
+        }),
+      });
+      if (res.ok) {
+        // muat ulang supaya total ikut terbarui
+        const fresh = await fetch(`/api/invoices/batch/${batchId}`).then(r => r.json());
+        setData(fresh);
+      }
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // ── Cetak ─────────────────────────────────────────────────────────
+  function printInvoices() {
+    const picked = customers.filter(c => c.owner && selected.has(c.owner.id));
+    if (!picked.length) return;
+    const html = buildInvoicesHTML(batch, picked, type);
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 350);
+  }
+
+  // ── Export CSV ────────────────────────────────────────────────────
+  function exportCSV() {
+    const rows = [[
+      'Pelanggan', 'Kode Akses', 'Jumlah Resi',
+      'Biaya Rp', 'Biaya Yuan', 'Denda Rp', 'Total Rp', 'Total Yuan',
+    ]];
+    for (const c of customers) {
+      rows.push([
+        c.owner?.label || 'Tanpa Pemilik',
+        c.owner?.code || '-',
+        c.parcel_count,
+        c.totals.IDR.fee + c.totals.IDR.additional,
+        c.totals.CNY.fee + c.totals.CNY.additional,
+        c.totals.IDR.fine,
+        c.totals.IDR.total,
+        c.totals.CNY.total,
+      ]);
+    }
+    rows.push([]);
+    rows.push(['TOTAL', '', grand.parcels, grand.IDR, grand.CNY, grand.fine, grand.IDR + grand.fine, grand.CNY]);
+
+    const csv = rows
+      .map(r => r.map(cell => {
+        const v = String(cell ?? '');
+        return /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      }).join(';'))
+      .join('\r\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `invoice_${type}_batch_${batch?.batch_number || batchId}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  return (
+    <div className="p-5 md:p-7 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-5">
+        <span className="text-3xl">🧾</span>
+        <div>
+          <h1 className="text-xl font-bold text-matcha-800">Invoice</h1>
+          <p className="text-sm text-gray-500">Buat invoice per pelanggan untuk satu batch</p>
+        </div>
+      </div>
+
+      {/* Pilih batch */}
+      <div className="bg-white rounded-2xl border border-cream-200 shadow-soft p-3 mb-5 flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 bg-cream-50 border border-cream-200 rounded-xl p-0.5">
+          {['HC', 'WH'].map(t => (
+            <button key={t} onClick={() => setType(t)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                type === t ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'
+              }`}>
+              {t === 'HC' ? '✈️ Hand Carry' : '🏭 Warehouse'}
+            </button>
+          ))}
+        </div>
+
+        <select
+          value={batchId}
+          onChange={e => setBatchId(e.target.value)}
+          className="input-field text-sm w-auto py-1.5"
+        >
+          {batchList.length === 0 && <option value="">Belum ada batch</option>}
+          {batchList.map(b => (
+            <option key={b.id} value={b.id}>
+              Batch #{b.batch_number} {b.status === 'active' ? '● Aktif' : '✓ Selesai'}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex-1" />
+
+        <button
+          onClick={exportCSV}
+          disabled={!customers.length}
+          className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40"
+        >
+          ⬇️ Export CSV
+        </button>
+        <button
+          onClick={printInvoices}
+          disabled={!selected.size}
+          className="text-xs px-4 py-1.5 rounded-xl font-semibold bg-matcha-800 hover:bg-matcha-700 text-white shadow-soft transition-colors disabled:opacity-40 disabled:shadow-none"
+        >
+          🖨 Cetak Invoice {selected.size ? `(${selected.size})` : ''}
+        </button>
+      </div>
+
+      {loading ? (
+        <LoadingSpinner text="Memuat rekap..." />
+      ) : !customers.length ? (
+        <div className="bg-white rounded-2xl border border-cream-200 p-14 text-center text-gray-400">
+          <div className="text-4xl mb-3">🧾</div>
+          <p className="font-medium">Belum ada resi di batch ini</p>
+        </div>
+      ) : (
+        <>
+          {/* Ringkasan batch */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            {[
+              { icon: '👤', label: 'Pelanggan', value: invoiceable.length },
+              { icon: '📦', label: 'Total Resi', value: grand.parcels },
+              { icon: '💰', label: 'Total Tagihan', value: [grand.IDR ? money(grand.IDR, 'IDR') : null, grand.CNY ? money(grand.CNY, 'CNY') : null].filter(Boolean).join(' + ') || '—' },
+              { icon: '⚠️', label: 'Total Denda', value: grand.fine ? rupiah(grand.fine) : '—' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-2xl border border-cream-200 shadow-soft px-3 py-2.5 flex items-center gap-2.5">
+                <span className="text-xl">{s.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-medium leading-none mb-0.5">{s.label}</p>
+                  <p className="text-sm font-bold text-matcha-800 truncate">{s.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pilih semua */}
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <button onClick={toggleAll} className="text-xs font-semibold text-matcha-700 hover:underline">
+              {selected.size === invoiceable.length ? 'Batal pilih semua' : `Pilih semua (${invoiceable.length})`}
+            </button>
+            {selected.size > 0 && <span className="text-xs text-gray-400">{selected.size} dipilih</span>}
+          </div>
+
+          {/* Daftar pelanggan */}
+          <div className="space-y-3">
+            {customers.map(c => {
+              const key = c.owner ? c.owner.id : '__none__';
+              const isSel = c.owner && selected.has(c.owner.id);
+              const d = drafts[key] || { additional_fee: '', currency: 'IDR', note: '' };
+              return (
+                <div key={key}
+                  className={`bg-white rounded-2xl border-2 shadow-soft overflow-hidden transition-all ${
+                    isSel ? 'border-matcha-400' : 'border-cream-200'
+                  }`}>
+                  {/* Header pelanggan */}
+                  <div className="flex items-center gap-3 px-4 py-3 bg-cream-50 border-b border-cream-100">
+                    {c.owner ? (
+                      <div
+                        onClick={() => toggle(c.owner.id)}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 transition-colors ${
+                          isSel ? 'bg-matcha-700 border-matcha-700' : 'border-gray-300 bg-white hover:border-matcha-400'
+                        }`}
+                      >
+                        {isSel && <span className="text-white text-[10px] font-bold">✓</span>}
+                      </div>
+                    ) : <span className="w-5 flex-shrink-0" />}
+
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                      c.owner ? 'bg-gradient-to-br from-matcha-400 to-matcha-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {c.owner ? (c.owner.label[0] || '?').toUpperCase() : '?'}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-matcha-800 text-sm truncate">
+                        {c.owner ? c.owner.label : 'Tanpa Pemilik'}
+                      </p>
+                      <p className="text-xs text-gray-400 font-mono truncate">
+                        {c.owner ? c.owner.code : 'resi belum di-assign ke kode akses'}
+                      </p>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-gray-400">{c.parcel_count} resi</p>
+                      <p className="text-sm font-bold text-matcha-700">
+                        {[
+                          c.totals.IDR.total ? money(c.totals.IDR.total, 'IDR') : null,
+                          c.totals.CNY.total ? money(c.totals.CNY.total, 'CNY') : null,
+                        ].filter(Boolean).join(' + ') || '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Additional fee manual */}
+                  {c.owner && (
+                    <div className="px-4 py-3 flex flex-wrap items-end gap-2 border-b border-cream-100">
+                      <div className="w-32">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                          Additional Fee
+                        </label>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={d.additional_fee}
+                          onChange={e => setDraft(key, { additional_fee: e.target.value })}
+                          placeholder="0"
+                          className="input-field text-sm py-1.5"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Mata Uang</label>
+                        <select
+                          value={d.currency}
+                          onChange={e => setDraft(key, { currency: e.target.value })}
+                          className="input-field text-sm py-1.5"
+                        >
+                          {Object.entries(CURRENCIES).map(([code, cur]) => (
+                            <option key={code} value={code}>{cur.symbol} {code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Keterangan</label>
+                        <input
+                          type="text"
+                          value={d.note}
+                          onChange={e => setDraft(key, { note: e.target.value })}
+                          placeholder="cth: biaya packing ulang"
+                          className="input-field text-sm py-1.5"
+                        />
+                      </div>
+                      <button
+                        onClick={() => saveAdditional(c.owner.id)}
+                        disabled={savingId === c.owner.id}
+                        className="btn-primary text-xs px-3 py-2 disabled:opacity-50"
+                      >
+                        {savingId === c.owner.id ? '...' : '💾 Simpan'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Rincian resi */}
+                  <details className="group">
+                    <summary className="px-4 py-2 text-xs text-gray-500 cursor-pointer hover:bg-cream-50 transition-colors list-none flex items-center gap-1.5">
+                      <span className="group-open:rotate-90 transition-transform">›</span>
+                      Lihat {c.parcel_count} resi
+                    </summary>
+                    <div className="divide-y divide-cream-100 border-t border-cream-100">
+                      {c.parcels.map(p => (
+                        <div key={p.id} className="flex items-center gap-3 px-4 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-700 truncate">{p.recipient_name}</p>
+                            <p className="text-[11px] font-mono text-gray-400 truncate">{p.tracking_number}</p>
+                          </div>
+                          <div className="text-right text-[11px] flex-shrink-0">
+                            {baseFee(p, type) > 0 && (
+                              <p className="text-amber-600 font-semibold">{money(baseFee(p, type), p.currency)}</p>
+                            )}
+                            {p.additional_fee > 0 && (
+                              <p className="text-orange-500">➕ {money(p.additional_fee, p.currency)}</p>
+                            )}
+                            {p.fine_amount > 0 && <p className="text-red-500">⚠️ {rupiah(p.fine_amount)}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Dokumen invoice untuk dicetak ───────────────────────── */
+function buildInvoicesHTML(batch, customers, type) {
+  const today = formatDate(new Date().toISOString(), false);
+  const typeLabel = type === 'HC' ? 'Hand Carry' : 'Warehouse';
+
+  const pages = customers.map(c => {
+    const rows = c.parcels.map((p, i) => `
+      <tr>
+        <td class="num">${i + 1}</td>
+        <td>
+          <div class="name">${esc(p.recipient_name)}</div>
+          <div class="mono">${esc(p.tracking_number)}</div>
+        </td>
+        <td>${p.type === 'paperbased' ? 'Paperbased' : 'Barang'}</td>
+        <td class="right">${p.estimated_weight_grams ? esc(formatWeight(p.estimated_weight_grams)) : '-'}</td>
+        <td class="right">${baseFee(p, type) ? esc(money(baseFee(p, type), p.currency)) : '-'}</td>
+        <td class="right">${p.additional_fee ? esc(money(p.additional_fee, p.currency)) : '-'}</td>
+        <td class="right">${p.fine_amount ? esc(rupiah(p.fine_amount)) : '-'}</td>
+      </tr>`).join('');
+
+    const summaryRows = ['IDR', 'CNY']
+      .filter(cur => hasMoney(c.totals[cur]))
+      .map(cur => `
+        <tr>
+          <td>Subtotal biaya (${CURRENCIES[cur].label})</td>
+          <td class="right">${esc(money(c.totals[cur].fee, cur))}</td>
+        </tr>
+        ${c.totals[cur].additional ? `<tr>
+          <td>Additional fee (${CURRENCIES[cur].label})${c.invoice.additional_note ? ` — ${esc(c.invoice.additional_note)}` : ''}</td>
+          <td class="right">${esc(money(c.totals[cur].additional, cur))}</td>
+        </tr>` : ''}
+        ${cur === 'IDR' && c.totals.IDR.fine ? `<tr>
+          <td>Denda input manual</td>
+          <td class="right">${esc(rupiah(c.totals.IDR.fine))}</td>
+        </tr>` : ''}
+        <tr class="grand">
+          <td>TOTAL ${CURRENCIES[cur].label}</td>
+          <td class="right">${esc(money(c.totals[cur].total, cur))}</td>
+        </tr>`).join('');
+
+    return `
+    <section class="invoice">
+      <header>
+        <div>
+          <h1>Djematcha</h1>
+          <p class="sub">Invoice ${esc(typeLabel)} · Batch #${esc(batch?.batch_number)}</p>
+        </div>
+        <div class="right">
+          <p class="sub">Tanggal cetak</p>
+          <p class="strong">${esc(today)}</p>
+        </div>
+      </header>
+
+      <div class="bill">
+        <p class="sub">Ditagihkan kepada</p>
+        <p class="strong big">${esc(c.owner.label)}</p>
+        <p class="mono">${esc(c.owner.code)} · ${c.parcel_count} resi</p>
+      </div>
+
+      <table class="items">
+        <thead>
+          <tr>
+            <th class="num">#</th>
+            <th>Penerima / Nomor Resi</th>
+            <th>Jenis</th>
+            <th class="right">Berat</th>
+            <th class="right">Biaya</th>
+            <th class="right">Add. Fee</th>
+            <th class="right">Denda</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+
+      <table class="summary">${summaryRows}</table>
+
+      <footer>
+        <p>Terima kasih telah menggunakan jasa Djematcha 🍵</p>
+      </footer>
+    </section>`;
+  }).join('');
+
+  return `<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Invoice ${esc(typeLabel)} Batch ${esc(batch?.batch_number)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         color: #1f2937; margin: 0; padding: 24px; background: #f5f5f4; }
+  .invoice { background: #fff; padding: 32px; max-width: 800px; margin: 0 auto 24px;
+             border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  header { display: flex; justify-content: space-between; align-items: flex-start;
+           border-bottom: 2px solid #2A4A40; padding-bottom: 14px; margin-bottom: 20px; }
+  h1 { margin: 0; font-size: 26px; color: #2A4A40; letter-spacing: -.5px; }
+  .sub { margin: 2px 0; font-size: 11px; color: #6b7280; }
+  .strong { margin: 2px 0; font-weight: 700; font-size: 13px; }
+  .big { font-size: 18px; color: #2A4A40; }
+  .mono { font-family: ui-monospace, "Courier New", monospace; font-size: 11px; color: #6b7280; }
+  .right { text-align: right; }
+  .num { text-align: center; width: 28px; color: #9ca3af; }
+  .bill { background: #f7faf8; border: 1px solid #e5eee9; border-radius: 8px;
+          padding: 12px 14px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  .items th { text-align: left; font-size: 10px; text-transform: uppercase;
+              letter-spacing: .04em; color: #6b7280; border-bottom: 1px solid #e5e7eb;
+              padding: 6px 8px; }
+  .items td { font-size: 12px; padding: 8px; border-bottom: 1px solid #f3f4f6;
+              vertical-align: top; }
+  .items .name { font-weight: 600; }
+  .summary { margin-top: 18px; margin-left: auto; width: 320px; }
+  .summary td { font-size: 12px; padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+  .summary .grand td { font-weight: 800; font-size: 13px; color: #2A4A40;
+                       border-top: 2px solid #2A4A40; border-bottom: none; padding-top: 8px; }
+  footer { margin-top: 26px; text-align: center; font-size: 11px; color: #9ca3af; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .invoice { box-shadow: none; border-radius: 0; margin: 0; padding: 20px;
+               page-break-after: always; max-width: none; }
+    .invoice:last-child { page-break-after: auto; }
+  }
+</style>
+</head>
+<body>${pages}</body>
+</html>`;
+}

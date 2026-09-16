@@ -50,7 +50,13 @@ export default function AdminRequests() {
     else setSelected(new Set(visiblePending.map(r => r.id)));
   }
 
+  const dupLabel = r => (r?.duplicate_of === 'parcel'
+    ? `Resi ${r.tracking_number} sudah pernah masuk sebagai paket.`
+    : `Resi ${r.tracking_number} disetor ${r?.duplicate_count}x di daftar ini.`);
+
   async function handleApprove(id) {
+    const r = requests.find(x => x.id === id);
+    if (r?.duplicate_of && !window.confirm(`⚠️ ${dupLabel(r)}\n\nTetap acc?`)) return;
     setActing(id);
     const res = await fetch(`/api/requests/${id}/approve`, { method: 'PATCH' });
     const data = await res.json();
@@ -62,6 +68,12 @@ export default function AdminRequests() {
 
   async function handleBulkApprove() {
     if (!selected.size) return;
+    const dups = requests.filter(r => selected.has(r.id) && r.duplicate_of);
+    if (dups.length) {
+      const detail = dups.slice(0, 5).map(r => `• ${dupLabel(r)}`).join('\n');
+      const more = dups.length > 5 ? `\n• ...dan ${dups.length - 5} lagi` : '';
+      if (!window.confirm(`⚠️ ${dups.length} resi terdeteksi duplikat:\n\n${detail}${more}\n\nTetap acc semuanya?`)) return;
+    }
     setBulkLoading(true);
     const ids = [...selected];
     const errors = [];
@@ -74,6 +86,18 @@ export default function AdminRequests() {
     setSelected(new Set());
     setBulkLoading(false);
     if (errors.length) alert(`Gagal acc beberapa resi:\n${errors.join('\n')}`);
+  }
+
+  async function handleBulkReject() {
+    if (!selected.size) return;
+    if (!window.confirm(`Tolak ${selected.size} resi terpilih?`)) return;
+    setBulkLoading(true);
+    for (const id of [...selected]) {
+      await fetch(`/api/requests/${id}/reject`, { method: 'PATCH' });
+      setRequests(prev => prev.filter(r => r.id !== id));
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
   }
 
   async function handleReject(id) {
@@ -176,6 +200,13 @@ export default function AdminRequests() {
                   : <>✓ Acc Semua ({selected.size})</>
                 }
               </button>
+              <button
+                onClick={handleBulkReject}
+                disabled={bulkLoading}
+                className="text-xs px-4 py-1.5 rounded-lg font-semibold border-2 border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
+              >
+                ✕ Tolak Semua ({selected.size})
+              </button>
             </>
           )}
         </div>
@@ -218,6 +249,14 @@ export default function AdminRequests() {
                       {r.type === 'HC' ? '✈️ HC' : '🏭 WH'}
                     </span>
                     <span className="text-xs text-gray-400">{formatDate(r.submitted_at)}</span>
+                    {r.duplicate_of && (
+                      <span
+                        title={dupLabel(r)}
+                        className="text-xs font-bold px-2 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200"
+                      >
+                        ⚠️ {r.duplicate_of === 'parcel' ? 'Sudah Ada' : `Dobel ${r.duplicate_count}x`}
+                      </span>
+                    )}
                   </div>
                   {tab !== 'pending' && (
                     <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">🗑</button>

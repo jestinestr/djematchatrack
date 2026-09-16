@@ -17,6 +17,8 @@ router.post('/verify', async (req, res) => {
 
   res.json({
     valid: true,
+    id: data.id,
+    code: data.code,
     label: data.label,
     access_hc: data.access_hc ?? true,
     access_wh: data.access_wh ?? true,
