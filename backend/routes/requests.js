@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const supabase = require('../supabase');
+const { fetchCodes, attachOwners } = require('../lib/owner');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
 
@@ -31,7 +32,10 @@ router.get('/', async (req, res) => {
   const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
 
-  res.json(await markDuplicates(data || []));
+  // Pemilik hanya dari owner_code_id — nama penerima diketik bebas oleh
+  // user jadi tidak boleh dipakai menebak kepemilikan.
+  const codes = await fetchCodes();
+  res.json(attachOwners(await markDuplicates(data || []), codes, { allowNameMatch: false }));
 });
 
 // Tandai resi yang sudah pernah masuk — baik sudah jadi parcel maupun
@@ -136,6 +140,21 @@ router.post('/', upload.any(), async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── PATCH set pemilik request ────────────────────────────
+//  Untuk request lama yang disetor sebelum kode akses ikut tercatat.
+router.patch('/:id/owner', async (req, res) => {
+  const { owner_code_id } = req.body;
+  const { data, error } = await supabase
+    .from('parcel_requests')
+    .update({ owner_code_id: owner_code_id ? parseInt(owner_code_id) : null })
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 // ── PATCH approve ────────────────────────────────────────

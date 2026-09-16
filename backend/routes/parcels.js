@@ -129,7 +129,9 @@ function registerUserView(kind) {
       const result = [];
 
       for (const batch of batches) {
-        const withOwners = attachOwners(batch.parcels, codes);
+        // Ketat: hanya resi yang pemiliknya di-assign eksplisit yang diakui
+        // milik seseorang — tebakan dari nama tidak dipakai di sisi user.
+        const withOwners = attachOwners(batch.parcels, codes, { allowNameMatch: false });
         const mine = withOwners.filter(p => p.owner && String(p.owner.id) === String(me.id));
         const isActive = batch.status === 'active';
 

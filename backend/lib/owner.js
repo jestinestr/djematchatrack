@@ -13,20 +13,29 @@ const norm = s => (s || '').trim().toLowerCase();
 
 // Resolusi pemilik sebuah resi:
 //  1. owner_code_id kalau sudah di-assign admin
-//  2. fallback: cocokkan recipient_name dengan label kode akses (data lama)
-function resolveOwner(parcel, codes) {
+//  2. fallback: cocokkan recipient_name dengan label kode akses
+//
+// PENTING: recipient_name diketik bebas oleh user saat setor resi, jadi
+// tebakan nama TIDAK boleh dipakai untuk menentukan siapa yang berhak
+// melihat sebuah resi — user bisa mengetik nama orang lain dan paketnya
+// ikut muncul di panel orang itu. Fallback ini hanya untuk tampilan admin
+// (sebagai saran yang ditandai `matched_by_name`), sementara panel
+// pelanggan memakai allowNameMatch = false.
+function resolveOwner(parcel, codes, allowNameMatch = true) {
   if (parcel.owner_code_id) {
     const c = codes.find(c => String(c.id) === String(parcel.owner_code_id));
     if (c) return { id: c.id, code: c.code, label: c.label, matched_by_name: false };
   }
+  if (!allowNameMatch) return null;
+
   const byName = codes.find(c => norm(c.label) === norm(parcel.recipient_name));
   if (byName) return { id: byName.id, code: byName.code, label: byName.label, matched_by_name: true };
   return null;
 }
 
 // Tempelkan objek `owner` ke setiap resi.
-function attachOwners(parcels, codes) {
-  return (parcels || []).map(p => ({ ...p, owner: resolveOwner(p, codes) }));
+function attachOwners(parcels, codes, { allowNameMatch = true } = {}) {
+  return (parcels || []).map(p => ({ ...p, owner: resolveOwner(p, codes, allowNameMatch) }));
 }
 
 // Samarkan resi milik orang lain: hanya 4 digit terakhir + nama, foto disensor.

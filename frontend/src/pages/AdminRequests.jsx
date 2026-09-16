@@ -23,6 +23,29 @@ export default function AdminRequests() {
   const [selected, setSelected]     = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'HC' | 'WH'
+  const [codes, setCodes] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/codes').then(r => r.json()).then(setCodes).catch(() => {});
+  }, []);
+
+  // Set pemilik request (untuk setoran lama yang belum tercatat kode aksesnya)
+  async function assignOwner(ids, ownerId) {
+    if (!ownerId) return;
+    const owner = codes.find(c => String(c.id) === String(ownerId)) || null;
+    const list = [].concat(ids);
+    for (const id of list) {
+      await fetch(`/api/requests/${id}/owner`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner_code_id: ownerId }),
+      });
+    }
+    const idSet = new Set(list);
+    setRequests(prev => prev.map(r => (idSet.has(r.id)
+      ? { ...r, owner_code_id: ownerId, owner: owner && { id: owner.id, code: owner.code, label: owner.label } }
+      : r)));
+  }
 
   function load(status) {
     setLoading(true);
@@ -57,6 +80,7 @@ export default function AdminRequests() {
   async function handleApprove(id) {
     const r = requests.find(x => x.id === id);
     if (r?.duplicate_of && !window.confirm(`⚠️ ${dupLabel(r)}\n\nTetap acc?`)) return;
+    if (r && !r.owner && !window.confirm(`⚠️ Resi ini belum punya pemilik, jadi tidak akan muncul di panel pelanggan mana pun.\n\nTetap acc?`)) return;
     setActing(id);
     const res = await fetch(`/api/requests/${id}/approve`, { method: 'PATCH' });
     const data = await res.json();
@@ -74,6 +98,8 @@ export default function AdminRequests() {
       const more = dups.length > 5 ? `\n• ...dan ${dups.length - 5} lagi` : '';
       if (!window.confirm(`⚠️ ${dups.length} resi terdeteksi duplikat:\n\n${detail}${more}\n\nTetap acc semuanya?`)) return;
     }
+    const noOwner = requests.filter(r => selected.has(r.id) && !r.owner);
+    if (noOwner.length && !window.confirm(`⚠️ ${noOwner.length} resi belum punya pemilik dan tidak akan muncul di panel pelanggan mana pun.\n\nTetap acc semuanya?`)) return;
     setBulkLoading(true);
     const ids = [...selected];
     const errors = [];
@@ -200,6 +226,17 @@ export default function AdminRequests() {
                   : <>✓ Acc Semua ({selected.size})</>
                 }
               </button>
+              <select
+                value=""
+                onChange={e => { assignOwner([...selected], e.target.value); e.target.value = ''; }}
+                className="text-xs border-2 border-cream-300 rounded-lg px-2 py-1.5 font-medium text-gray-600 focus:outline-none focus:border-matcha-400"
+                title="Set pemilik untuk semua yang dipilih"
+              >
+                <option value="">👤 Set pemilik...</option>
+                {codes.map(c => (
+                  <option key={c.id} value={c.id}>{c.label} ({c.code})</option>
+                ))}
+              </select>
               <button
                 onClick={handleBulkReject}
                 disabled={bulkLoading}
@@ -283,6 +320,28 @@ export default function AdminRequests() {
                           {r.parcel_type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
                         </span>
                         {r.notes && <span className="text-xs text-gray-400 italic">"{r.notes}"</span>}
+                      </div>
+
+                      {/* Pemilik — dari kode akses saat setor, bukan dari nama penerima */}
+                      <div className="mt-1.5">
+                        {r.owner ? (
+                          <span className="text-xs bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full">
+                            👤 {r.owner.label} <span className="font-mono opacity-70">{r.owner.code}</span>
+                          </span>
+                        ) : tab === 'pending' ? (
+                          <select
+                            value=""
+                            onChange={e => assignOwner(r.id, e.target.value)}
+                            className="text-xs border border-amber-300 bg-amber-50 text-amber-700 rounded-lg px-2 py-1 font-medium focus:outline-none focus:border-amber-500"
+                          >
+                            <option value="">⚠️ Pilih pemilik...</option>
+                            {codes.map(c => (
+                              <option key={c.id} value={c.id}>{c.label} ({c.code})</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-400">👤 tanpa pemilik</span>
+                        )}
                       </div>
                       {tab === 'approved' && r.reviewed_at && (
                         <p className="text-xs text-green-600 mt-1.5">✓ Disetujui {formatDate(r.reviewed_at)}</p>
