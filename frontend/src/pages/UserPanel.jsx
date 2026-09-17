@@ -24,6 +24,7 @@ export default function UserPanel({ type }) {
   const [showRequest, setShowRequest] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [detail, setDetail]   = useState(null);
+  const [photoFilter, setPhotoFilter] = useState('all'); // all | yes | no
 
   // Mode pilih foto untuk unduh massal
   const [picking, setPicking]     = useState(false);
@@ -65,10 +66,16 @@ export default function UserPanel({ type }) {
     p.recipient_name?.toLowerCase().includes(search.toLowerCase()) ||
     p.tracking_number?.toLowerCase().includes(search.toLowerCase());
 
-  const mineShown   = mine.filter(match);
+  const photoOk = p =>
+    photoFilter === 'all' ||
+    (photoFilter === 'yes' ? !!p.photo_url : !p.photo_url);
+
+  const mineShown   = mine.filter(p => match(p) && photoOk(p));
   const othersShown = others.filter(match);
 
   const downloadable = mine.filter(p => p.photo_url);
+  const photoDone = downloadable.length;
+  const photoPct = mine.length ? Math.round((photoDone / mine.length) * 100) : 0;
 
   function togglePick(id) {
     setPicked(prev => {
@@ -250,6 +257,50 @@ export default function UserPanel({ type }) {
 
             {!loading && !error && batch && (
               <>
+                {/* Tracker foto — berapa resi yang sudah difoto */}
+                {mine.length > 0 && (
+                  <div className="bg-white border-2 border-cream-200 rounded-2xl px-4 py-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">📸</span>
+                      <p className="text-sm font-bold text-matcha-800 flex-1">
+                        {photoDone} dari {mine.length} resi sudah ada foto
+                      </p>
+                      <span className={`text-xs font-bold ${photoPct === 100 ? 'text-green-600' : 'text-amber-600'}`}>
+                        {photoPct}%
+                      </span>
+                    </div>
+
+                    <div className="h-2 bg-cream-200 rounded-full overflow-hidden mb-2.5">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          photoPct === 100 ? 'bg-green-500' : 'bg-matcha-600'
+                        }`}
+                        style={{ width: `${photoPct}%` }}
+                      />
+                    </div>
+
+                    <div className="flex gap-1.5">
+                      {[
+                        ['all', `Semua (${mine.length})`],
+                        ['yes', `📷 Sudah (${photoDone})`],
+                        ['no', `⏳ Belum (${mine.length - photoDone})`],
+                      ].map(([v, l]) => (
+                        <button
+                          key={v}
+                          onClick={() => setPhotoFilter(v)}
+                          className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors ${
+                            photoFilter === v
+                              ? 'bg-matcha-800 text-white'
+                              : 'bg-cream-50 text-gray-500 hover:text-matcha-700 border border-cream-200'
+                          }`}
+                        >
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Bar aksi foto */}
                 {downloadable.length > 0 && (
                   <div className="flex items-center gap-2 bg-white border-2 border-cream-200 rounded-2xl px-3 py-2">
