@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { CURRENCIES, money, rupiah, normCurrency } from '../utils/format';
 import LabelPrintModal from './LabelPrintModal';
 
+// Judul kecil pemisah antar kelompok isian
+function SectionTitle({ children }) {
+  return (
+    <div className="flex items-center gap-2.5 pt-1">
+      <h3 className="text-[11px] font-bold text-matcha-700 uppercase tracking-wider whitespace-nowrap">
+        {children}
+      </h3>
+      <div className="flex-1 h-px bg-cream-200" />
+    </div>
+  );
+}
+
 // Pass `parcel` prop to enter edit mode (pre-fills form, calls PATCH instead of POST)
 export default function AddParcelModal({
   type,
@@ -140,17 +152,32 @@ export default function AddParcelModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-pop-in"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-matcha-800">
-            {isEdit ? '✏️ Edit Resi' : `Tambah Resi ${isHC ? '✈️ HC' : '🏭 WH'}`}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        {/* Judul tetap terlihat walau form digulir */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-cream-200 bg-matcha-50 flex-shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-matcha-800">
+              {isEdit ? '✏️ Edit Resi' : `Tambah Resi ${isHC ? '✈️ Hand Carry' : '🏭 Warehouse'}`}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {batchNumber ? `Batch #${batchNumber}` : 'Lengkapi data resi di bawah'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white transition-colors"
+          >
+            ×
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          <SectionTitle>Identitas</SectionTitle>
+
           {/* Pemilik */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,28 +201,28 @@ export default function AddParcelModal({
             )}
           </div>
 
-          {/* Nama penerima */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penerima <span className="text-red-500">*</span></label>
-            <input
-              className="input-field"
-              value={form.recipient_name}
-              onChange={e => setField('recipient_name', e.target.value)}
-              placeholder="Nama lengkap penerima"
-              required
-            />
-          </div>
-
-          {/* Nomor resi */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Resi <span className="text-red-500">*</span></label>
-            <input
-              className="input-field font-mono"
-              value={form.tracking_number}
-              onChange={e => setField('tracking_number', e.target.value)}
-              placeholder="JD1234567890..."
-              required
-            />
+          {/* Nama penerima + nomor resi berdampingan */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penerima <span className="text-red-500">*</span></label>
+              <input
+                className="input-field"
+                value={form.recipient_name}
+                onChange={e => setField('recipient_name', e.target.value)}
+                placeholder="Nama lengkap penerima"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Resi <span className="text-red-500">*</span></label>
+              <input
+                className="input-field font-mono"
+                value={form.tracking_number}
+                onChange={e => setField('tracking_number', e.target.value)}
+                placeholder="JD1234567890..."
+                required
+              />
+            </div>
           </div>
 
           {/* Jenis paket */}
@@ -212,8 +239,10 @@ export default function AddParcelModal({
             </div>
           </div>
 
+          <SectionTitle>Ukuran &amp; Biaya</SectionTitle>
+
           {/* Berat + qty */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Berat (g)</label>
               <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
@@ -243,7 +272,7 @@ export default function AddParcelModal({
           </div>
 
           {/* Biaya + additional fee */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Biaya {isHC ? 'HC' : 'WH'} ({CURRENCIES[form.currency].symbol})
@@ -270,8 +299,10 @@ export default function AddParcelModal({
             </div>
           </div>
 
+          <SectionTitle>Foto</SectionTitle>
+
           {/* Foto */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 📷 Foto Arrival
@@ -303,8 +334,10 @@ export default function AddParcelModal({
             </div>
           </div>
 
+          <SectionTitle>Penanda &amp; Denda</SectionTitle>
+
           {/* Penanda input manual — cuma tanda, tidak menambah denda */}
-          <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">
+          <label className="flex items-start gap-3 p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">
             <input type="checkbox" checked={form.is_manual_input} onChange={e => setField('is_manual_input', e.target.checked)} className="w-4 h-4 accent-amber-600" />
             <div>
               <div className="text-sm font-semibold text-amber-800">✍️ Tandai sebagai input manual</div>
@@ -341,13 +374,6 @@ export default function AddParcelModal({
 
           {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Batal</button>
-            <button type="submit" disabled={loading} className="flex-1 btn-primary">
-              {loading ? 'Menyimpan...' : isEdit ? '💾 Simpan Perubahan' : 'Simpan Resi'}
-            </button>
-          </div>
-
           {/* Cetak label resi ini — hanya saat mengedit resi yang sudah tersimpan */}
           {isEdit && (
             <button
@@ -358,6 +384,16 @@ export default function AddParcelModal({
               🏷 Cetak Label Resi Ini
             </button>
           )}
+
+          </div>
+
+          {/* Tombol simpan selalu terlihat, tidak ikut tergulir */}
+          <div className="flex gap-2 px-6 py-4 border-t border-cream-200 bg-cream-50 flex-shrink-0">
+            <button type="button" onClick={onClose} className="btn-secondary px-6">Batal</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Menyimpan...' : isEdit ? '💾 Simpan Perubahan' : '💾 Simpan Resi'}
+            </button>
+          </div>
         </form>
       </div>
 

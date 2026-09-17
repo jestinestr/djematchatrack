@@ -23,7 +23,7 @@ export default function ParcelDetailModal({
     <>
       <div className="modal-backdrop" onClick={onClose}>
         <div
-          className="bg-white rounded-3xl shadow-soft-lg w-full max-w-sm overflow-hidden max-h-[90vh] flex flex-col"
+          className="bg-white rounded-3xl shadow-soft-lg w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col animate-pop-in"
           onClick={e => e.stopPropagation()}
         >
           {/* Foto */}
