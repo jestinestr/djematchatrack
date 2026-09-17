@@ -122,7 +122,7 @@ export default function AdminInvoice() {
     w.document.write(html);
     w.document.close();
     w.focus();
-    setTimeout(() => w.print(), 350);
+    // Dialog cetak dipanggil dari halamannya sendiri setelah logo termuat
   }
 
   // ── Export CSV ────────────────────────────────────────────────────
@@ -477,9 +477,12 @@ function buildInvoicesHTML(batch, customers, type) {
     return `
     <section class="invoice">
       <header>
-        <div>
-          <h1>Djematcha</h1>
-          <p class="sub">Invoice ${esc(typeLabel)} · Batch #${esc(batch?.batch_number)}</p>
+        <div class="brand">
+          <img class="logo" src="${window.location.origin}/ava.png" alt="">
+          <div>
+            <h1>Djematcha</h1>
+            <p class="sub">Invoice ${esc(typeLabel)} · Batch #${esc(batch?.batch_number)}</p>
+          </div>
         </div>
         <div class="right">
           <p class="sub">Tanggal cetak</p>
@@ -530,6 +533,9 @@ function buildInvoicesHTML(batch, customers, type) {
   header { display: flex; justify-content: space-between; align-items: flex-start;
            border-bottom: 2px solid #2A4A40; padding-bottom: 14px; margin-bottom: 20px; }
   h1 { margin: 0; font-size: 26px; color: #2A4A40; letter-spacing: -.5px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 46px; height: 46px; border-radius: 50%; object-fit: cover;
+          border: 1px solid #e5eee9; flex-shrink: 0; }
   .sub { margin: 2px 0; font-size: 11px; color: #6b7280; }
   .strong { margin: 2px 0; font-weight: 700; font-size: 13px; }
   .big { font-size: 18px; color: #2A4A40; }
@@ -554,13 +560,19 @@ function buildInvoicesHTML(batch, customers, type) {
                        border-top: 2px solid #2A4A40; border-bottom: none; padding-top: 8px; }
   footer { margin-top: 26px; text-align: center; font-size: 11px; color: #9ca3af; }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .invoice { box-shadow: none; border-radius: 0; margin: 0; padding: 20px;
                page-break-after: always; max-width: none; }
     .invoice:last-child { page-break-after: auto; }
   }
 </style>
 </head>
-<body>${pages}</body>
+<body>${pages}
+<script>
+  // Cetak setelah logo selesai dimuat, supaya tidak tercetak kosong
+  window.addEventListener('load', () => setTimeout(() => window.print(), 150));
+</script>
+</body>
 </html>`;
 }
