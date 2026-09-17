@@ -282,8 +282,8 @@ export default function UserPanel({ type }) {
                     <div className="flex gap-1.5">
                       {[
                         ['all', `Semua (${mine.length})`],
-                        ['yes', `📷 Sudah (${photoDone})`],
-                        ['no', `⏳ Belum (${mine.length - photoDone})`],
+                        ['yes', `📷 Arrived photo (${photoDone})`],
+                        ['no', `⏳ Not yet (${mine.length - photoDone})`],
                       ].map(([v, l]) => (
                         <button
                           key={v}

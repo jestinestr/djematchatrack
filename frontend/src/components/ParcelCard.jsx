@@ -84,11 +84,11 @@ export default function ParcelCard({
             <>
               {parcel.photo_url ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 font-semibold">
-                  📷 Ada foto
+                  📷 Arrived photo
                 </span>
               ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
-                  ⏳ Belum difoto
+                  ⏳ Not yet
                 </span>
               )}
               {parcel.estimated_weight_grams > 0 && (
