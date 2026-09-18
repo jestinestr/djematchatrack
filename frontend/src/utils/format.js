@@ -72,10 +72,66 @@ export function slugify(str) {
   return str?.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30) || 'foto';
 }
 
-export async function downloadImage(url, filename) {
+// Nama yang dicetak di kartu foto: nama pelanggan, fallback nama penerima
+export const cardName = p => p?.owner?.label || p?.recipient_name || '';
+export const tail4 = tn => String(tn || '').trim().slice(-4) || '----';
+
+// Susun foto jadi "kartu": foto persegi di atas, nama di kiri bawah,
+// 4 digit terakhir resi besar di kanan bawah. Foto asli tidak diubah.
+export async function makePhotoCard(url, name, tracking) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Foto gagal dimuat');
+  const src = URL.createObjectURL(await res.blob());
   try {
-    const res = await fetch(url);
-    const blob = await res.blob();
+    const img = await new Promise((ok, fail) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = fail;
+      i.src = src;
+    });
+
+    const W = 1080, PAD = 60, PH = W - PAD * 2, H = PAD + PH + 260;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+
+    // Potong tengah supaya foto selalu persegi (seperti object-cover)
+    const side = Math.min(img.width, img.height);
+    ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, PAD, PAD, PH, PH);
+    ctx.strokeStyle = '#d6d3d1';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(PAD, PAD, PH, PH);
+
+    const baseY = PAD + PH + 175;
+    const tail = tail4(tracking);
+    ctx.fillStyle = '#000';
+    ctx.textAlign = 'right';
+    ctx.font = '900 150px Arial, Helvetica, sans-serif';
+    ctx.fillText(tail, W - PAD, baseY + 20);
+    const tailW = ctx.measureText(tail).width;
+
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 64px Arial, Helvetica, sans-serif';
+    const full = String(name || '').trim();
+    let label = full;
+    const maxW = W - PAD * 2 - tailW - 40;
+    while (label.length > 1 && ctx.measureText(label + '…').width > maxW) label = label.slice(0, -1);
+    ctx.fillText(label === full ? full : label + '…', PAD + 20, baseY);
+
+    return await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.92));
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
+
+// card: { name, tracking } → unduh dalam format kartu; tanpa card → foto asli
+export async function downloadImage(url, filename, card) {
+  try {
+    const blob = card
+      ? await makePhotoCard(url, card.name, card.tracking)
+      : await (await fetch(url)).blob();
     const ext = blob.type.includes('png') ? '.png' : '.jpg';
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -90,7 +146,7 @@ export async function downloadImage(url, filename) {
 // Unduh berurutan dengan jeda kecil supaya tidak diblokir browser
 export async function downloadMany(items, onProgress) {
   for (let i = 0; i < items.length; i++) {
-    await downloadImage(items[i].url, items[i].filename);
+    await downloadImage(items[i].url, items[i].filename, items[i].card);
     onProgress?.(i + 1, items.length);
     if (i < items.length - 1) await new Promise(r => setTimeout(r, 400));
   }

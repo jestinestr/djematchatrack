@@ -1,25 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { slugify, downloadImage, cardName } from '../utils/format';
 
-function slugify(str) {
-  return str?.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30) || 'foto';
-}
-
-async function downloadImage(url, filename) {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const ext = blob.type.includes('png') ? '.png' : '.jpg';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename + ext;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch {
-    // fallback: open in new tab
-    window.open(url, '_blank');
-  }
-}
 
 export default function AdminGallery() {
   const [hcBatches, setHcBatches] = useState([]);
@@ -95,8 +77,8 @@ export default function AdminGallery() {
     setDownloading(true);
     for (let i = 0; i < targets.length; i++) {
       const p = targets[i];
-      const filename = `${slugify(p.recipient_name)}_${slugify(p.tracking_number)}`;
-      await downloadImage(p.photo_url, filename);
+      const filename = `${slugify(cardName(p))}_${slugify(p.tracking_number)}`;
+      await downloadImage(p.photo_url, filename, { name: cardName(p), tracking: p.tracking_number });
       if (i < targets.length - 1) await new Promise(r => setTimeout(r, 400));
     }
     setDownloading(false);

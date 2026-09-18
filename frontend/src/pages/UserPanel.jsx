@@ -4,7 +4,7 @@ import ParcelCard from '../components/ParcelCard';
 import ParcelDetailModal from '../components/ParcelDetailModal';
 import RequestForm from '../components/RequestForm';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { fetchAsUser, downloadMany, slugify } from '../utils/format';
+import { fetchAsUser, downloadMany, slugify, cardName } from '../utils/format';
 
 const META = {
   HC: { icon: '✈️', title: 'Hand Carry', path: 'hc' },
@@ -97,7 +97,8 @@ export default function UserPanel({ type }) {
     await downloadMany(
       targets.map(p => ({
         url: p.photo_url,
-        filename: `${slugify(p.recipient_name)}_${slugify(p.tracking_number)}`,
+        filename: `${slugify(cardName(p))}_${slugify(p.tracking_number)}`,
+        card: { name: cardName(p), tracking: p.tracking_number },
       })),
       (done, total) => setProgress({ done, total })
     );

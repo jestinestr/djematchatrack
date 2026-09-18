@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { money, rupiah, baseFee, formatWeight, formatDate } from '../utils/format';
+import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, slugify } from '../utils/format';
 
 // isAdmin: kalau true, foto CO ikut ditampilkan
 // siblings: resi lain milik pengguna di batch yang sama
@@ -23,7 +23,7 @@ export default function ParcelDetailModal({
     <>
       <div className="modal-backdrop" onClick={onClose}>
         <div
-          className="bg-white rounded-3xl shadow-soft-lg w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col animate-pop-in"
+          className="bg-white rounded-3xl shadow-soft-lg w-full max-w-md overflow-y-auto max-h-[90vh] animate-pop-in"
           onClick={e => e.stopPropagation()}
         >
           {/* Foto */}
@@ -34,7 +34,7 @@ export default function ParcelDetailModal({
                   src={parcel.photo_url}
                   alt="arrival"
                   onClick={() => setZoomUrl(parcel.photo_url)}
-                  className="w-full h-52 object-cover cursor-zoom-in"
+                  className="w-full aspect-square object-cover cursor-zoom-in"
                 />
               ) : (
                 <div className="w-full h-52 flex items-center justify-center text-5xl text-gray-200">📦</div>
@@ -51,7 +51,7 @@ export default function ParcelDetailModal({
                   src={parcel.co_photo_url}
                   alt="CO"
                   onClick={() => setZoomUrl(parcel.co_photo_url)}
-                  className="w-full h-52 object-cover cursor-zoom-in"
+                  className="w-full aspect-square object-cover cursor-zoom-in"
                 />
                 <span className="absolute bottom-2 left-2 text-[10px] font-bold bg-amber-400 text-white px-2 py-0.5 rounded-full">
                   🗂 CO
@@ -60,8 +60,30 @@ export default function ParcelDetailModal({
             )}
           </div>
 
+          {/* Keterangan ala kartu foto: nama kiri, 4 digit resi kanan */}
+          {parcel.photo_url && (
+            <div className="flex items-end justify-between gap-3 px-5 pt-3 pb-1">
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-gray-900 truncate leading-tight">{cardName(parcel)}</p>
+                <button
+                  onClick={() => downloadImage(
+                    parcel.photo_url,
+                    `${slugify(cardName(parcel))}_${slugify(parcel.tracking_number)}`,
+                    { name: cardName(parcel), tracking: parcel.tracking_number },
+                  )}
+                  className="text-xs font-semibold text-matcha-600 hover:underline mt-0.5"
+                >
+                  ⬇️ Download foto
+                </button>
+              </div>
+              <p className="text-4xl font-black text-gray-900 leading-none tracking-tight">
+                {tail4(parcel.tracking_number)}
+              </p>
+            </div>
+          )}
+
           {/* Isi */}
-          <div className="p-5 overflow-y-auto">
+          <div className="p-5">
             <div className="flex items-start justify-between gap-2 mb-1">
               <h2 className="text-lg font-bold text-matcha-800 leading-tight">{parcel.recipient_name}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100">×</button>
