@@ -82,6 +82,11 @@ export default function ParcelCard({
             </span>
           ) : (
             <>
+              {parcel.need_unboxing && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-violet-50 text-violet-700 border border-violet-200 font-semibold">
+                  🎥 Unboxing
+                </span>
+              )}
               {parcel.photo_url ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 font-semibold">
                   📷 Arrived photo

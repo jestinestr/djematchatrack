@@ -300,6 +300,7 @@ export default function AdminBatchCard({
           feePerGram={feePerGram}
           feeCurrency={feeCurrency}
           fineAmount={Number(batch.fine_amount ?? 2000)}
+          unboxingFee={Number(batch.unboxing_fee ?? 0.75)}
           batchNumber={batch.batch_number}
           onClose={() => setShowAdd(false)}
           onAdded={parcel => { onParcelAdded?.(batch.id, parcel); setShowAdd(false); }}
@@ -313,6 +314,7 @@ export default function AdminBatchCard({
           feePerGram={feePerGram}
           feeCurrency={feeCurrency}
           fineAmount={Number(batch.fine_amount ?? 2000)}
+          unboxingFee={Number(batch.unboxing_fee ?? 0.75)}
           batchNumber={batch.batch_number}
           onClose={() => setEditingParcel(null)}
           onEdited={updated => { onParcelEdited?.(batch.id, updated); setEditingParcel(null); }}
@@ -322,6 +324,7 @@ export default function AdminBatchCard({
       {showLabels && (
         <LabelPrintModal
           parcels={parcels.filter(p => picked.has(p.id))}
+          unboxingFee={Number(batch.unboxing_fee ?? 0.75)}
           batchNumber={batch.batch_number}
           type={type}
           onClose={() => setShowLabels(false)}
@@ -405,6 +408,11 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected,
           {extra > 0 && (
             <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
               ➕ {money(extra, p.currency)}
+            </span>
+          )}
+          {p.need_unboxing && (
+            <span className="text-xs bg-violet-100 text-violet-800 px-1.5 py-0.5 rounded-full border border-violet-300 font-semibold" title="Pelanggan minta video unboxing">
+              🎥 Unboxing{p.unboxing_fee > 0 ? ` ¥${Number(p.unboxing_fee).toLocaleString('id-ID')}` : ''}
             </span>
           )}
           {p.is_manual_input && (

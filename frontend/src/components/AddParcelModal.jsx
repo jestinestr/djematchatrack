@@ -22,6 +22,7 @@ export default function AddParcelModal({
   feePerGram = 0,
   feeCurrency = 'IDR',
   fineAmount = 0,
+  unboxingFee = 0.75,
   batchNumber,
   onClose,
   onAdded,
@@ -44,6 +45,7 @@ export default function AddParcelModal({
     additional_fee: parcel?.additional_fee?.toString() || '',
     fine_amount: parcel?.fine_amount ? String(parcel.fine_amount) : '',
     is_manual_input: parcel?.is_manual_input || false,
+    need_unboxing: parcel?.need_unboxing || false,
   });
   const [showLabel, setShowLabel] = useState(false);
   const [photo, setPhoto] = useState(null);
@@ -129,6 +131,7 @@ export default function AddParcelModal({
       fd.append('hc_fee', form.hc_fee || '0');
     } else {
       fd.append('wh_fee', form.wh_fee || '0');
+      fd.append('need_unboxing', form.need_unboxing ? 'true' : 'false');
     }
 
     const endpoint = isHC ? 'hc' : 'wh';
@@ -335,6 +338,22 @@ export default function AddParcelModal({
           </div>
 
           <SectionTitle>Penanda &amp; Denda</SectionTitle>
+
+          {/* Video unboxing — khusus WH, biaya dari tarif batch */}
+          {!isHC && (
+            <label className="flex items-start gap-3 p-3.5 bg-violet-50 rounded-2xl border-2 border-violet-200 cursor-pointer hover:bg-violet-100 transition-colors">
+              <input type="checkbox" checked={form.need_unboxing}
+                onChange={e => setField('need_unboxing', e.target.checked)}
+                className="w-4 h-4 mt-0.5 accent-violet-600" />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-violet-800">🎥 Need video unboxing</div>
+                <div className="text-xs text-violet-600">
+                  Biaya ¥ {Number(unboxingFee).toLocaleString('id-ID')} per resi ikut masuk invoice
+                  (tarifnya diatur di Control Tarif)
+                </div>
+              </div>
+            </label>
+          )}
 
           {/* Penanda input manual — cuma tanda, tidak menambah denda */}
           <label className="flex items-start gap-3 p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">

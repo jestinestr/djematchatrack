@@ -29,6 +29,7 @@ export function sumParcels(parcels, type) {
   for (const p of parcels || []) {
     const cur = normCurrency(p.currency);
     out[cur] += baseFee(p, type) + (Number(p.additional_fee) || 0);
+    out.CNY += Number(p.unboxing_fee) || 0; // video unboxing selalu Yuan
     out.fine += Number(p.fine_amount) || 0;
     out.weight += Number(p.estimated_weight_grams) || 0;
     out.count += 1;

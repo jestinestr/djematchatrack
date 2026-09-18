@@ -7,6 +7,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
   const [input, setInput]     = useState(batch.fee_per_gram?.toString() || '0');
   const [cur, setCur]         = useState(normCurrency(batch.fee_currency));
   const [fineInput, setFineInput] = useState((batch.fine_amount ?? 2000).toString());
+  const [unboxInput, setUnboxInput] = useState((batch.unboxing_fee ?? 0.75).toString());
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
 
@@ -29,7 +30,12 @@ function BatchTarifCard({ batch, type, onSaved }) {
     const res = await fetch(`/api/batches/${batch.id}/fee`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fee_per_gram: val, fee_currency: cur, fine_amount: Math.max(0, Number(fineInput) || 0) }),
+      body: JSON.stringify({
+        fee_per_gram: val,
+        fee_currency: cur,
+        fine_amount: Math.max(0, Number(fineInput) || 0),
+        ...(type === 'WH' ? { unboxing_fee: Math.max(0, Number(unboxInput) || 0) } : {}),
+      }),
     });
     setSaving(false);
     if (res.ok) {
@@ -41,6 +47,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
         fee_per_gram: data.fee_per_gram ?? val,
         fee_currency: data.fee_currency ?? cur,
         fine_amount: data.fine_amount ?? (Number(fineInput) || 0),
+        unboxing_fee: data.unboxing_fee ?? (Number(unboxInput) || 0),
       });
     }
   }
@@ -85,6 +92,11 @@ function BatchTarifCard({ batch, type, onSaved }) {
             <p className="text-[11px] text-gray-400 mt-1.5">
               Denda bawaan: <span className="font-bold text-red-500">{fineAmount > 0 ? rupiah(fineAmount) : 'tidak ada'}</span>
             </p>
+            {type === 'WH' && (
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Video unboxing: <span className="font-bold text-violet-600">{money(batch.unboxing_fee ?? 0.75, 'CNY')}</span> /resi
+              </p>
+            )}
           </div>
 
           {/* Right: total fee */}
@@ -161,6 +173,29 @@ function BatchTarifCard({ batch, type, onSaved }) {
               </p>
             </div>
 
+            {type === 'WH' && (
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                  Video unboxing
+                </label>
+                <div className="flex items-center gap-1.5 bg-cream-50 border-2 border-violet-200 rounded-xl px-3 py-2 focus-within:border-violet-400 transition-colors">
+                  <span className="text-xs font-bold text-violet-500 shrink-0">¥</span>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={unboxInput}
+                    onChange={e => setUnboxInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+                    className="flex-1 text-sm font-mono font-bold bg-transparent outline-none text-violet-700 min-w-0"
+                    placeholder="0.75"
+                  />
+                  <span className="text-xs text-gray-400 shrink-0">/resi</span>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Dikenakan otomatis ke resi yang dicentang "Need video unboxing", masuk invoice.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-0.5">
               <button onClick={save} disabled={saving}
                 className="btn-primary text-sm px-4 py-2 flex-1 disabled:opacity-50">
@@ -170,6 +205,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
                   setEditing(false);
                   setInput(batch.fee_per_gram?.toString() || '0');
                   setFineInput((batch.fine_amount ?? 2000).toString());
+                  setUnboxInput((batch.unboxing_fee ?? 0.75).toString());
                 }}
                 className="btn-secondary text-sm px-3 py-2">
                 Batal

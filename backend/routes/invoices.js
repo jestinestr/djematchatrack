@@ -11,8 +11,8 @@ const num = v => {
 const currencyOf = v => (String(v).toUpperCase() === 'CNY' ? 'CNY' : 'IDR');
 
 const emptyTotals = () => ({
-  IDR: { fee: 0, additional: 0, fine: 0, total: 0 },
-  CNY: { fee: 0, additional: 0, fine: 0, total: 0 },
+  IDR: { fee: 0, additional: 0, fine: 0, unboxing: 0, total: 0 },
+  CNY: { fee: 0, additional: 0, fine: 0, unboxing: 0, total: 0 },
 });
 
 // Fee pokok sebuah resi sesuai tipe batch
@@ -26,12 +26,14 @@ function addParcel(totals, parcel, type) {
   totals[cur].additional += num(parcel.additional_fee);
   // Denda selalu Rupiah, apa pun mata uang resinya
   totals.IDR.fine += num(parcel.fine_amount);
+  // Video unboxing (WH) selalu dalam Yuan
+  totals.CNY.unboxing += num(parcel.unboxing_fee);
 }
 
 function finalize(totals) {
   for (const cur of ['IDR', 'CNY']) {
     const t = totals[cur];
-    t.total = t.fee + t.additional + t.fine;
+    t.total = t.fee + t.additional + t.fine + t.unboxing;
   }
   return totals;
 }

@@ -238,7 +238,13 @@ export default function UserPanel({ type }) {
               <span className="text-lg">📝</span>
               {showRequest ? 'Tutup Form' : `📨 Setor Resi ${type}`}
             </button>
-            {showRequest && <RequestForm type={type} onSubmitted={() => setShowRequest(false)} />}
+            {showRequest && (
+              <RequestForm
+                type={type}
+                unboxingFee={batches.find(b => b.status === 'active')?.unboxing_fee ?? 0.75}
+                onSubmitted={() => setShowRequest(false)}
+              />
+            )}
 
             {loading && <LoadingSpinner text="Memuat data..." />}
             {error && (

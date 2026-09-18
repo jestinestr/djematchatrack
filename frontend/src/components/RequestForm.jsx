@@ -3,13 +3,14 @@ import { fetchAsUser } from '../utils/format';
 
 const emptyRow = () => ({
   tracking_number: '',
+  need_unboxing: false,
   parcel_type: 'barang',
   notes: '',
   coPhoto: null,
   coPreview: null,
 });
 
-export default function RequestForm({ type, onSubmitted }) {
+export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
   const [items, setItems]     = useState([emptyRow()]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -53,8 +54,8 @@ export default function RequestForm({ type, onSubmitted }) {
       fd.append('type', type);
 
       // Append items as JSON (without file objects)
-      const itemsData = items.map(({ tracking_number, parcel_type, notes }) => ({
-        tracking_number, parcel_type, notes,
+      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing }) => ({
+        tracking_number, parcel_type, notes, need_unboxing: type === 'WH' && need_unboxing,
       }));
       fd.append('items', JSON.stringify(itemsData));
 
@@ -144,6 +145,23 @@ export default function RequestForm({ type, onSubmitted }) {
                 onChange={e => updateRow(idx, 'notes', e.target.value)}
               />
             </div>
+
+            {/* Video unboxing — khusus Warehouse, ada biaya tambahan */}
+            {type === 'WH' && (
+              <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${
+                item.need_unboxing ? 'border-violet-300 bg-violet-50' : 'border-cream-200 bg-white hover:border-violet-200'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={item.need_unboxing}
+                  onChange={e => updateRow(idx, 'need_unboxing', e.target.checked)}
+                  className="w-4 h-4 accent-violet-600"
+                />
+                <span className="text-sm">🎥</span>
+                <span className="flex-1 text-xs font-semibold text-gray-700">Need video unboxing</span>
+                <span className="text-xs font-bold text-violet-700">+ ¥ {Number(unboxingFee).toLocaleString('id-ID')}</span>
+              </label>
+            )}
 
             {/* CO Photo */}
             <div>

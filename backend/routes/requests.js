@@ -136,6 +136,7 @@ router.post('/', upload.any(), async (req, res) => {
       notes: item.notes?.trim() || null,
       co_photo_url: await uploadPhoto(coPhotoFiles[i] || null),
       owner_code_id: ownerCodeId,
+      need_unboxing: type === 'WH' && !!item.need_unboxing,
       status: 'pending',
     })));
 
@@ -191,7 +192,7 @@ router.patch('/:id/approve', async (req, res) => {
   // 2. Find active batch of this type
   const { data: batch, error: batchErr } = await supabase
     .from('batches')
-    .select('id, type, batch_number')
+    .select('id, type, batch_number, unboxing_fee')
     .eq('type', parcelType)
     .eq('status', 'active')
     .order('batch_number', { ascending: false })
@@ -220,6 +221,8 @@ router.patch('/:id/approve', async (req, res) => {
     insertData.hc_fee = 0;
   } else {
     insertData.wh_fee = 0;
+    insertData.need_unboxing = !!req_data.need_unboxing;
+    insertData.unboxing_fee = req_data.need_unboxing ? Number(batch.unboxing_fee ?? 0.75) : 0;
   }
 
   const { error: insertErr } = await supabase.from(table).insert(insertData);

@@ -9,7 +9,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
 ));
 
-const hasMoney = t => t.fee > 0 || t.additional > 0 || t.fine > 0;
+const hasMoney = t => t.fee > 0 || t.additional > 0 || t.fine > 0 || t.unboxing > 0;
 
 export default function AdminInvoice() {
   const [type, setType]       = useState('WH');
@@ -65,7 +65,7 @@ export default function AdminInvoice() {
     const t = { IDR: 0, CNY: 0, fine: 0, parcels: 0 };
     for (const c of customers) {
       t.IDR += c.totals.IDR.fee + c.totals.IDR.additional;
-      t.CNY += c.totals.CNY.fee + c.totals.CNY.additional;
+      t.CNY += c.totals.CNY.fee + c.totals.CNY.additional + c.totals.CNY.unboxing;
       t.fine += c.totals.IDR.fine;
       t.parcels += c.parcel_count;
     }
@@ -158,7 +158,7 @@ export default function AdminInvoice() {
         c.parcel_count,
         manual || '',
         c.totals.IDR.fee + c.totals.IDR.additional,
-        c.totals.CNY.fee + c.totals.CNY.additional,
+        c.totals.CNY.fee + c.totals.CNY.additional + c.totals.CNY.unboxing,
         c.totals.IDR.fine,
         c.totals.IDR.total,
         c.totals.CNY.total,
@@ -173,7 +173,7 @@ export default function AdminInvoice() {
   function exportDetailCSV() {
     const rows = [[
       'Pelanggan', 'Kode Akses', 'Nomor Resi', 'Nama Penerima', 'Jenis',
-      'Input Manual', 'Berat (g)', 'Biaya', 'Mata Uang', 'Additional Fee', 'Denda Rp',
+      'Input Manual', 'Video Unboxing', 'Berat (g)', 'Biaya', 'Mata Uang', 'Additional Fee', 'Unboxing Yuan', 'Denda Rp',
     ]];
     for (const c of customers) {
       for (const p of c.parcels) {
@@ -184,10 +184,12 @@ export default function AdminInvoice() {
           p.recipient_name,
           p.type === 'paperbased' ? 'Paperbased' : 'Barang',
           p.is_manual_input ? 'MANUAL' : '',
+          p.need_unboxing ? 'UNBOXING' : '',
           p.estimated_weight_grams || '',
           baseFee(p, type) || '',
           normCurrency(p.currency),
           p.additional_fee || '',
+          p.unboxing_fee || '',
           p.fine_amount || '',
         ]);
       }
@@ -408,6 +410,11 @@ export default function AdminInvoice() {
                                   ✍️ MANUAL
                                 </span>
                               )}
+                              {p.need_unboxing && (
+                                <span className="ml-1.5 text-[10px] font-bold bg-violet-100 text-violet-800 border border-violet-300 px-1.5 py-0.5 rounded-full align-middle">
+                                  🎥 UNBOXING {p.unboxing_fee > 0 ? money(p.unboxing_fee, 'CNY') : ''}
+                                </span>
+                              )}
                             </p>
                             <p className="text-[11px] font-mono text-gray-400 truncate">{p.tracking_number}</p>
                           </div>
@@ -444,7 +451,7 @@ function buildInvoicesHTML(batch, customers, type) {
       <tr>
         <td class="num">${i + 1}</td>
         <td>
-          <div class="name">${esc(p.recipient_name)}${p.is_manual_input ? ' <span class="tag">MANUAL</span>' : ''}</div>
+          <div class="name">${esc(p.recipient_name)}${p.is_manual_input ? ' <span class="tag">MANUAL</span>' : ''}${p.need_unboxing ? ' <span class="tag tag-unbox">UNBOXING</span>' : ''}</div>
           <div class="mono">${esc(p.tracking_number)}</div>
         </td>
         <td>${p.type === 'paperbased' ? 'Paperbased' : 'Barang'}</td>
@@ -464,6 +471,10 @@ function buildInvoicesHTML(batch, customers, type) {
         ${c.totals[cur].additional ? `<tr>
           <td>Additional fee (${CURRENCIES[cur].label})${c.invoice.additional_note ? ` — ${esc(c.invoice.additional_note)}` : ''}</td>
           <td class="right">${esc(money(c.totals[cur].additional, cur))}</td>
+        </tr>` : ''}
+        ${c.totals[cur].unboxing ? `<tr>
+          <td>Video unboxing</td>
+          <td class="right">${esc(money(c.totals[cur].unboxing, cur))}</td>
         </tr>` : ''}
         ${cur === 'IDR' && c.totals.IDR.fine ? `<tr>
           <td>Denda input manual</td>
@@ -554,6 +565,7 @@ function buildInvoicesHTML(batch, customers, type) {
   .tag { display: inline-block; font-size: 8pt; font-weight: 700; letter-spacing: .04em;
          background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
          border-radius: 999px; padding: 0 5px; vertical-align: middle; }
+  .tag-unbox { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
   .summary { margin-top: 18px; margin-left: auto; width: 320px; }
   .summary td { font-size: 12px; padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
   .summary .grand td { font-weight: 800; font-size: 13px; color: #2A4A40;

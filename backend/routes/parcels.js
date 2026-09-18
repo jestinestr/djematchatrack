@@ -48,7 +48,7 @@ const currencyOf = v => (String(v).toUpperCase() === 'CNY' ? 'CNY' : 'IDR');
 async function getBatch(batchId) {
   if (!batchId) return null;
   const { data } = await supabase
-    .from('batches').select('id, type, batch_number, fine_amount').eq('id', batchId).single();
+    .from('batches').select('id, type, batch_number, fine_amount, unboxing_fee').eq('id', batchId).single();
   return data || null;
 }
 
@@ -58,7 +58,7 @@ async function getBatch(batchId) {
 // Catatan: menandai resi sebagai "input manual" TIDAK lagi otomatis
 // menambah denda. Tanda itu murni penanda; besaran denda diisi admin
 // sendiri di kolom Denda (tombol isi cepat memakai setelan batch).
-function buildPayload(kind, body) {
+function buildPayload(kind, body, batch = null) {
   const isManual = body.is_manual_input === 'true' || body.is_manual_input === true;
   const payload = {
     tracking_number: body.tracking_number?.trim(),
@@ -77,6 +77,10 @@ function buildPayload(kind, body) {
   } else {
     payload.wh_fee = Math.max(0, num(body.wh_fee));
     payload.estimated_weight_grams = parseInt(body.estimated_weight_grams) || 0;
+    // Video unboxing: biaya (Yuan) diambil dari tarif batch di Control Tarif
+    const needUnboxing = body.need_unboxing === 'true' || body.need_unboxing === true;
+    payload.need_unboxing = needUnboxing;
+    payload.unboxing_fee = needUnboxing ? Math.max(0, num(batch?.unboxing_fee, 0.75)) : 0;
   }
   return payload;
 }
@@ -198,7 +202,7 @@ function registerCrud(kind) {
 
     try {
       const batch = await getBatch(parseInt(batch_id));
-      const payload = buildPayload(kind, req.body);
+      const payload = buildPayload(kind, req.body, batch);
       payload.batch_id = parseInt(batch_id);
       payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
       payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
@@ -228,7 +232,7 @@ function registerCrud(kind) {
       const { data: current } = await supabase
         .from(table).select('batch_id, owner_code_id, tracking_number').eq('id', req.params.id).single();
       const batch = await getBatch(current?.batch_id);
-      const updates = buildPayload(kind, req.body);
+      const updates = buildPayload(kind, req.body, batch);
       const photoFile = req.files?.['photo']?.[0];
       const coPhotoFile = req.files?.['co_photo']?.[0];
       if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
