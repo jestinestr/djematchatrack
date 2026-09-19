@@ -4,6 +4,7 @@ import ParcelCard from '../components/ParcelCard';
 import ParcelDetailModal from '../components/ParcelDetailModal';
 import RequestForm from '../components/RequestForm';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Pager, { usePaged } from '../components/Pager';
 import { fetchAsUser, downloadMany, slugify, cardName } from '../utils/format';
 
 const META = {
@@ -72,6 +73,7 @@ export default function UserPanel({ type }) {
 
   const mineShown   = mine.filter(p => match(p) && photoOk(p));
   const othersShown = others.filter(match);
+  const minePaged = usePaged(mineShown, 10);
 
   const downloadable = mine.filter(p => p.photo_url);
   const photoDone = downloadable.length;
@@ -368,8 +370,9 @@ export default function UserPanel({ type }) {
                       </p>
                     </div>
                   ) : (
+                    <>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {mineShown.map(p => (
+                      {minePaged.items.map(p => (
                         <ParcelCard
                           key={p.id}
                           parcel={p}
@@ -381,6 +384,8 @@ export default function UserPanel({ type }) {
                         />
                       ))}
                     </div>
+                    <Pager paged={minePaged} className="mt-3" />
+                    </>
                   )}
                 </section>
 

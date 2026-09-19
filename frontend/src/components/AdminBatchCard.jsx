@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import AddParcelModal from './AddParcelModal';
 import ParcelDetailModal from './ParcelDetailModal';
 import LabelPrintModal from './LabelPrintModal';
+import Pager, { usePaged } from './Pager';
 import { money, rupiah, baseFee, formatWeight, sumParcels, formatMulti } from '../utils/format';
 
 export default function AdminBatchCard({
@@ -32,6 +33,7 @@ export default function AdminBatchCard({
   const isActive = batch.status === 'active';
 
   const totals = useMemo(() => sumParcels(parcels, type), [parcels, type]);
+  const paged = usePaged(parcels, 10);
 
   // Kelompokkan resi per pemilik
   const groups = useMemo(() => {
@@ -288,7 +290,10 @@ export default function AdminBatchCard({
               })}
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">{parcels.map(parcelRow)}</div>
+            <>
+              <div className="divide-y divide-gray-50">{paged.items.map(parcelRow)}</div>
+              <Pager paged={paged} className="px-4 py-2.5 border-t border-gray-100" />
+            </>
           )
         )}
       </div>
@@ -408,6 +413,11 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected,
           {extra > 0 && (
             <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
               ➕ {money(extra, p.currency)}
+            </span>
+          )}
+          {p.paid_at && (
+            <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full border border-green-300 font-semibold" title="Sudah dibayar">
+              ✓ Lunas
             </span>
           )}
           {p.need_unboxing && (

@@ -9,6 +9,7 @@ export default function AdminGallery() {
   const [loading, setLoading]     = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');   // 'all'|'HC'|'WH'
   const [batchFilter, setBatchFilter] = useState('active'); // 'active'|batch_id
+  const [ownerFilter, setOwnerFilter] = useState('all');    // 'all'|owner id
   const [selected, setSelected]   = useState(new Set());
   const [downloading, setDownloading] = useState(false);
 
@@ -45,15 +46,26 @@ export default function AdminGallery() {
   }, [hcBatches, whBatches]);
 
   // Filtered parcels (only with photos)
+  // Pelanggan yang punya foto, untuk saringan per user
+  const owners = useMemo(() => {
+    const map = new Map();
+    for (const p of allParcels) {
+      if (p.photo_url && p.owner && !map.has(String(p.owner.id))) map.set(String(p.owner.id), p.owner);
+    }
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'id'));
+  }, [allParcels]);
+
+  // Hanya yang ada foto, terbaru di atas
   const parcels = useMemo(() => {
     return allParcels.filter(p => {
       if (!p.photo_url) return false;
       if (typeFilter !== 'all' && p._type !== typeFilter) return false;
+      if (ownerFilter !== 'all' && String(p.owner?.id) !== ownerFilter) return false;
       if (batchFilter === 'active') return p._batch.status === 'active';
-      if (batchFilter !== 'all') return p._batch.id === batchFilter;
+      if (batchFilter !== 'all') return String(p._batch.id) === String(batchFilter);
       return true;
-    });
-  }, [allParcels, typeFilter, batchFilter]);
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [allParcels, typeFilter, batchFilter, ownerFilter]);
 
   function toggleSelect(id) {
     setSelected(prev => {
@@ -125,6 +137,18 @@ export default function AdminGallery() {
           ))}
         </select>
 
+        {/* Saringan per pelanggan */}
+        <select
+          value={ownerFilter}
+          onChange={e => { setOwnerFilter(e.target.value); setSelected(new Set()); }}
+          className="input-field text-sm w-auto py-1.5"
+        >
+          <option value="all">👤 Semua pelanggan</option>
+          {owners.map(o => (
+            <option key={o.id} value={String(o.id)}>{o.label}</option>
+          ))}
+        </select>
+
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -133,7 +157,7 @@ export default function AdminGallery() {
           <div className="flex items-center gap-2">
             <button onClick={selectAll}
               className="text-xs px-3 py-1.5 rounded-xl border border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-medium transition-colors">
-              {allSelected ? 'Batal Semua' : 'Pilih Semua'}
+              {allSelected ? 'Batal Semua' : ownerFilter !== 'all' ? `Pilih Semua milik ${owners.find(o => String(o.id) === ownerFilter)?.label || ''}` : 'Pilih Semua'}
             </button>
             <button
               onClick={handleDownload}

@@ -107,6 +107,18 @@ export default function AddParcelModal({
     setCoPreview(URL.createObjectURL(file));
   }
 
+  // Seret-lepas foto: pakai handler yang sama dengan input file
+  const dropTo = handler => ({
+    onDragOver: e => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-matcha-300'); },
+    onDragLeave: e => e.currentTarget.classList.remove('ring-2', 'ring-matcha-300'),
+    onDrop: e => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('ring-2', 'ring-matcha-300');
+      const file = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
+      if (file) handler({ target: { files: [file] } });
+    },
+  });
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -314,9 +326,9 @@ export default function AddParcelModal({
               {preview && (
                 <img src={preview} alt="preview" className="w-full h-24 object-cover rounded-lg mb-1.5 border border-cream-200" />
               )}
-              <label className="flex items-center justify-center gap-1.5 w-full p-2.5 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-matcha-400 text-gray-500 text-xs transition-colors">
+              <label {...dropTo(handlePhotoChange)} className="flex items-center justify-center gap-1.5 w-full p-2.5 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-matcha-400 text-gray-500 text-xs transition-colors">
                 <span>📷</span>
-                <span>{preview ? 'Ganti' : 'Pilih foto'}</span>
+                <span>{preview ? 'Ganti / seret foto' : 'Pilih atau seret foto ke sini'}</span>
                 <input type="file" accept="image/*" onChange={handlePhotoChange} className="sr-only" />
               </label>
             </div>
@@ -329,9 +341,9 @@ export default function AddParcelModal({
               {coPreview && (
                 <img src={coPreview} alt="co preview" className="w-full h-24 object-cover rounded-lg mb-1.5 border border-amber-200" />
               )}
-              <label className="flex items-center justify-center gap-1.5 w-full p-2.5 border-2 border-dashed border-amber-300 rounded-xl cursor-pointer hover:border-amber-400 text-amber-500 text-xs transition-colors">
+              <label {...dropTo(handleCoPhotoChange)} className="flex items-center justify-center gap-1.5 w-full p-2.5 border-2 border-dashed border-amber-300 rounded-xl cursor-pointer hover:border-amber-400 text-amber-500 text-xs transition-colors">
                 <span>🗂</span>
-                <span>{coPreview ? 'Ganti' : 'Pilih foto CO'}</span>
+                <span>{coPreview ? 'Ganti / seret foto CO' : 'Pilih atau seret foto CO'}</span>
                 <input type="file" accept="image/*" onChange={handleCoPhotoChange} className="sr-only" />
               </label>
             </div>

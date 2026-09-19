@@ -20,6 +20,8 @@ export default function AdminInvoice() {
   const [selected, setSelected] = useState(new Set());
   const [drafts, setDrafts]   = useState({});   // ownerId -> {additional_fee, currency, note}
   const [savingId, setSavingId] = useState(null);
+  const [chosen, setChosen]   = useState(new Set()); // id resi yang ikut ditagih
+  const [payingId, setPayingId] = useState(null);
 
   // Daftar batch untuk tipe terpilih
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function AdminInvoice() {
       .then(r => r.json())
       .then(d => {
         setData(d);
+        setChosen(unpaidIds(d));
         const next = {};
         for (const c of d.customers || []) {
           if (c.owner) {
@@ -57,7 +60,46 @@ export default function AdminInvoice() {
       .catch(() => setLoading(false));
   }, [batchId]);
 
-  const customers = data?.customers || [];
+  const rawCustomers = data?.customers || [];
+  const customers = useMemo(() => rawCustomers.map(c => {
+    const picked = c.parcels.filter(p => chosen.has(p.id));
+    return {
+      ...c,
+      allParcels: c.parcels,
+      parcels: picked,
+      parcel_count: picked.length,
+      totals: calcTotals(c, picked, type),
+    };
+  }), [rawCustomers, chosen, type]);
+
+  function toggleChosen(id) {
+    setChosen(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  // Tandai lunas resi terpilih milik satu pelanggan; tagihan berikutnya mulai dari nol
+  async function setPaid(c, ids, paid = true) {
+    if (!ids.length) return;
+    if (paid && !window.confirm(`Tandai ${ids.length} resi milik ${c.owner?.label || 'pelanggan ini'} sudah lunas?`)) return;
+    setPayingId(c.owner?.id ?? 'none');
+    try {
+      const res = await fetch('/api/invoices/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, parcel_ids: ids, paid, batch_id: batchId, owner_code_id: c.owner?.id }),
+      });
+      if (res.ok) {
+        const fresh = await fetch(`/api/invoices/batch/${batchId}`).then(r => r.json());
+        setData(fresh);
+        setChosen(unpaidIds(fresh));
+      }
+    } finally {
+      setPayingId(null);
+    }
+  }
   const batch = data?.batch;
   const invoiceable = customers.filter(c => c.owner);
 
@@ -114,7 +156,7 @@ export default function AdminInvoice() {
 
   // ── Cetak ─────────────────────────────────────────────────────────
   function printInvoices() {
-    const picked = customers.filter(c => c.owner && selected.has(c.owner.id));
+    const picked = customers.filter(c => c.owner && selected.has(c.owner.id) && c.parcels.length);
     if (!picked.length) return;
     const html = buildInvoicesHTML(batch, picked, type);
     const w = window.open('', '_blank');
@@ -336,7 +378,7 @@ export default function AdminInvoice() {
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-gray-400">{c.parcel_count} resi</p>
+                      <p className="text-xs text-gray-400">{c.parcel_count} dari {c.allParcels.length} resi ditagih</p>
                       <p className="text-sm font-bold text-matcha-700">
                         {[
                           c.totals.IDR.total ? money(c.totals.IDR.total, 'IDR') : null,
@@ -397,11 +439,45 @@ export default function AdminInvoice() {
                   <details className="group">
                     <summary className="px-4 py-2 text-xs text-gray-500 cursor-pointer hover:bg-cream-50 transition-colors list-none flex items-center gap-1.5">
                       <span className="group-open:rotate-90 transition-transform">›</span>
-                      Lihat {c.parcel_count} resi
+                      Pilih resi yang ditagih ({c.parcel_count}/{c.allParcels.length})
+                      {c.allParcels.some(p => p.paid_at) && (
+                        <span className="ml-1 text-green-600 font-semibold">· {c.allParcels.filter(p => p.paid_at).length} lunas</span>
+                      )}
                     </summary>
+                    {c.parcels.length > 0 && (
+                      <div className="px-4 py-2 border-t border-cream-100 bg-green-50/50 flex items-center gap-2">
+                        <span className="text-xs text-gray-500 flex-1">
+                          Sudah dibayar? Resi yang ditandai lunas tidak ikut di tagihan berikutnya.
+                        </span>
+                        <button
+                          onClick={() => setPaid(c, c.parcels.map(p => p.id), true)}
+                          disabled={payingId === (c.owner?.id ?? 'none')}
+                          className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 flex-shrink-0"
+                        >
+                          ✓ Tandai lunas ({c.parcels.length})
+                        </button>
+                      </div>
+                    )}
                     <div className="divide-y divide-cream-100 border-t border-cream-100">
-                      {c.parcels.map(p => (
-                        <div key={p.id} className="flex items-center gap-3 px-4 py-2">
+                      {c.allParcels.map(p => (
+                        <div key={p.id} className={`flex items-center gap-3 px-4 py-2 ${p.paid_at ? 'bg-green-50/40' : ''}`}>
+                          {p.paid_at ? (
+                            <button
+                              onClick={() => setPaid(c, [p.id], false)}
+                              title="Batalkan status lunas"
+                              className="text-[10px] font-bold bg-green-100 text-green-700 border border-green-300 px-1.5 py-0.5 rounded-full flex-shrink-0 hover:bg-white"
+                            >
+                              ✓ Lunas
+                            </button>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={chosen.has(p.id)}
+                              onChange={() => toggleChosen(p.id)}
+                              className="w-4 h-4 accent-matcha-700 flex-shrink-0 cursor-pointer"
+                              title="Ikut ditagih di invoice ini"
+                            />
+                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-gray-700 truncate">
                               {p.recipient_name}
@@ -439,6 +515,35 @@ export default function AdminInvoice() {
       )}
     </div>
   );
+}
+
+// Id semua resi yang belum lunas — pilihan bawaan tiap invoice
+function unpaidIds(d) {
+  return new Set((d?.customers || []).flatMap(c => c.parcels.filter(p => !p.paid_at).map(p => p.id)));
+}
+
+// Hitung ulang total dari resi yang dipilih saja
+function calcTotals(c, picked, type) {
+  const t = {
+    IDR: { fee: 0, additional: 0, fine: 0, unboxing: 0, total: 0 },
+    CNY: { fee: 0, additional: 0, fine: 0, unboxing: 0, total: 0 },
+  };
+  for (const p of picked) {
+    const cur = normCurrency(p.currency);
+    t[cur].fee += baseFee(p, type);
+    t[cur].additional += Number(p.additional_fee) || 0;
+    t.IDR.fine += Number(p.fine_amount) || 0;
+    t.CNY.unboxing += Number(p.unboxing_fee) || 0;
+  }
+  // Additional fee manual per pelanggan ikut kalau ada resi yang ditagih
+  if (picked.length && Number(c.invoice?.additional_fee)) {
+    t[normCurrency(c.invoice.additional_fee_currency)].additional += Number(c.invoice.additional_fee);
+  }
+  for (const k of ['IDR', 'CNY']) {
+    const x = t[k];
+    x.total = x.fee + x.additional + x.fine + x.unboxing;
+  }
+  return t;
 }
 
 /* ── Dokumen invoice untuk dicetak ───────────────────────── */

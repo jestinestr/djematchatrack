@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners } = require('../lib/owner');
+const { logActivity } = require('../lib/log');
 
 const TABLE = { HC: 'hc_parcels', WH: 'wh_parcels' };
 const num = v => {
@@ -127,6 +128,46 @@ router.put('/batch/:batchId/owner/:ownerId', async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+// ── Tandai resi lunas / batal lunas ─────────────────────────────────
+//  body: { type: 'HC'|'WH', parcel_ids: [...], paid: true|false,
+//          batch_id, owner_code_id }
+//  Saat ditandai lunas, additional fee manual pelanggan itu di batch ini
+//  ikut direset — tagihan berikutnya mulai dari nol.
+router.post('/pay', async (req, res) => {
+  const { type, parcel_ids, paid = true, batch_id, owner_code_id } = req.body;
+  const table = TABLE[String(type).toUpperCase()];
+  if (!table || !Array.isArray(parcel_ids) || !parcel_ids.length) {
+    return res.status(400).json({ error: 'Data tidak valid' });
+  }
+
+  const { error } = await supabase
+    .from(table)
+    .update({ paid_at: paid ? new Date().toISOString() : null })
+    .in('id', parcel_ids);
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (paid && batch_id && owner_code_id) {
+    await supabase
+      .from('batch_invoices')
+      .update({ additional_fee: 0, additional_note: null, updated_at: new Date().toISOString() })
+      .eq('batch_id', batch_id)
+      .eq('owner_code_id', owner_code_id);
+  }
+
+  const { data: owner } = owner_code_id
+    ? await supabase.from('access_codes').select('label').eq('id', owner_code_id).single()
+    : { data: null };
+
+  logActivity({
+    action: paid ? 'invoice_paid' : 'invoice_unpaid',
+    summary: `${paid ? 'Tandai lunas' : 'Batalkan lunas'} ${parcel_ids.length} resi${owner?.label ? ` milik ${owner.label}` : ''}`,
+    ref_type: 'batch',
+    ref_id: batch_id,
+  });
+
+  res.json({ success: true });
 });
 
 module.exports = router;
