@@ -125,6 +125,9 @@ router.post('/', upload.any(), async (req, res) => {
     if (!item.tracking_number?.trim()) {
       return res.status(400).json({ error: `Baris ${i + 1}: nomor resi wajib diisi` });
     }
+    if (item.parcel_type === 'paperbased' && !(parseInt(item.quantity) >= 1)) {
+      return res.status(400).json({ error: `Baris ${i + 1}: jumlah paperbased wajib diisi` });
+    }
   }
 
   try {
@@ -138,6 +141,7 @@ router.post('/', upload.any(), async (req, res) => {
       co_photo_url: await uploadPhoto(coPhotoFiles[i] || null),
       owner_code_id: ownerCodeId,
       need_unboxing: type === 'WH' && !!item.need_unboxing,
+      quantity: item.parcel_type === 'paperbased' ? parseInt(item.quantity) || null : null,
       status: 'pending',
     })));
 
@@ -218,11 +222,12 @@ router.patch('/:id/approve', async (req, res) => {
   };
   if (parcelType === 'HC') {
     insertData.estimated_weight_grams = 0;
-    insertData.estimated_quantity = 1;
+    insertData.estimated_quantity = req_data.quantity || 1;
     insertData.hc_fee = 0;
   } else {
     insertData.wh_fee = 0;
     insertData.need_unboxing = !!req_data.need_unboxing;
+    insertData.estimated_quantity = req_data.quantity || 1;
     insertData.unboxing_fee = req_data.need_unboxing ? Number(batch.unboxing_fee ?? 0.75) : 0;
     const pkgId = await activePackageId(req_data.owner_code_id);
     if (pkgId) insertData.package_id = pkgId; // masuk paket aktif pelanggan

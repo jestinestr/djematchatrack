@@ -77,6 +77,7 @@ function buildPayload(kind, body, batch = null) {
     payload.hc_fee = Math.max(0, num(body.hc_fee));
   } else {
     payload.wh_fee = Math.max(0, num(body.wh_fee));
+    payload.estimated_quantity = parseInt(body.estimated_quantity) || 1;
     payload.estimated_weight_grams = parseInt(body.estimated_weight_grams) || 0;
     // Video unboxing: biaya (Yuan) diambil dari tarif batch di Control Tarif
     const needUnboxing = body.need_unboxing === 'true' || body.need_unboxing === true;

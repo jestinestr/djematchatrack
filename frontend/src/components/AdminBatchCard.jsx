@@ -404,7 +404,7 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, selectabl
           {p.estimated_weight_grams > 0 && (
             <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">{p.estimated_weight_grams}g</span>
           )}
-          {type === 'HC' && p.estimated_quantity > 1 && (
+          {(p.type === 'paperbased' ? p.estimated_quantity > 0 : type === 'HC' && p.estimated_quantity > 1) && (
             <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full">{p.estimated_quantity} pcs</span>
           )}
           {fee > 0 && (

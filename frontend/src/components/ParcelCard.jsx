@@ -114,7 +114,7 @@ export default function ParcelCard({
                   ⚖️ {formatWeight(parcel.estimated_weight_grams)}
                 </span>
               )}
-              {isHC && parcel.estimated_quantity > 1 && (
+              {(parcel.type === 'paperbased' ? parcel.estimated_quantity > 0 : isHC && parcel.estimated_quantity > 1) && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 border border-purple-100">
                   🔢 {parcel.estimated_quantity} pcs
                 </span>

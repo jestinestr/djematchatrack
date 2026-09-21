@@ -319,6 +319,11 @@ export default function AdminRequests() {
                         <span className="text-xs bg-matcha-50 text-matcha-700 px-1.5 py-0.5 rounded-full border border-matcha-100">
                           {r.parcel_type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
                         </span>
+                        {r.parcel_type === 'paperbased' && r.quantity > 0 && (
+                          <span className="text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded-full border border-sky-200 font-semibold">
+                            📄 {r.quantity} pcs
+                          </span>
+                        )}
                         {r.need_unboxing && (
                           <span className="text-xs bg-violet-100 text-violet-800 px-1.5 py-0.5 rounded-full border border-violet-300 font-semibold">
                             🎥 Need unboxing

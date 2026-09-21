@@ -41,7 +41,7 @@ export default function AddParcelModal({
     // Resi WH baru: bawaannya tarif satuan dalam Yuan
     currency: parcel ? normCurrency(parcel.currency) : type === 'WH' ? 'CNY' : normCurrency(feeCurrency),
     estimated_weight_grams: parcel?.estimated_weight_grams?.toString() || '',
-    estimated_quantity: parcel?.estimated_quantity?.toString() || '1',
+    estimated_quantity: parcel?.estimated_quantity?.toString() || (type === 'HC' ? '1' : ''),
     hc_fee: parcel?.hc_fee?.toString() || '',
     wh_fee: parcel ? (parcel.wh_fee?.toString() || '') : type === 'WH' ? String(unitFee) : '',
     additional_fee: parcel?.additional_fee?.toString() || '',
@@ -161,6 +161,7 @@ export default function AddParcelModal({
     } else {
       fd.append('wh_fee', form.wh_fee || '0');
       fd.append('need_unboxing', form.need_unboxing ? 'true' : 'false');
+      fd.append('estimated_quantity', form.estimated_quantity || '1');
     }
 
     const endpoint = isHC ? 'hc' : 'wh';
@@ -280,11 +281,15 @@ export default function AddParcelModal({
               <input type="number" min="0" className="input-field" value={form.estimated_weight_grams}
                 onChange={e => handleWeightChange(e.target.value)} placeholder="0" />
             </div>
-            {isHC ? (
+            {isHC || form.parcel_type === 'paperbased' ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Qty (pcs)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {form.parcel_type === 'paperbased' ? 'Jumlah paperbased (pcs)' : 'Qty (pcs)'}
+                  {form.parcel_type === 'paperbased' && <span className="text-red-500"> *</span>}
+                </label>
                 <input type="number" min="1" className="input-field" value={form.estimated_quantity}
-                  onChange={e => setField('estimated_quantity', e.target.value)} placeholder="1" />
+                  required={form.parcel_type === 'paperbased'}
+                  onChange={e => setField('estimated_quantity', e.target.value)} placeholder="cth: 5" />
               </div>
             ) : <div />}
           </div>

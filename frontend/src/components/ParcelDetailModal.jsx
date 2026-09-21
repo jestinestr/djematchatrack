@@ -108,7 +108,7 @@ export default function ParcelDetailModal({
                   {formatWeight(parcel.estimated_weight_grams)}
                 </DetailRow>
               )}
-              {isHC && parcel.estimated_quantity > 0 && (
+              {(isHC || parcel.type === 'paperbased') && parcel.estimated_quantity > 0 && (
                 <DetailRow icon="🔢" label="Qty">
                   {parcel.estimated_quantity} pcs
                 </DetailRow>

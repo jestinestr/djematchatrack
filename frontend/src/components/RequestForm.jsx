@@ -5,6 +5,7 @@ const emptyRow = () => ({
   tracking_number: '',
   need_unboxing: false,
   parcel_type: 'barang',
+  quantity: '',
   notes: '',
   coPhoto: null,
   coPreview: null,
@@ -46,6 +47,10 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
         setError(`Resi #${i + 1}: nomor resi wajib diisi`);
         return;
       }
+      if (item.parcel_type === 'paperbased' && !(parseInt(item.quantity) >= 1)) {
+        setError(`Resi #${i + 1}: jumlah paperbased wajib diisi`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -54,8 +59,9 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
       fd.append('type', type);
 
       // Append items as JSON (without file objects)
-      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing }) => ({
+      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing, quantity }) => ({
         tracking_number, parcel_type, notes, need_unboxing: type === 'WH' && need_unboxing,
+        quantity: parcel_type === 'paperbased' ? parseInt(quantity) || null : null,
       }));
       fd.append('items', JSON.stringify(itemsData));
 
@@ -145,6 +151,22 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
                 onChange={e => updateRow(idx, 'notes', e.target.value)}
               />
             </div>
+
+            {/* Jumlah wajib untuk paperbased */}
+            {item.parcel_type === 'paperbased' && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl border-2 border-sky-200 bg-sky-50">
+                <span className="text-sm">📄</span>
+                <span className="text-xs font-semibold text-gray-700">Jumlah</span>
+                <input
+                  type="number" min="1" required
+                  value={item.quantity}
+                  onChange={e => updateRow(idx, 'quantity', e.target.value)}
+                  className="input-field text-sm py-1.5 w-24"
+                  placeholder="cth: 5"
+                />
+                <span className="text-xs text-sky-700">pcs · wajib untuk paperbased</span>
+              </div>
+            )}
 
             {/* Video unboxing — khusus Warehouse, ada biaya tambahan */}
             {type === 'WH' && (
