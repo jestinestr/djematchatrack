@@ -405,6 +405,7 @@ export default function UserPanel({ type }) {
                           selected={picked.has(p.id)}
                           onSelect={() => togglePick(p.id)}
                           onOpen={() => setDetail(p)}
+                          storageEnd={batch.completed_at}
                         />
                       ))}
                     </div>

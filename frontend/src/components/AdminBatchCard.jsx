@@ -3,7 +3,7 @@ import AddParcelModal from './AddParcelModal';
 import ParcelDetailModal from './ParcelDetailModal';
 import LabelPrintModal from './LabelPrintModal';
 import Pager, { usePaged } from './Pager';
-import { money, rupiah, baseFee, formatWeight, sumParcels, formatMulti } from '../utils/format';
+import { money, rupiah, baseFee, formatWeight, sumParcels, formatMulti, storageDays, storageTone } from '../utils/format';
 
 export default function AdminBatchCard({
   batch,
@@ -92,6 +92,7 @@ export default function AdminBatchCard({
       type={type}
       readOnly={readOnly}
       showOwner={!groupMode}
+      storageEnd={batch.completed_at}
       selectable={labelMode}
       selected={picked.has(p.id)}
       onToggle={() => setPicked(prev => {
@@ -306,6 +307,7 @@ export default function AdminBatchCard({
           feeCurrency={feeCurrency}
           fineAmount={Number(batch.fine_amount ?? 2000)}
           unboxingFee={Number(batch.unboxing_fee ?? 0.75)}
+          unitFee={Number(batch.unit_fee ?? 1.5)}
           batchNumber={batch.batch_number}
           onClose={() => setShowAdd(false)}
           onAdded={parcel => { onParcelAdded?.(batch.id, parcel); setShowAdd(false); }}
@@ -349,7 +351,7 @@ export default function AdminBatchCard({
 }
 
 /* ── Satu baris resi ─────────────────────────────────────── */
-function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected, onToggle, onOpen, onEdit, onDelete }) {
+function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, selectable, selected, onToggle, onOpen, onEdit, onDelete }) {
   const fee = baseFee(p, type);
   const extra = Number(p.additional_fee) || 0;
 
@@ -413,6 +415,11 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected,
           {extra > 0 && (
             <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
               ➕ {money(extra, p.currency)}
+            </span>
+          )}
+{storageDays(p, storageEnd) && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full border font-semibold ${storageTone(storageDays(p, storageEnd))}`} title="Lama disimpan sejak foto arrival diupload">
+              🗓 Hari ke-{storageDays(p, storageEnd)}
             </span>
           )}
           {p.pkg && (

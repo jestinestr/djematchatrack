@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, slugify } from '../utils/format';
+import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, slugify, storageDays } from '../utils/format';
 
 // isAdmin: kalau true, foto CO ikut ditampilkan
 // siblings: resi lain milik pengguna di batch yang sama
@@ -138,6 +138,12 @@ export default function ParcelDetailModal({
                     )}
                   </span>
                 </div>
+              )}
+              {storageDays(parcel) && (
+                <DetailRow icon="🗓" label="Lama disimpan">
+                  Hari ke-{storageDays(parcel)}
+                  <span className="text-gray-400 text-xs ml-1">sejak {formatDate(parcel.photo_uploaded_at, false)}</span>
+                </DetailRow>
               )}
               {parcel.created_at && (
                 <DetailRow icon="🕐" label="Ditambahkan">

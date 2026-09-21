@@ -23,6 +23,7 @@ export default function AddParcelModal({
   feeCurrency = 'IDR',
   fineAmount = 0,
   unboxingFee = 0.75,
+  unitFee = 1.5,
   batchNumber,
   onClose,
   onAdded,
@@ -37,17 +38,19 @@ export default function AddParcelModal({
     recipient_name: parcel?.recipient_name || '',
     tracking_number: parcel?.tracking_number || '',
     parcel_type: parcel?.type || 'barang',
-    currency: normCurrency(parcel?.currency || feeCurrency),
+    // Resi WH baru: bawaannya tarif satuan dalam Yuan
+    currency: parcel ? normCurrency(parcel.currency) : type === 'WH' ? 'CNY' : normCurrency(feeCurrency),
     estimated_weight_grams: parcel?.estimated_weight_grams?.toString() || '',
     estimated_quantity: parcel?.estimated_quantity?.toString() || '1',
     hc_fee: parcel?.hc_fee?.toString() || '',
-    wh_fee: parcel?.wh_fee?.toString() || '',
+    wh_fee: parcel ? (parcel.wh_fee?.toString() || '') : type === 'WH' ? String(unitFee) : '',
     additional_fee: parcel?.additional_fee?.toString() || '',
     fine_amount: parcel?.fine_amount ? String(parcel.fine_amount) : '',
     is_manual_input: parcel?.is_manual_input || false,
     need_unboxing: parcel?.need_unboxing || false,
   });
   const [showLabel, setShowLabel] = useState(false);
+  const [pkgs, setPkgs] = useState([]); // paket WH aktif, untuk isi otomatis biaya
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(parcel?.photo_url || null);
   const [coPhoto, setCoPhoto] = useState(null);
@@ -57,7 +60,20 @@ export default function AddParcelModal({
 
   useEffect(() => {
     fetch('/api/codes').then(r => r.json()).then(setCodes).catch(() => {});
-  }, []);
+    if (!isHC) {
+      fetch('/api/packages').then(r => r.json())
+        .then(d => setPkgs(Array.isArray(d) ? d.filter(p => p.status === 'active') : []))
+        .catch(() => {});
+    }
+  }, [isHC]);
+
+  // Biaya WH otomatis: tercover paket kalau masih ada jatah, selain itu satuan
+  const pkgOf = ownerId => pkgs.find(p => String(p.owner_code_id) === String(ownerId));
+  const autoWhFee = ownerId => {
+    const pk = pkgOf(ownerId);
+    return pk && pk.remaining > 0 ? '0' : String(unitFee);
+  };
+  const ownerPkg = pkgOf(form.owner_code_id);
 
   const feeField = isHC ? 'hc_fee' : 'wh_fee';
   const weight = parseInt(form.estimated_weight_grams) || 0;
@@ -77,6 +93,7 @@ export default function AddParcelModal({
         ...f,
         owner_code_id: id,
         recipient_name: chosen && nameIsAuto ? chosen.label : f.recipient_name,
+        ...(!isEdit && !isHC ? { wh_fee: autoWhFee(id), currency: 'CNY' } : {}),
       };
     });
   }
@@ -294,6 +311,15 @@ export default function AddParcelModal({
               </label>
               <input type="number" min="0" step="0.01" className="input-field" value={form[feeField]}
                 onChange={e => setField(feeField, e.target.value)} placeholder="0" />
+              {!isHC && (
+                <p className={`text-xs mt-1 font-medium ${ownerPkg?.remaining > 0 ? 'text-teal-600' : 'text-gray-400'}`}>
+                  {ownerPkg
+                    ? ownerPkg.remaining > 0
+                      ? `📦 ${ownerPkg.name}: sisa ${ownerPkg.remaining} — tercover paket (¥0)`
+                      : `📦 Kuota ${ownerPkg.name} habis → satuan ¥${unitFee}`
+                    : `Satuan ¥${unitFee}/resi`}
+                </p>
+              )}
               {autoFee > 0 && (
                 <p className="text-xs text-gray-400 mt-1">
                   Auto:{' '}

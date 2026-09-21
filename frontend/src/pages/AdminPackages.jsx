@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { formatDate } from '../utils/format';
+import { formatDate, money } from '../utils/format';
+
+// Paket standar — klik untuk mengisi form otomatis
+const PRESETS = [
+  { name: 'Paket A', quota: 50, price: 65 },
+  { name: 'Paket B', quota: 125, price: 140 },
+  { name: 'Paket C', quota: 400, price: 425 },
+];
 
 export default function AdminPackages() {
   const [packages, setPackages] = useState([]);
   const [codes, setCodes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ owner_code_id: '', name: 'Paket A', quota: '100', include_existing: false });
+  const [form, setForm] = useState({ owner_code_id: '', name: 'Paket A', quota: '50', price: '65', include_existing: false });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -77,13 +84,28 @@ export default function AdminPackages() {
         <span className="text-3xl">📦</span>
         <div>
           <h1 className="text-xl font-bold text-matcha-800">Paket Pelanggan</h1>
-          <p className="text-sm text-gray-500">Kuota jumlah resi Warehouse per pelanggan — penghitung saja, tagihan tetap biasa</p>
+          <p className="text-sm text-gray-500">Resi dalam kuota tercover paket (biaya ¥0); kelebihan &amp; pelanggan tanpa paket otomatis satuan</p>
         </div>
       </div>
 
       {/* Buat paket */}
       <form onSubmit={create} className="bg-white rounded-2xl border border-cream-200 shadow-soft p-4 mb-5 space-y-3">
-        <div className="grid sm:grid-cols-[1fr_1fr_100px_auto] gap-2 items-end">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mr-1">Isi cepat</span>
+          {PRESETS.map(p => (
+            <button key={p.name} type="button"
+              onClick={() => setForm(f => ({ ...f, name: p.name, quota: String(p.quota), price: String(p.price) }))}
+              className={`text-xs px-2.5 py-1 rounded-lg font-semibold border-2 transition-colors ${
+                form.name === p.name && Number(form.quota) === p.quota
+                  ? 'bg-matcha-800 text-white border-matcha-800'
+                  : 'bg-white text-gray-600 border-cream-300 hover:border-matcha-300'
+              }`}>
+              {p.name} · ¥{p.price}/{p.quota}
+            </button>
+          ))}
+          <span className="text-xs text-gray-400 ml-1">Tanpa paket = satuan (tarif di Control Tarif)</span>
+        </div>
+        <div className="grid sm:grid-cols-[1fr_1fr_80px_90px_auto] gap-2 items-end">
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Pelanggan</label>
             <select className="input-field text-sm py-2" value={form.owner_code_id} required
@@ -101,6 +123,11 @@ export default function AdminPackages() {
             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Kuota</label>
             <input type="number" min="1" className="input-field text-sm py-2" value={form.quota} required
               onChange={e => setForm(f => ({ ...f, quota: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Harga ¥</label>
+            <input type="number" min="0" step="0.01" className="input-field text-sm py-2" value={form.price}
+              onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
           </div>
           <button type="submit" disabled={busy === 'create'} className="btn-primary text-sm py-2 disabled:opacity-50">
             + Buat
@@ -133,7 +160,7 @@ export default function AdminPackages() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-matcha-800 truncate">
                       {p.owner?.label || '—'}
-                      <span className="font-medium text-gray-400"> · {p.name} · periode {p.period_no}</span>
+                      <span className="font-medium text-gray-400"> · {p.name} · periode {p.period_no}{p.price > 0 ? ` · ${money(p.price, 'CNY')}` : ''}</span>
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
                       <div className="flex-1 h-2 bg-cream-200 rounded-full overflow-hidden">

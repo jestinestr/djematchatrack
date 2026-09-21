@@ -21,6 +21,16 @@ async function activePackageId(ownerCodeId) {
   return data?.[0]?.id ?? null;
 }
 
+// Apakah paket masih punya jatah kosong (untuk isi otomatis biaya WH)
+async function packageHasRoom(pkgId) {
+  if (!pkgId) return false;
+  const [{ data: pkg }, { count }] = await Promise.all([
+    supabase.from('customer_packages').select('quota').eq('id', pkgId).single(),
+    supabase.from('wh_parcels').select('id', { count: 'exact', head: true }).eq('package_id', pkgId),
+  ]);
+  return !!pkg && (count || 0) < pkg.quota;
+}
+
 // Hitung pemakaian tiap paket + nomor urut tiap resi di dalam paketnya.
 // Urutan mengikuti waktu resi dibuat: resi ke-(quota+1) dst = kelebihan.
 async function loadPackageInfo() {
@@ -67,4 +77,4 @@ function attachPackage(parcels, parcelInfo) {
   });
 }
 
-module.exports = { activePackageId, loadPackageInfo, attachPackage };
+module.exports = { activePackageId, packageHasRoom, loadPackageInfo, attachPackage };

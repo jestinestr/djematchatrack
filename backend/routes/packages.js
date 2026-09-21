@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
 // ── Buat paket baru untuk pelanggan ─────────────────────────────────
 //  include_existing: resi WH pelanggan yang belum masuk paket ikut dihitung
 router.post('/', async (req, res) => {
-  const { owner_code_id, name, quota, include_existing } = req.body;
+  const { owner_code_id, name, quota, price, include_existing } = req.body;
   if (!owner_code_id || !name?.trim() || !quota) {
     return res.status(400).json({ error: 'Pelanggan, nama paket, dan kuota wajib diisi' });
   }
@@ -51,6 +51,7 @@ router.post('/', async (req, res) => {
       owner_code_id: parseInt(owner_code_id),
       name: name.trim(),
       quota: quotaOf(quota),
+      price: Math.max(0, Number(price) || 0),
       period_no: (last?.[0]?.period_no || 0) + 1,
     })
     .select().single();
@@ -77,6 +78,7 @@ router.patch('/:id', async (req, res) => {
   const updates = {};
   if (req.body.name?.trim()) updates.name = req.body.name.trim();
   if (req.body.quota) updates.quota = quotaOf(req.body.quota);
+  if (req.body.price !== undefined) updates.price = Math.max(0, Number(req.body.price) || 0);
 
   const { data, error } = await supabase
     .from('customer_packages').update(updates).eq('id', req.params.id).select().single();
@@ -87,7 +89,7 @@ router.patch('/:id', async (req, res) => {
 // ── Perpanjang: tutup periode ini, buka periode berikutnya ──────────
 //  move_overflow: resi kelebihan dipindah ke periode baru
 router.post('/:id/renew', async (req, res) => {
-  const { name, quota, move_overflow = true } = req.body;
+  const { name, quota, price, move_overflow = true } = req.body;
 
   const { data: old, error: oldErr } = await supabase
     .from('customer_packages').select('*').eq('id', req.params.id).single();
@@ -100,6 +102,7 @@ router.post('/:id/renew', async (req, res) => {
       owner_code_id: old.owner_code_id,
       name: name?.trim() || old.name,
       quota: quota ? quotaOf(quota) : old.quota,
+      price: price !== undefined ? Math.max(0, Number(price) || 0) : old.price,
       period_no: old.period_no + 1,
     })
     .select().single();
@@ -118,7 +121,8 @@ router.post('/:id/renew', async (req, res) => {
       .order('created_at', { ascending: true });
     const overflowIds = (rows || []).slice(old.quota).map(r => r.id);
     if (overflowIds.length) {
-      await supabase.from('wh_parcels').update({ package_id: fresh.id }).in('id', overflowIds);
+      // Kelebihan kini dibayar lewat paket baru → biaya satuannya dinolkan
+      await supabase.from('wh_parcels').update({ package_id: fresh.id, wh_fee: 0 }).in('id', overflowIds);
       moved = overflowIds.length;
     }
   }

@@ -56,6 +56,20 @@ export function formatDate(str, withTime = true) {
   });
 }
 
+// Hari ke-berapa barang disimpan, dihitung sejak foto arrival diupload.
+// endAt: batas akhir (mis. batch selesai dikirim); tanpa itu = sampai hari ini.
+export function storageDays(p, endAt) {
+  if (!p?.photo_uploaded_at) return null;
+  const end = endAt ? new Date(endAt) : new Date();
+  return Math.max(1, Math.floor((end - new Date(p.photo_uploaded_at)) / 86400000) + 1);
+}
+
+// Warna penanda: makin lama makin mencolok
+export const storageTone = d =>
+  d >= 30 ? 'bg-red-50 text-red-700 border-red-200'
+    : d >= 14 ? 'bg-amber-50 text-amber-700 border-amber-200'
+      : 'bg-slate-50 text-slate-600 border-slate-200';
+
 // ── Sesi user ───────────────────────────────────────────────────────
 export const getAccessCode = () => sessionStorage.getItem('access_code') || '';
 

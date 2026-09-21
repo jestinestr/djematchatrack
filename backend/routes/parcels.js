@@ -225,6 +225,7 @@ function registerCrud(kind) {
         if (pkgId) payload.package_id = pkgId; // resi otomatis masuk paket aktif
       }
       payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
+      if (payload.photo_url) payload.photo_uploaded_at = new Date().toISOString();
       payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
 
       const { data, error } = await supabase.from(table).insert(payload).select().single();
@@ -260,7 +261,10 @@ function registerCrud(kind) {
       }
       const photoFile = req.files?.['photo']?.[0];
       const coPhotoFile = req.files?.['co_photo']?.[0];
-      if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);
+      if (photoFile) {
+        updates.photo_url = await uploadPhoto(photoFile);
+        updates.photo_uploaded_at = new Date().toISOString(); // hitungan hari simpan mulai ulang
+      }
       if (coPhotoFile) updates.co_photo_url = await uploadPhoto(coPhotoFile);
 
       const { data, error } = await supabase

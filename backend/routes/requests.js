@@ -5,7 +5,7 @@ const path = require('path');
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners } = require('../lib/owner');
 const { logActivity } = require('../lib/log');
-const { activePackageId } = require('../lib/packages');
+const { activePackageId, packageHasRoom } = require('../lib/packages');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
 
@@ -193,7 +193,7 @@ router.patch('/:id/approve', async (req, res) => {
   // 2. Find active batch of this type
   const { data: batch, error: batchErr } = await supabase
     .from('batches')
-    .select('id, type, batch_number, unboxing_fee')
+    .select('*')
     .eq('type', parcelType)
     .eq('status', 'active')
     .order('batch_number', { ascending: false })
@@ -226,6 +226,10 @@ router.patch('/:id/approve', async (req, res) => {
     insertData.unboxing_fee = req_data.need_unboxing ? Number(batch.unboxing_fee ?? 0.75) : 0;
     const pkgId = await activePackageId(req_data.owner_code_id);
     if (pkgId) insertData.package_id = pkgId; // masuk paket aktif pelanggan
+    // Biaya WH otomatis: tercover paket kalau masih ada jatah, selain itu satuan
+    const covered = pkgId ? await packageHasRoom(pkgId) : false;
+    insertData.currency = 'CNY';
+    insertData.wh_fee = covered ? 0 : Number(batch.unit_fee ?? 1.5);
   }
 
   const { error: insertErr } = await supabase.from(table).insert(insertData);

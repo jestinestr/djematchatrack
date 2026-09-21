@@ -1,4 +1,4 @@
-import { money, rupiah, baseFee, formatWeight } from '../utils/format';
+import { money, rupiah, baseFee, formatWeight, storageDays, storageTone } from '../utils/format';
 
 export default function ParcelCard({
   parcel,
@@ -7,6 +7,7 @@ export default function ParcelCard({
   selected = false,
   onSelect,
   onOpen,
+  storageEnd,
 }) {
   const isHC = String(type).toUpperCase() === 'HC';
   const masked = !!parcel.masked;
@@ -82,7 +83,12 @@ export default function ParcelCard({
             </span>
           ) : (
             <>
-              {parcel.pkg && (
+{storageDays(parcel, storageEnd) && (
+            <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-semibold ${storageTone(storageDays(parcel, storageEnd))}`} title="Lama disimpan sejak foto arrival diupload">
+              🗓 Hari ke-{storageDays(parcel, storageEnd)}
+            </span>
+          )}
+          {parcel.pkg && (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border font-semibold ${
                   parcel.pkg.over ? 'bg-red-50 text-red-700 border-red-200' : 'bg-teal-50 text-teal-700 border-teal-200'
                 }`}>

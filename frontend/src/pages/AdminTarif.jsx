@@ -8,6 +8,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
   const [cur, setCur]         = useState(normCurrency(batch.fee_currency));
   const [fineInput, setFineInput] = useState((batch.fine_amount ?? 2000).toString());
   const [unboxInput, setUnboxInput] = useState((batch.unboxing_fee ?? 0.75).toString());
+  const [unitInput, setUnitInput]   = useState((batch.unit_fee ?? 1.5).toString());
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
 
@@ -34,7 +35,10 @@ function BatchTarifCard({ batch, type, onSaved }) {
         fee_per_gram: val,
         fee_currency: cur,
         fine_amount: Math.max(0, Number(fineInput) || 0),
-        ...(type === 'WH' ? { unboxing_fee: Math.max(0, Number(unboxInput) || 0) } : {}),
+        ...(type === 'WH' ? {
+          unboxing_fee: Math.max(0, Number(unboxInput) || 0),
+          unit_fee: Math.max(0, Number(unitInput) || 0),
+        } : {}),
       }),
     });
     setSaving(false);
@@ -48,6 +52,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
         fee_currency: data.fee_currency ?? cur,
         fine_amount: data.fine_amount ?? (Number(fineInput) || 0),
         unboxing_fee: data.unboxing_fee ?? (Number(unboxInput) || 0),
+        unit_fee: data.unit_fee ?? (Number(unitInput) || 0),
       });
     }
   }
@@ -95,6 +100,11 @@ function BatchTarifCard({ batch, type, onSaved }) {
             {type === 'WH' && (
               <p className="text-[11px] text-gray-400 mt-0.5">
                 Video unboxing: <span className="font-bold text-violet-600">{money(batch.unboxing_fee ?? 0.75, 'CNY')}</span> /resi
+              </p>
+            )}
+            {type === 'WH' && (
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Satuan (tanpa paket): <span className="font-bold text-teal-600">{money(batch.unit_fee ?? 1.5, 'CNY')}</span> /resi
               </p>
             )}
           </div>
@@ -176,6 +186,29 @@ function BatchTarifCard({ batch, type, onSaved }) {
             {type === 'WH' && (
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+                  Satuan per resi (pelanggan tanpa paket)
+                </label>
+                <div className="flex items-center gap-1.5 bg-cream-50 border-2 border-teal-200 rounded-xl px-3 py-2 focus-within:border-teal-400 transition-colors">
+                  <span className="text-xs font-bold text-teal-500 shrink-0">¥</span>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={unitInput}
+                    onChange={e => setUnitInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+                    className="flex-1 text-sm font-mono font-bold bg-transparent outline-none text-teal-700 min-w-0"
+                    placeholder="1.5"
+                  />
+                  <span className="text-xs text-gray-400 shrink-0">/resi</span>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Mengisi otomatis biaya WH resi pelanggan satuan, atau yang kuota paketnya sudah habis.
+                </p>
+              </div>
+            )}
+
+            {type === 'WH' && (
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
                   Video unboxing
                 </label>
                 <div className="flex items-center gap-1.5 bg-cream-50 border-2 border-violet-200 rounded-xl px-3 py-2 focus-within:border-violet-400 transition-colors">
@@ -206,6 +239,7 @@ function BatchTarifCard({ batch, type, onSaved }) {
                   setInput(batch.fee_per_gram?.toString() || '0');
                   setFineInput((batch.fine_amount ?? 2000).toString());
                   setUnboxInput((batch.unboxing_fee ?? 0.75).toString());
+                  setUnitInput((batch.unit_fee ?? 1.5).toString());
                 }}
                 className="btn-secondary text-sm px-3 py-2">
                 Batal
