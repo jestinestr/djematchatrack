@@ -17,6 +17,7 @@ export default function UserPanel({ type }) {
   const navigate = useNavigate();
 
   const [viewer, setViewer]   = useState(null);
+  const [pkg, setPkg]         = useState(null); // paket WH aktif
   const [batches, setBatches] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,7 @@ export default function UserPanel({ type }) {
       })
       .then(data => {
         setViewer(data.viewer);
+        setPkg(data.package || null);
         setBatches(data.batches);
         setActiveId(data.batches[0]?.id ?? null);
         setLoading(false);
@@ -266,6 +268,28 @@ export default function UserPanel({ type }) {
 
             {!loading && !error && batch && (
               <>
+                {/* Kuota paket WH pelanggan */}
+                {pkg && (
+                  <div className={`border-2 rounded-2xl px-4 py-3 ${pkg.overflow ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">📦</span>
+                      <p className="text-sm font-bold text-gray-800 flex-1">
+                        {pkg.name} <span className="font-medium text-gray-500">· periode {pkg.period_no}</span>
+                      </p>
+                      <span className="text-sm font-black text-gray-800">{Math.min(pkg.used, pkg.quota)}/{pkg.quota}</span>
+                    </div>
+                    <div className="h-2 bg-white rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${pkg.overflow ? 'bg-red-500' : 'bg-teal-500'}`}
+                        style={{ width: `${Math.min(100, Math.round((pkg.used / pkg.quota) * 100))}%` }} />
+                    </div>
+                    <p className="text-xs mt-2 text-gray-600">
+                      {pkg.overflow
+                        ? `Kuota sudah habis, ada ${pkg.overflow} resi kelebihan. Hubungi admin untuk perpanjang paket.`
+                        : `Sisa ${pkg.remaining} resi lagi di paket ini.`}
+                    </p>
+                  </div>
+                )}
+
                 {/* Tracker foto — berapa resi yang sudah difoto */}
                 {mine.length > 0 && (
                   <div className="bg-white border-2 border-cream-200 rounded-2xl px-4 py-3">

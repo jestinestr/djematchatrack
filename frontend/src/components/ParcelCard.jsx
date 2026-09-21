@@ -82,6 +82,13 @@ export default function ParcelCard({
             </span>
           ) : (
             <>
+              {parcel.pkg && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border font-semibold ${
+                  parcel.pkg.over ? 'bg-red-50 text-red-700 border-red-200' : 'bg-teal-50 text-teal-700 border-teal-200'
+                }`}>
+                  📦 {parcel.pkg.over ? `+${parcel.pkg.pos - parcel.pkg.quota} kelebihan` : `${parcel.pkg.pos}/${parcel.pkg.quota}`}
+                </span>
+              )}
               {parcel.need_unboxing && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-violet-50 text-violet-700 border border-violet-200 font-semibold">
                   🎥 Unboxing

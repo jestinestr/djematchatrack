@@ -5,6 +5,7 @@ const path = require('path');
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners } = require('../lib/owner');
 const { logActivity } = require('../lib/log');
+const { activePackageId } = require('../lib/packages');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
 
@@ -223,6 +224,8 @@ router.patch('/:id/approve', async (req, res) => {
     insertData.wh_fee = 0;
     insertData.need_unboxing = !!req_data.need_unboxing;
     insertData.unboxing_fee = req_data.need_unboxing ? Number(batch.unboxing_fee ?? 0.75) : 0;
+    const pkgId = await activePackageId(req_data.owner_code_id);
+    if (pkgId) insertData.package_id = pkgId; // masuk paket aktif pelanggan
   }
 
   const { error: insertErr } = await supabase.from(table).insert(insertData);

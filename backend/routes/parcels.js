@@ -5,6 +5,7 @@ const path = require('path');
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners, maskParcel, norm } = require('../lib/owner');
 const { logActivity, batchLabel, parcelLabel } = require('../lib/log');
+const { activePackageId, loadPackageInfo, attachPackage } = require('../lib/packages');
 
 // Use memory storage — file goes to Supabase Storage, not disk
 const upload = multer({
@@ -114,8 +115,16 @@ async function loadBatches(kind, { onlyActive = false } = {}) {
 function registerAdminList(kind) {
   router.get(`/${kind}/all`, async (req, res) => {
     try {
-      const [batches, codes] = await Promise.all([loadBatches(kind), fetchCodes()]);
-      res.json(batches.map(b => ({ ...b, parcels: attachOwners(b.parcels, codes) })));
+      const [batches, codes, pkgInfo] = await Promise.all([
+        loadBatches(kind),
+        fetchCodes(),
+        kind === 'wh' ? loadPackageInfo() : null,
+      ]);
+      res.json(batches.map(b => {
+        let parcels = attachOwners(b.parcels, codes);
+        if (pkgInfo) parcels = attachPackage(parcels, pkgInfo.parcelInfo);
+        return { ...b, parcels };
+      }));
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -144,13 +153,17 @@ function registerUserView(kind) {
         return res.status(403).json({ error: `Kode ini tidak memiliki akses ke ${BATCH_TYPE[kind]}` });
       }
 
-      const batches = await loadBatches(kind);
+      const [batches, pkgInfo] = await Promise.all([
+        loadBatches(kind),
+        kind === 'wh' ? loadPackageInfo() : null,
+      ]);
       const result = [];
 
       for (const batch of batches) {
         // Ketat: hanya resi yang pemiliknya di-assign eksplisit yang diakui
         // milik seseorang — tebakan dari nama tidak dipakai di sisi user.
-        const withOwners = attachOwners(batch.parcels, codes, { allowNameMatch: false });
+        let withOwners = attachOwners(batch.parcels, codes, { allowNameMatch: false });
+        if (pkgInfo) withOwners = attachPackage(withOwners, pkgInfo.parcelInfo);
         const mine = withOwners.filter(p => p.owner && String(p.owner.id) === String(me.id));
         const isActive = batch.status === 'active';
 
@@ -182,6 +195,9 @@ function registerUserView(kind) {
 
       res.json({
         viewer: { id: me.id, label: me.label },
+        // Paket aktif pelanggan ini (WH), untuk kartu kuota di panelnya
+        package: pkgInfo?.packages.find(p =>
+          String(p.owner_code_id) === String(me.id) && p.status === 'active') || null,
         batches: result.sort(sortBatches),
       });
     } catch (e) {
@@ -204,6 +220,10 @@ function registerCrud(kind) {
       const batch = await getBatch(parseInt(batch_id));
       const payload = buildPayload(kind, req.body, batch);
       payload.batch_id = parseInt(batch_id);
+      if (kind === 'wh' && payload.owner_code_id) {
+        const pkgId = await activePackageId(payload.owner_code_id);
+        if (pkgId) payload.package_id = pkgId; // resi otomatis masuk paket aktif
+      }
       payload.photo_url = await uploadPhoto(req.files?.['photo']?.[0]);
       payload.co_photo_url = await uploadPhoto(req.files?.['co_photo']?.[0]);
 
@@ -233,6 +253,11 @@ function registerCrud(kind) {
         .from(table).select('batch_id, owner_code_id, tracking_number').eq('id', req.params.id).single();
       const batch = await getBatch(current?.batch_id);
       const updates = buildPayload(kind, req.body, batch);
+      // Ganti pemilik → resi ikut paket aktif pemilik baru
+      if (kind === 'wh' && String(current?.owner_code_id ?? '') !== String(updates.owner_code_id ?? '')) {
+        const pkgId = await activePackageId(updates.owner_code_id);
+        if (pkgId !== undefined) updates.package_id = pkgId;
+      }
       const photoFile = req.files?.['photo']?.[0];
       const coPhotoFile = req.files?.['co_photo']?.[0];
       if (photoFile)   updates.photo_url    = await uploadPhoto(photoFile);

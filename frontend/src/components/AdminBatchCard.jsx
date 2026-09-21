@@ -415,6 +415,13 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, selectable, selected,
               ➕ {money(extra, p.currency)}
             </span>
           )}
+          {p.pkg && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full border font-semibold ${
+              p.pkg.over ? 'bg-red-100 text-red-700 border-red-300' : 'bg-teal-50 text-teal-700 border-teal-200'
+            }`} title={`${p.pkg.name} periode ${p.pkg.period_no}`}>
+              📦 {p.pkg.name} · {p.pkg.over ? `+${p.pkg.pos - p.pkg.quota} kelebihan` : `${p.pkg.pos}/${p.pkg.quota}`}
+            </span>
+          )}
           {p.paid_at && (
             <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full border border-green-300 font-semibold" title="Sudah dibayar">
               ✓ Lunas
