@@ -88,6 +88,11 @@ export default function ParcelCard({
               🗓 Hari ke-{storageDays(parcel, storageEnd)}
             </span>
           )}
+          {parcel.freebies_stay && (
+            <span className="inline-flex items-center text-xs bg-pink-50 text-pink-700 px-1.5 py-0.5 rounded-full border border-pink-200 font-semibold" title="Freebies ditinggal di gudang">
+              🎁 Freebies stay
+            </span>
+          )}
           {parcel.pkg && (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border font-semibold ${
                   parcel.pkg.over ? 'bg-red-50 text-red-700 border-red-200' : 'bg-teal-50 text-teal-700 border-teal-200'

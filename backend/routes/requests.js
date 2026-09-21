@@ -135,12 +135,14 @@ router.post('/', upload.any(), async (req, res) => {
     const rows = await Promise.all(items.map(async (item, i) => ({
       type,
       tracking_number: item.tracking_number.trim(),
-      recipient_name: ownerLabel,
+      // Penerima opsional (bisa beda orang di akun yang sama); kosong = nama pemilik
+      recipient_name: item.recipient_name?.trim() || ownerLabel,
       parcel_type: item.parcel_type || 'barang',
       notes: item.notes?.trim() || null,
       co_photo_url: await uploadPhoto(coPhotoFiles[i] || null),
       owner_code_id: ownerCodeId,
       need_unboxing: type === 'WH' && !!item.need_unboxing,
+      freebies_stay: !!item.freebies_stay,
       quantity: item.parcel_type === 'paperbased' ? parseInt(item.quantity) || null : null,
       status: 'pending',
     })));
@@ -219,6 +221,7 @@ router.patch('/:id/approve', async (req, res) => {
     status: 'active',
     is_manual_input: false,
     fine_amount: 0,
+    freebies_stay: !!req_data.freebies_stay,
   };
   if (parcelType === 'HC') {
     insertData.estimated_weight_grams = 0;

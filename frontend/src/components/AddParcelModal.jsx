@@ -48,6 +48,7 @@ export default function AddParcelModal({
     fine_amount: parcel?.fine_amount ? String(parcel.fine_amount) : '',
     is_manual_input: parcel?.is_manual_input || false,
     need_unboxing: parcel?.need_unboxing || false,
+    freebies_stay: parcel?.freebies_stay || false,
   });
   const [showLabel, setShowLabel] = useState(false);
   const [pkgs, setPkgs] = useState([]); // paket WH aktif, untuk isi otomatis biaya
@@ -151,6 +152,7 @@ export default function AddParcelModal({
     fd.append('fine_amount', form.fine_amount || '0');
     fd.append('owner_code_id', form.owner_code_id || '');
     fd.append('is_manual_input', form.is_manual_input ? 'true' : 'false');
+    fd.append('freebies_stay', form.freebies_stay ? 'true' : 'false');
     fd.append('estimated_weight_grams', form.estimated_weight_grams || '0');
     if (photo) fd.append('photo', photo);
     if (coPhoto) fd.append('co_photo', coPhoto);
@@ -397,6 +399,14 @@ export default function AddParcelModal({
               </div>
             </label>
           )}
+
+          {/* Freebies tinggal — opsional */}
+          <label className="flex items-center gap-3 p-3.5 bg-pink-50 rounded-2xl border-2 border-pink-200 cursor-pointer hover:bg-pink-100 transition-colors">
+            <input type="checkbox" checked={form.freebies_stay}
+              onChange={e => setField('freebies_stay', e.target.checked)}
+              className="w-4 h-4 accent-pink-600" />
+            <div className="text-sm font-semibold text-pink-800">🎁 Freebies tinggal / stay</div>
+          </label>
 
           {/* Penanda input manual — cuma tanda, tidak menambah denda */}
           <label className="flex items-start gap-3 p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">

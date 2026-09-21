@@ -324,6 +324,11 @@ export default function AdminRequests() {
                             📄 {r.quantity} pcs
                           </span>
                         )}
+                        {r.freebies_stay && (
+                          <span className="text-xs bg-pink-50 text-pink-700 px-1.5 py-0.5 rounded-full border border-pink-200 font-semibold">
+                            🎁 Freebies stay
+                          </span>
+                        )}
                         {r.need_unboxing && (
                           <span className="text-xs bg-violet-100 text-violet-800 px-1.5 py-0.5 rounded-full border border-violet-300 font-semibold">
                             🎥 Need unboxing

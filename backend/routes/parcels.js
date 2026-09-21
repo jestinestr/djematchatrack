@@ -69,6 +69,7 @@ function buildPayload(kind, body, batch = null) {
     additional_fee: Math.max(0, num(body.additional_fee)),
     owner_code_id: body.owner_code_id ? parseInt(body.owner_code_id) : null,
     is_manual_input: isManual,
+    freebies_stay: body.freebies_stay === 'true' || body.freebies_stay === true,
     fine_amount: Math.max(0, num(body.fine_amount)), // selalu dalam Rupiah
   };
   if (kind === 'hc') {

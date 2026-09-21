@@ -6,6 +6,8 @@ const emptyRow = () => ({
   need_unboxing: false,
   parcel_type: 'barang',
   quantity: '',
+  recipient_name: '',
+  freebies_stay: false,
   notes: '',
   coPhoto: null,
   coPreview: null,
@@ -59,8 +61,9 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
       fd.append('type', type);
 
       // Append items as JSON (without file objects)
-      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing, quantity }) => ({
+      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing, quantity, recipient_name, freebies_stay }) => ({
         tracking_number, parcel_type, notes, need_unboxing: type === 'WH' && need_unboxing,
+        recipient_name, freebies_stay,
         quantity: parcel_type === 'paperbased' ? parseInt(quantity) || null : null,
       }));
       fd.append('items', JSON.stringify(itemsData));
@@ -134,6 +137,14 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
               required
             />
 
+            {/* Penerima — opsional, untuk penerima yang beda dengan pemilik akun */}
+            <input
+              className="input-field text-sm"
+              placeholder="Nama penerima (opsional — kosongkan kalau sama dengan namamu)"
+              value={item.recipient_name}
+              onChange={e => updateRow(idx, 'recipient_name', e.target.value)}
+            />
+
             {/* Type + Notes */}
             <div className="flex gap-2">
               <select
@@ -167,6 +178,21 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
                 <span className="text-xs text-sky-700">pcs · wajib untuk paperbased</span>
               </div>
             )}
+
+            {/* Freebies tinggal — opsional */}
+            <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${
+              item.freebies_stay ? 'border-pink-300 bg-pink-50' : 'border-cream-200 bg-white hover:border-pink-200'
+            }`}>
+              <input
+                type="checkbox"
+                checked={item.freebies_stay}
+                onChange={e => updateRow(idx, 'freebies_stay', e.target.checked)}
+                className="w-4 h-4 accent-pink-600"
+              />
+              <span className="text-sm">🎁</span>
+              <span className="flex-1 text-xs font-semibold text-gray-700">Freebies tinggal / stay</span>
+              <span className="text-[11px] text-gray-400">opsional</span>
+            </label>
 
             {/* Video unboxing — khusus Warehouse, ada biaya tambahan */}
             {type === 'WH' && (

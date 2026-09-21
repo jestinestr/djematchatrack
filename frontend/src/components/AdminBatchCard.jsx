@@ -422,6 +422,11 @@ function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, selectabl
               🗓 Hari ke-{storageDays(p, storageEnd)}
             </span>
           )}
+          {p.freebies_stay && (
+            <span className="text-xs bg-pink-50 text-pink-700 px-1.5 py-0.5 rounded-full border border-pink-200 font-semibold" title="Freebies ditinggal di gudang">
+              🎁 Freebies stay
+            </span>
+          )}
           {p.pkg && (
             <span className={`text-xs px-1.5 py-0.5 rounded-full border font-semibold ${
               p.pkg.over ? 'bg-red-100 text-red-700 border-red-300' : 'bg-teal-50 text-teal-700 border-teal-200'
