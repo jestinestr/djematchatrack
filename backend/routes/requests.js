@@ -232,6 +232,13 @@ router.patch('/:id/approve', async (req, res) => {
     insertData.need_unboxing = !!req_data.need_unboxing;
     insertData.estimated_quantity = req_data.quantity || 1;
     insertData.unboxing_fee = req_data.need_unboxing ? Number(batch.unboxing_fee ?? 0.75) : 0;
+    if (req_data.owner_code_id) {
+      const { data: openBox } = await supabase
+        .from('boxes').select('id')
+        .eq('owner_code_id', req_data.owner_code_id).eq('status', 'open')
+        .order('created_at', { ascending: false }).limit(1);
+      if (openBox?.[0]) insertData.box_id = openBox[0].id;
+    }
     const pkgId = await activePackageId(req_data.owner_code_id);
     if (pkgId) insertData.package_id = pkgId; // masuk paket aktif pelanggan
     // Biaya WH otomatis: tercover paket kalau masih ada jatah, selain itu satuan

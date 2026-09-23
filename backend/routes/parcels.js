@@ -84,6 +84,9 @@ function buildPayload(kind, body, batch = null) {
     const needUnboxing = body.need_unboxing === 'true' || body.need_unboxing === true;
     payload.need_unboxing = needUnboxing;
     payload.unboxing_fee = needUnboxing ? Math.max(0, num(batch?.unboxing_fee, 0.75)) : 0;
+    // Box tempat resi ini disimpan (pengelompokan utama WH)
+    if (body.box_id) payload.box_id = parseInt(body.box_id);
+    else if (body.box_id === '') payload.box_id = null;
   }
   return payload;
 }
@@ -155,6 +158,40 @@ function registerUserView(kind) {
         return res.status(403).json({ error: `Kode ini tidak memiliki akses ke ${BATCH_TYPE[kind]}` });
       }
 
+      // Warehouse: pelanggan melihat box miliknya (aktif + arsip)
+      if (kind === 'wh') {
+        const [{ boxes, parcels }, pkgInfo] = await Promise.all([loadWhBoxes(), loadPackageInfo()]);
+        const mine = attachPackage(attachOwners(parcels, codes, { allowNameMatch: false }), pkgInfo.parcelInfo)
+          .filter(p => p.owner && String(p.owner.id) === String(me.id))
+          .map(p => ({ ...p, is_mine: true }));
+
+        const myBoxes = boxes
+          .filter(b => String(b.owner_code_id) === String(me.id))
+          .map(b => ({
+            id: b.id,
+            name: b.name,
+            status: b.status,
+            note: b.note,
+            created_at: b.created_at,
+            closed_at: b.closed_at,
+            parcels: mine.filter(p => String(p.box_id) === String(b.id)).sort(sortNewest),
+          }));
+
+        const loose = mine.filter(p => !p.box_id).sort(sortNewest);
+        if (loose.length) {
+          myBoxes.push({ id: null, name: 'Belum masuk box', status: 'open', parcels: loose });
+        }
+
+        return res.json({
+          viewer: { id: me.id, label: me.label },
+          package: pkgInfo.packages.find(p =>
+            String(p.owner_code_id) === String(me.id) && p.status === 'active') || null,
+          boxes: myBoxes.sort((a, b) =>
+            (a.status === b.status ? 0 : a.status === 'open' ? -1 : 1) ||
+            String(b.name).localeCompare(String(a.name), 'id', { numeric: true })),
+        });
+      }
+
       const [batches, pkgInfo] = await Promise.all([
         loadBatches(kind),
         kind === 'wh' ? loadPackageInfo() : null,
@@ -207,6 +244,56 @@ function registerUserView(kind) {
     }
   });
 }
+
+// ── Warehouse berbasis box ──────────────────────────────────────────
+//  Batch tidak lagi dipakai sebagai pengelompokan WH. Kolom batch_id
+//  tetap terisi di belakang layar supaya data lama tidak berubah.
+async function loadWhBoxes() {
+  const [bx, rows] = await Promise.all([
+    supabase.from('boxes').select('*'),
+    supabase.from('wh_parcels').select('*'),
+  ]);
+  return { boxes: bx.data || [], parcels: rows.data || [] };
+}
+
+const sortBoxes = (a, b) =>
+  (a.status === b.status ? 0 : a.status === 'open' ? -1 : 1) ||
+  (a.owner?.label || '').localeCompare(b.owner?.label || '', 'id') ||
+  String(a.name).localeCompare(String(b.name), 'id', { numeric: true });
+
+router.get('/wh/boxes', async (req, res) => {
+  try {
+    const [{ boxes, parcels }, codes, pkgInfo] = await Promise.all([
+      loadWhBoxes(), fetchCodes(), loadPackageInfo(),
+    ]);
+
+    const withInfo = attachPackage(attachOwners(parcels, codes), pkgInfo.parcelInfo);
+    const byBox = new Map();
+    for (const b of boxes) {
+      const c = codes.find(x => String(x.id) === String(b.owner_code_id));
+      byBox.set(String(b.id), {
+        ...b,
+        owner: c ? { id: c.id, label: c.label, code: c.code } : null,
+        parcels: [],
+      });
+    }
+
+    const unassigned = [];
+    for (const p of withInfo) {
+      const key = p.box_id ? String(p.box_id) : null;
+      if (key && byBox.has(key)) byBox.get(key).parcels.push(p);
+      else unassigned.push(p);
+    }
+
+    const list = [...byBox.values()]
+      .map(b => ({ ...b, parcels: b.parcels.sort(sortNewest) }))
+      .sort(sortBoxes);
+
+    res.json({ boxes: list, unassigned: unassigned.sort(sortNewest) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ── CRUD ────────────────────────────────────────────────────────────
 function registerCrud(kind) {

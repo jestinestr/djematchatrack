@@ -25,6 +25,9 @@ export default function AddParcelModal({
   unboxingFee = 0.75,
   unitFee = 1.5,
   batchNumber,
+  boxId,
+  boxName,
+  lockedOwnerId,
   onClose,
   onAdded,
   onEdited,
@@ -34,7 +37,9 @@ export default function AddParcelModal({
 
   const [codes, setCodes] = useState([]);
   const [form, setForm] = useState({
-    owner_code_id: parcel?.owner_code_id ? String(parcel.owner_code_id) : (parcel?.owner?.id ? String(parcel.owner.id) : ''),
+    owner_code_id: parcel?.owner_code_id ? String(parcel.owner_code_id)
+      : parcel?.owner?.id ? String(parcel.owner.id)
+      : lockedOwnerId ? String(lockedOwnerId) : '',
     recipient_name: parcel?.recipient_name || '',
     tracking_number: parcel?.tracking_number || '',
     parcel_type: parcel?.type || 'barang',
@@ -67,6 +72,12 @@ export default function AddParcelModal({
         .catch(() => {});
     }
   }, [isHC]);
+
+  // Box sudah menentukan pemiliknya — isi nama penerima sekali saat siap
+  useEffect(() => {
+    if (!isEdit && lockedOwnerId && codes.length) pickOwner(String(lockedOwnerId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codes.length]);
 
   // Biaya WH otomatis: tercover paket kalau masih ada jatah, selain itu satuan
   const pkgOf = ownerId => pkgs.find(p => String(p.owner_code_id) === String(ownerId));
@@ -163,6 +174,7 @@ export default function AddParcelModal({
     } else {
       fd.append('wh_fee', form.wh_fee || '0');
       fd.append('need_unboxing', form.need_unboxing ? 'true' : 'false');
+      if (boxId !== undefined && boxId !== null) fd.append('box_id', String(boxId));
       fd.append('estimated_quantity', form.estimated_quantity || '1');
     }
 
@@ -197,7 +209,7 @@ export default function AddParcelModal({
               {isEdit ? '✏️ Edit Resi' : `Tambah Resi ${isHC ? '✈️ Hand Carry' : '🏭 Warehouse'}`}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {batchNumber ? `Batch #${batchNumber}` : 'Lengkapi data resi di bawah'}
+              {boxName || (batchNumber ? `Batch #${batchNumber}` : 'Lengkapi data resi di bawah')}
             </p>
           </div>
           <button
@@ -220,8 +232,9 @@ export default function AddParcelModal({
               <span className="text-xs text-gray-400 font-normal ml-1">menentukan siapa yang bisa lihat</span>
             </label>
             <select
-              className="input-field"
+              className="input-field disabled:bg-slate-50 disabled:text-slate-500"
               value={form.owner_code_id}
+              disabled={!!lockedOwnerId && !isEdit}
               onChange={e => pickOwner(e.target.value)}
             >
               <option value="">— Belum ditentukan —</option>

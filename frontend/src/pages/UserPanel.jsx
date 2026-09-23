@@ -43,8 +43,20 @@ export default function UserPanel({ type }) {
       .then(data => {
         setViewer(data.viewer);
         setPkg(data.package || null);
-        setBatches(data.batches);
-        setActiveId(data.batches[0]?.id ?? null);
+        // WH dikelompokkan per box, HC tetap per batch — disamakan bentuknya
+        const groups = data.boxes
+          ? data.boxes.map(b => ({
+              id: b.id,
+              title: b.name,
+              status: b.status === 'open' ? 'active' : 'closed',
+              closed_at: b.closed_at,
+              parcels: b.parcels,
+              mine_count: b.parcels.length,
+              total_count: b.parcels.length,
+            }))
+          : (data.batches || []).map(b => ({ ...b, title: `Batch #${b.batch_number}` }));
+        setBatches(groups);
+        setActiveId(groups[0]?.id ?? null);
         setLoading(false);
       })
       .catch(e => { setError(e.message); setLoading(false); });
@@ -137,16 +149,26 @@ export default function UserPanel({ type }) {
       </div>
 
       <div className="px-4 pt-4 pb-2">
-        <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Riwayat Batch</p>
+        <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+          {type === 'WH' ? 'Box Kamu' : 'Riwayat Batch'}
+        </p>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
         {batches.length === 0 && (
           <p className="text-white/40 text-xs px-2 py-4">Belum ada batch</p>
         )}
-        {batches.map(b => {
+        {batches.map((b, i) => {
           const isSel = b.id === activeId;
+          // Pemisah: yang sudah ditutup masuk bagian Arsip
+          const firstClosed = b.status !== 'active' && (i === 0 || batches[i - 1].status === 'active');
           return (
+            <div key={`g-${b.id ?? 'none'}`}>
+            {firstClosed && (
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-2 pt-3 pb-1">
+                {type === 'WH' ? 'Arsip' : 'Selesai'}
+              </p>
+            )}
             <button
               key={b.id}
               onClick={() => selectBatch(b.id)}
@@ -156,12 +178,12 @@ export default function UserPanel({ type }) {
             >
               <div className="flex items-center gap-2">
                 <span className={`text-sm font-bold ${isSel ? 'text-white' : 'text-white/70'}`}>
-                  Batch #{b.batch_number}
+                  {b.title}
                 </span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                   b.status === 'active' ? 'bg-green-400/20 text-green-300' : 'bg-white/10 text-white/50'
                 }`}>
-                  {b.status === 'active' ? '● Aktif' : '✓ Selesai'}
+                  {b.status === 'active' ? '● Aktif' : '✓ Arsip'}
                 </span>
               </div>
               <p className="text-[11px] text-matcha-300/80 mt-0.5">
@@ -169,6 +191,7 @@ export default function UserPanel({ type }) {
                 {b.is_private && <span className="ml-1.5 text-amber-300/80">🔒 private</span>}
               </p>
             </button>
+            </div>
           );
         })}
       </nav>
@@ -203,7 +226,7 @@ export default function UserPanel({ type }) {
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-sm flex items-center gap-2">
               <span>{meta.icon}</span>
-              {batch ? `Batch #${batch.batch_number}` : meta.title}
+              {batch ? batch.title : meta.title}
               {batch?.is_private && (
                 <span className="text-[10px] bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded-full font-medium">🔒 Private</span>
               )}

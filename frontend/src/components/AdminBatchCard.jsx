@@ -351,7 +351,7 @@ export default function AdminBatchCard({
 }
 
 /* ── Satu baris resi ─────────────────────────────────────── */
-function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, selectable, selected, onToggle, onOpen, onEdit, onDelete }) {
+export function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, selectable, selected, onToggle, onOpen, onEdit, onDelete }) {
   const fee = baseFee(p, type);
   const extra = Number(p.additional_fee) || 0;
 
