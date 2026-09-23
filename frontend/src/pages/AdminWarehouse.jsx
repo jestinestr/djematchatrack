@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminBoxCard from '../components/AdminBoxCard';
+import AddParcelModal from '../components/AddParcelModal';
+import ParcelDetailModal from '../components/ParcelDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone } from '../utils/format';
@@ -17,7 +19,24 @@ export default function AdminWarehouse() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [moveTo, setMoveTo] = useState('');
-  const [view, setView] = useState('box'); // box | list
+  const [view, setView] = useState('list'); // list | box
+  const [showForm, setShowForm] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+  const [editing, setEditing] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const searchRef = useRef(null);
+
+  // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'SELECT') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const load = useCallback(async () => {
     const [data, c, batch] = await Promise.all([
@@ -110,7 +129,13 @@ export default function AdminWarehouse() {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [boxes, unassigned, search, ownerFilter, showClosed]);
 
-  const listPaged = usePaged(flat, 10);
+  const listPaged = usePaged(flat, pageSize);
+
+  async function removeParcel(id) {
+    if (!window.confirm('Hapus resi ini?')) return;
+    const res = await fetch(`/api/parcels/wh/${id}`, { method: 'DELETE' });
+    if (res.ok) load();
+  }
 
   // Pindahkan satu resi ke box lain langsung dari tabel
   async function moveOne(parcelId, boxId) {
@@ -136,9 +161,18 @@ export default function AdminWarehouse() {
             {openBoxes.length} box aktif · {totals.count} resi · {formatMulti(totals)}
           </p>
         </div>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className={`ml-auto text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
+            showForm ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'
+          }`}
+        >
+          {showForm ? 'Tutup form' : '+ Box baru'}
+        </button>
       </div>
 
       {/* Buat box */}
+      {showForm && (
       <form onSubmit={createBox} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 mb-4">
         <div className="grid sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
           <div>
@@ -160,15 +194,21 @@ export default function AdminWarehouse() {
         </div>
         {error && <p className="text-xs text-red-600 mt-2">⚠️ {error}</p>}
       </form>
+      )}
 
-      {/* Cari & saring */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="relative flex-1 min-w-[180px]">
+      {/* Cari & saring — menempel di atas saat daftar digulir */}
+      <div className="sticky top-0 z-20 -mx-5 md:-mx-7 px-5 md:px-7 py-3 mb-3 bg-cream-100/95 backdrop-blur border-b border-slate-200">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
           <input
+            ref={searchRef}
+            autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Cari box, pelanggan, atau nomor resi..."
-            className="input-field text-sm py-2 pr-8"
+            onKeyDown={e => { if (e.key === 'Escape') setSearch(''); }}
+            placeholder="Cari nomor resi, penerima, pelanggan, atau box...  ( / )"
+            className="input-field text-sm py-2 pl-9 pr-8"
           />
           {search && (
             <button onClick={() => setSearch('')}
@@ -180,10 +220,10 @@ export default function AdminWarehouse() {
           <option value="all">Semua pelanggan</option>
           {owners.map(o => <option key={o.id} value={String(o.id)}>{o.label}</option>)}
         </select>
-        <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer whitespace-nowrap">
           <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}
             className="accent-slate-700" />
-          Tampilkan box tertutup
+          Termasuk box tertutup
         </label>
         <div className="flex gap-1 bg-slate-100 rounded-xl p-0.5">
           {[['box', 'Per Box'], ['list', 'Semua Resi']].map(([v, l]) => (
@@ -195,6 +235,32 @@ export default function AdminWarehouse() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Ringkasan hasil pencarian — langsung terlihat tanpa menggulir */}
+      <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+        <span>
+          {view === 'list'
+            ? `${flat.length} resi ditemukan`
+            : `${shown.length} box ditemukan`}
+        </span>
+        {(search || ownerFilter !== 'all') && (
+          <button onClick={() => { setSearch(''); setOwnerFilter('all'); }}
+            className="text-slate-500 hover:text-slate-800 underline">
+            Reset pencarian
+          </button>
+        )}
+        {view === 'list' && (
+          <label className="ml-auto flex items-center gap-1.5">
+            Tampil
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
+              className="border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white">
+              {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            per halaman
+          </label>
+        )}
+      </div>
       </div>
 
       {/* Resi yang belum punya box */}
@@ -235,6 +301,7 @@ export default function AdminWarehouse() {
                   <th className="px-3 py-2 text-right">Fee WH</th>
                   <th className="px-3 py-2 text-right">Durasi</th>
                   <th className="px-3 py-2 text-left w-40">Box</th>
+                  <th className="px-3 py-2 text-right w-20">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,11 +353,21 @@ export default function AdminWarehouse() {
                           )}
                         </select>
                       </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <button onClick={() => setDetail(p)} title="Lihat detail"
+                          className="text-slate-400 hover:text-slate-700 px-1">👁</button>
+                        <button onClick={() => setEditing(p)} title="Edit resi"
+                          className="text-slate-400 hover:text-slate-700 px-1">✏️</button>
+                        <button onClick={() => removeParcel(p.id)} title="Hapus resi"
+                          className="text-slate-400 hover:text-red-600 px-1">🗑</button>
+                      </td>
                     </tr>
                   );
                 })}
                 {listPaged.items.length === 0 && (
-                  <tr><td colSpan="9" className="px-3 py-10 text-center text-slate-400">Tidak ada resi yang cocok</td></tr>
+                  <tr><td colSpan="10" className="px-3 py-12 text-center text-slate-400">
+                    {search ? `Tidak ada resi untuk "${search}"` : 'Belum ada resi'}
+                  </td></tr>
                 )}
               </tbody>
             </table>
@@ -317,6 +394,26 @@ export default function AdminWarehouse() {
           />
         ))
       ))}
+
+      {editing && (
+        <AddParcelModal
+          type="WH"
+          parcel={editing}
+          boxId={editing.box_id ?? ''}
+          boxName={editing.box ? `${editing.owner?.label || '—'} - ${editing.box.name}` : 'Tanpa box'}
+          feePerGram={tarif?.fee_per_gram || 0}
+          feeCurrency={tarif?.fee_currency || 'CNY'}
+          fineAmount={Number(tarif?.fine_amount ?? 2000)}
+          unboxingFee={Number(tarif?.unboxing_fee ?? 0.75)}
+          unitFee={Number(tarif?.unit_fee ?? 1.5)}
+          onClose={() => setEditing(null)}
+          onEdited={() => { setEditing(null); load(); }}
+        />
+      )}
+
+      {detail && (
+        <ParcelDetailModal parcel={detail} type="WH" isAdmin onClose={() => setDetail(null)} />
+      )}
     </div>
   );
 }
