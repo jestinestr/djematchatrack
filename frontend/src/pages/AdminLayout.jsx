@@ -1,11 +1,13 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { clearSession } from '../utils/auth';
 
 const navItems = [
   { to: '/admin/dashboard', icon: '📊', label: 'Dashboard' },
   { to: '/admin/hc', icon: '✈️', label: 'Hand Carry' },
   { to: '/admin/wh', icon: '🏭', label: 'Warehouse' },
   { to: '/admin/gallery',  icon: '📸', label: 'Recap Foto' },
+  { to: '/foto', icon: '📷', label: 'Upload Foto' },
   { to: '/admin/requests', icon: '📬', label: 'Setor Resi', badge: true },
   { to: '/admin/invoice', icon: '🧾', label: 'Invoice' },
   { to: '/admin/archive', icon: '📁', label: 'Arsip' },
@@ -31,7 +33,7 @@ export default function AdminLayout() {
   }, []);
 
   function logout() {
-    sessionStorage.removeItem('admin_token');
+    clearSession();
     navigate('/admin');
   }
 

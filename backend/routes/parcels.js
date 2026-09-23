@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
 const supabase = require('../supabase');
+const { uploadPhoto } = require('../lib/storage');
 const { fetchCodes, attachOwners, maskParcel, norm } = require('../lib/owner');
 const { logActivity, batchLabel, parcelLabel } = require('../lib/log');
 const { activePackageId, loadPackageInfo, attachPackage } = require('../lib/packages');
@@ -12,22 +12,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 4 * 1024 * 1024 }, // 4MB (Vercel free tier limit)
 });
-
-// Upload photo to Supabase Storage, return public URL
-async function uploadPhoto(file) {
-  if (!file) return null;
-  const ext = path.extname(file.originalname) || '.jpg';
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-
-  const { error } = await supabase.storage
-    .from('TrackFolder')
-    .upload(filename, file.buffer, { contentType: file.mimetype });
-
-  if (error) throw new Error('Upload foto gagal: ' + error.message);
-
-  const { data } = supabase.storage.from('TrackFolder').getPublicUrl(filename);
-  return data.publicUrl;
-}
 
 // Multi-field upload: 'photo' (arrival) + 'co_photo' (CO, admin-only)
 const uploadFields = upload.fields([

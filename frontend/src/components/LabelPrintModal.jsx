@@ -1,12 +1,10 @@
 import { useState } from 'react';
 
-// Ukuran label (mm). Niimbot B1 yang dipakai sehari-hari = 40 × 30.
-export const LABEL_SIZES = {
-  // Ukuran huruf (pt) sesuai permintaan untuk B1; 30 × 20 mengikuti
-  // perbandingan yang sama supaya tetap muat
-  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 9.5, name: 11.5, resi: 9.5, resiTail: 14,   date: 9 },
-  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 7,   name: 8.5,  resi: 7,   resiTail: 10.5, date: 6.5 },
-};
+import { LABEL_SIZES, ownerOnly, labelToday } from '../utils/label';
+
+// Ukuran label dan aturan penulisan nama dipakai bersama halaman lain
+// (termasuk panel foto di ponsel) — sumbernya di utils/label.js.
+export { LABEL_SIZES };
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
@@ -18,16 +16,6 @@ function resiHTML(tn) {
   if (s.length <= 4) return `<b>${esc(s)}</b>`;
   return `${esc(s.slice(0, -4))}<b>${esc(s.slice(-4))}</b>`;
 }
-
-const same = (a, b) =>
-  String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-
-// Nama penerima berpola "J+nama" berasal dari marketplace — untuk label
-// cukup pakai nama penggunanya saja.
-const isJunkName = n => /^j\s*\+/i.test(String(n || '').trim());
-
-// Kapan label cukup menampilkan satu nama
-const ownerOnly = r => !r.name || same(r.owner, r.name) || isJunkName(r.name);
 
 export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
   const [size, setSize] = useState('40x30');
@@ -44,7 +32,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
   }
 
-  const today = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const today = labelToday();
 
   function print() {
     const s = LABEL_SIZES[size];

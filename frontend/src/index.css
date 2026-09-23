@@ -64,6 +64,10 @@
   }
 }
 
+/* Baris saringan yang bisa digeser — batang gulir tidak perlu terlihat */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* ── Scrollbar ── Berry themed ──────────────────── */
 ::-webkit-scrollbar       { width: 5px; }
 ::-webkit-scrollbar-track { background: #F5F1E8; }

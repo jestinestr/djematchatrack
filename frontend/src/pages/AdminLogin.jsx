@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { saveSession, getToken, isUploader } from '../utils/auth';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Masih ada sesi tersimpan — langsung masuk, tidak usah mengetik ulang
+  useEffect(() => {
+    if (getToken()) navigate(isUploader() ? '/foto' : '/admin/dashboard', { replace: true });
+  }, [navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -19,8 +25,9 @@ export default function AdminLogin() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
-      sessionStorage.setItem('admin_token', data.token);
-      navigate('/admin/dashboard');
+      saveSession(data.token, data.role || 'admin');
+      // Akun foto langsung masuk ke panel upload foto
+      navigate(data.role === 'photo' ? '/foto' : '/admin/dashboard');
     } catch {
       setError('Koneksi gagal');
     } finally {
@@ -51,6 +58,9 @@ export default function AdminLogin() {
               placeholder="admin"
               required
               autoFocus
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </div>
           <div>
@@ -62,6 +72,9 @@ export default function AdminLogin() {
               className="input-field"
               placeholder="••••••••"
               required
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </div>
 

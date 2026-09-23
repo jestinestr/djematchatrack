@@ -16,10 +16,19 @@ import AdminLog from './pages/AdminLog';
 import AdminPackages from './pages/AdminPackages';
 import AdminSettings from './pages/AdminSettings';
 import AdminTarif from './pages/AdminTarif';
+import PhotoAdmin from './pages/PhotoAdmin';
+import { getToken, isUploader } from './utils/auth';
 
 function RequireAdmin({ children }) {
-  const token = sessionStorage.getItem('admin_token');
-  if (!token) return <Navigate to="/admin" replace />;
+  if (!getToken()) return <Navigate to="/admin" replace />;
+  // Akun foto tidak punya urusan dengan panel admin penuh
+  if (isUploader()) return <Navigate to="/foto" replace />;
+  return children;
+}
+
+// Panel upload foto: boleh dibuka akun foto maupun admin
+function RequireUploader({ children }) {
+  if (!getToken()) return <Navigate to="/admin" replace />;
   return children;
 }
 
@@ -39,6 +48,9 @@ export default function App() {
 
       {/* Admin login */}
       <Route path="/admin" element={<AdminLogin />} />
+
+      {/* Panel upload foto (mobile) */}
+      <Route path="/foto" element={<RequireUploader><PhotoAdmin /></RequireUploader>} />
 
       {/* Admin panel with sidebar layout */}
       <Route
