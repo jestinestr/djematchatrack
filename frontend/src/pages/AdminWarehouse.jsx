@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminBoxCard from '../components/AdminBoxCard';
 import AddParcelModal from '../components/AddParcelModal';
 import ParcelDetailModal from '../components/ParcelDetailModal';
+import LabelPrintModal from '../components/LabelPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone } from '../utils/format';
@@ -25,6 +26,8 @@ export default function AdminWarehouse() {
   const [extraFilter, setExtraFilter] = useState('all'); // all | unboxing | freebies | manual
   const [editing, setEditing] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [selected, setSelected] = useState(new Set()); // resi tercentang di tabel
+  const [labelTargets, setLabelTargets] = useState(null);
   const searchRef = useRef(null);
 
   // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
@@ -134,6 +137,41 @@ export default function AdminWarehouse() {
   }, [boxes, unassigned, search, ownerFilter, showClosed, extraFilter]);
 
   const listPaged = usePaged(flat, pageSize);
+
+  function toggleSel(id) {
+    setSelected(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
+
+  // Centang semua yang sedang tampil di halaman ini
+  function togglePage() {
+    const ids = listPaged.items.map(p => p.id);
+    const allOn = ids.every(id => selected.has(id));
+    setSelected(prev => {
+      const n = new Set(prev);
+      ids.forEach(id => (allOn ? n.delete(id) : n.add(id)));
+      return n;
+    });
+  }
+
+  const picked = flat.filter(p => selected.has(p.id));
+  // Pindah massal hanya masuk akal kalau semuanya milik pelanggan yang sama
+  const pickedOwnerId = picked.length && picked.every(p => String(p.owner?.id) === String(picked[0].owner?.id))
+    ? picked[0].owner?.id : null;
+
+  async function moveSelected(boxId) {
+    if (!boxId || !picked.length) return;
+    await fetch('/api/boxes/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parcel_ids: picked.map(p => p.id), box_id: boxId }),
+    });
+    setSelected(new Set());
+    load();
+  }
 
   async function removeParcel(id) {
     if (!window.confirm('Hapus resi ini?')) return;
@@ -296,6 +334,35 @@ export default function AdminWarehouse() {
         </div>
       )}
 
+      {/* Aksi untuk resi tercentang */}
+      {view === 'list' && selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 bg-slate-800 text-white rounded-xl px-3 py-2 mb-3">
+          <span className="text-xs font-semibold">{selected.size} resi dipilih</span>
+          <button onClick={() => setSelected(new Set())}
+            className="text-xs text-white/70 hover:text-white underline">Batal pilih</button>
+          <div className="flex-1" />
+          {pickedOwnerId && (
+            <select
+              value=""
+              onChange={e => { moveSelected(e.target.value); e.target.value = ''; }}
+              className="text-xs rounded-lg px-2 py-1.5 text-slate-700"
+              title="Pindahkan semua resi terpilih ke box"
+            >
+              <option value="">Pindahkan ke box...</option>
+              {openBoxes
+                .filter(b => String(b.owner?.id) === String(pickedOwnerId))
+                .map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
+          <button
+            onClick={() => setLabelTargets(picked)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-slate-800 hover:bg-slate-100"
+          >
+            🏷 Cetak Label ({selected.size})
+          </button>
+        </div>
+      )}
+
       {/* Semua resi dalam bentuk tabel */}
       {view === 'list' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -303,6 +370,15 @@ export default function AdminWarehouse() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-slate-400 bg-slate-50 border-b border-slate-200">
+                  <th className="px-2 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={listPaged.items.length > 0 && listPaged.items.every(p => selected.has(p.id))}
+                      onChange={togglePage}
+                      className="accent-slate-700 cursor-pointer"
+                      title="Pilih semua di halaman ini"
+                    />
+                  </th>
                   <th className="px-3 py-2 text-left w-10">No</th>
                   <th className="px-3 py-2 text-left">User</th>
                   <th className="px-3 py-2 text-left">Penerima</th>
@@ -320,7 +396,17 @@ export default function AdminWarehouse() {
                 {listPaged.items.map((p, i) => {
                   const days = storageDays(p, p.box?.closed_at);
                   return (
-                    <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70">
+                    <tr key={p.id} className={`border-b border-slate-100 last:border-0 ${
+                      selected.has(p.id) ? 'bg-slate-50' : 'hover:bg-slate-50/70'
+                    }`}>
+                      <td className="px-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(p.id)}
+                          onChange={() => toggleSel(p.id)}
+                          className="accent-slate-700 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-3 py-2 text-slate-400">{listPaged.from + i}</td>
                       <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
                       <td className="px-3 py-2">
@@ -385,6 +471,8 @@ export default function AdminWarehouse() {
                         </select>
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <button onClick={() => setLabelTargets([p])} title="Cetak label resi ini"
+                          className="text-slate-400 hover:text-slate-700 px-1">🏷</button>
                         <button onClick={() => setDetail(p)} title="Lihat detail"
                           className="text-slate-400 hover:text-slate-700 px-1">👁</button>
                         <button onClick={() => setEditing(p)} title="Edit resi"
@@ -396,7 +484,7 @@ export default function AdminWarehouse() {
                   );
                 })}
                 {listPaged.items.length === 0 && (
-                  <tr><td colSpan="11" className="px-3 py-12 text-center text-slate-400">
+                  <tr><td colSpan="12" className="px-3 py-12 text-center text-slate-400">
                     {search ? `Tidak ada resi untuk "${search}"` : 'Belum ada resi'}
                   </td></tr>
                 )}
@@ -425,6 +513,14 @@ export default function AdminWarehouse() {
           />
         ))
       ))}
+
+      {labelTargets && (
+        <LabelPrintModal
+          parcels={labelTargets}
+          type="WH"
+          onClose={() => setLabelTargets(null)}
+        />
+      )}
 
       {editing && (
         <AddParcelModal
