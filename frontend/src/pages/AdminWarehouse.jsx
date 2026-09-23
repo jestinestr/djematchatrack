@@ -22,6 +22,7 @@ export default function AdminWarehouse() {
   const [view, setView] = useState('list'); // list | box
   const [showForm, setShowForm] = useState(false);
   const [pageSize, setPageSize] = useState(10);
+  const [extraFilter, setExtraFilter] = useState('all'); // all | unboxing | freebies | manual
   const [editing, setEditing] = useState(null);
   const [detail, setDetail] = useState(null);
   const searchRef = useRef(null);
@@ -119,6 +120,9 @@ export default function AdminWarehouse() {
       .filter(p => {
         if (ownerFilter !== 'all' && String(p.owner?.id) !== ownerFilter) return false;
         if (!showClosed && p.box && p.box.status !== 'open') return false;
+        if (extraFilter === 'unboxing' && !p.need_unboxing) return false;
+        if (extraFilter === 'freebies' && !p.freebies_stay) return false;
+        if (extraFilter === 'manual' && !p.is_manual_input) return false;
         if (q) {
           const hay = [p.tracking_number, p.recipient_name, p.owner?.label, p.box?.name]
             .filter(Boolean).join(' ').toLowerCase();
@@ -127,7 +131,7 @@ export default function AdminWarehouse() {
         return true;
       })
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [boxes, unassigned, search, ownerFilter, showClosed]);
+  }, [boxes, unassigned, search, ownerFilter, showClosed, extraFilter]);
 
   const listPaged = usePaged(flat, pageSize);
 
@@ -220,6 +224,13 @@ export default function AdminWarehouse() {
           <option value="all">Semua pelanggan</option>
           {owners.map(o => <option key={o.id} value={String(o.id)}>{o.label}</option>)}
         </select>
+        <select value={extraFilter} onChange={e => setExtraFilter(e.target.value)}
+          className="input-field text-sm py-2 w-auto">
+          <option value="all">Semua permintaan</option>
+          <option value="unboxing">🎥 Video unboxing</option>
+          <option value="freebies">🎁 Freebies tinggal</option>
+          <option value="manual">✍️ Input manual</option>
+        </select>
         <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer whitespace-nowrap">
           <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}
             className="accent-slate-700" />
@@ -244,8 +255,8 @@ export default function AdminWarehouse() {
             ? `${flat.length} resi ditemukan`
             : `${shown.length} box ditemukan`}
         </span>
-        {(search || ownerFilter !== 'all') && (
-          <button onClick={() => { setSearch(''); setOwnerFilter('all'); }}
+        {(search || ownerFilter !== 'all' || extraFilter !== 'all') && (
+          <button onClick={() => { setSearch(''); setOwnerFilter('all'); setExtraFilter('all'); }}
             className="text-slate-500 hover:text-slate-800 underline">
             Reset pencarian
           </button>
@@ -297,6 +308,7 @@ export default function AdminWarehouse() {
                   <th className="px-3 py-2 text-left">Penerima</th>
                   <th className="px-3 py-2 text-left w-14">Foto</th>
                   <th className="px-3 py-2 text-left">Jenis</th>
+                  <th className="px-3 py-2 text-left">Permintaan</th>
                   <th className="px-3 py-2 text-right">Jumlah</th>
                   <th className="px-3 py-2 text-right">Fee WH</th>
                   <th className="px-3 py-2 text-right">Durasi</th>
@@ -324,6 +336,25 @@ export default function AdminWarehouse() {
                       </td>
                       <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
                         {p.type === 'paperbased' ? 'Paperbased' : 'Barang'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {p.need_unboxing && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-800 text-white whitespace-nowrap"
+                              title="Pelanggan minta video unboxing">🎥 Unboxing</span>
+                          )}
+                          {p.freebies_stay && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 whitespace-nowrap"
+                              title="Freebies ditinggal di gudang">🎁 Freebies</span>
+                          )}
+                          {p.is_manual_input && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap"
+                              title="Resi diketik manual">✍️ Manual</span>
+                          )}
+                          {!p.need_unboxing && !p.freebies_stay && !p.is_manual_input && (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-right text-slate-600">{p.estimated_quantity || 1}</td>
                       <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
@@ -365,7 +396,7 @@ export default function AdminWarehouse() {
                   );
                 })}
                 {listPaged.items.length === 0 && (
-                  <tr><td colSpan="10" className="px-3 py-12 text-center text-slate-400">
+                  <tr><td colSpan="11" className="px-3 py-12 text-center text-slate-400">
                     {search ? `Tidak ada resi untuk "${search}"` : 'Belum ada resi'}
                   </td></tr>
                 )}

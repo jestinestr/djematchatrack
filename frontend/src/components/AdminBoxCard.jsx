@@ -218,7 +218,7 @@ export default function AdminBoxCard({ box, tarif, onChanged, onParcelsChanged }
       {showLabels && (
         <LabelPrintModal
           parcels={parcels.filter(p => picked.has(p.id))}
-          batchNumber={box.name}
+          ownerName={box.owner?.label || ''}
           type="WH"
           onClose={() => setShowLabels(false)}
         />

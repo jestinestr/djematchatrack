@@ -489,7 +489,7 @@ export default function AddParcelModal({
             recipient_name: form.recipient_name,
             tracking_number: form.tracking_number,
           }]}
-          batchNumber={batchNumber ?? parcel.batch_id}
+          ownerName={codes.find(c => String(c.id) === String(form.owner_code_id))?.label || ''}
           type={type}
           onClose={() => setShowLabel(false)}
         />
