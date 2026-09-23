@@ -2,8 +2,10 @@ import { useState } from 'react';
 
 // Ukuran label (mm). Niimbot B1 yang dipakai sehari-hari = 40 × 30.
 export const LABEL_SIZES = {
-  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 6,   name: 8.5, resi: 13, date: 4.5 },
-  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 4.5, name: 6,   resi: 9.5, date: 3.5 },
+  // Ukuran huruf (pt) sesuai permintaan untuk B1; 30 × 20 mengikuti
+  // perbandingan yang sama supaya tetap muat
+  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 9.5, name: 11.5, resi: 9.5, resiTail: 14,   date: 9 },
+  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 7,   name: 8.5,  resi: 7,   resiTail: 10.5, date: 6.5 },
 };
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => (
@@ -19,6 +21,13 @@ function resiHTML(tn) {
 
 const same = (a, b) =>
   String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+// Nama penerima berpola "J+nama" berasal dari marketplace — untuk label
+// cukup pakai nama penggunanya saja.
+const isJunkName = n => /^j\s*\+/i.test(String(n || '').trim());
+
+// Kapan label cukup menampilkan satu nama
+const ownerOnly = r => !r.name || same(r.owner, r.name) || isJunkName(r.name);
 
 export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
   const [size, setSize] = useState('40x30');
@@ -41,8 +50,8 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
     const s = LABEL_SIZES[size];
     const labels = rows.map(r => {
       // Nama pengguna sama dengan penerima → cukup satu baris nama
-      const body = same(r.owner, r.name) || !r.owner
-        ? `<div class="name">${esc(r.name || r.owner)}</div>`
+      const body = ownerOnly(r) || !r.owner
+        ? `<div class="name">${esc(r.owner || r.name)}</div>`
         : `<div class="owner">${esc(r.owner)}</div>
            <div class="name">${esc(r.name)}</div>`;
       return `
@@ -78,7 +87,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .resi  { font-size: ${s.resi}pt; line-height: 1.15; font-weight: 500;
            letter-spacing: .01em; word-break: break-all; margin-top: .4mm; }
-  .resi b { font-weight: 900; }
+  .resi b { font-size: ${s.resiTail}pt; font-weight: 900; }
   .date  { position: absolute; right: 1.5mm; bottom: .8mm;
            font-size: ${s.date}pt; color: #555; }
   @media print {
@@ -98,7 +107,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
   const s = LABEL_SIZES[size];
   const px = mm => `${mm * 3.78}px`;
   const first = rows[0];
-  const firstSame = first && (same(first.owner, first.name) || !first.owner);
+  const firstSame = first && (ownerOnly(first) || !first.owner);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -141,11 +150,11 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
                 <div style={{ fontSize: `${s.owner}pt`, lineHeight: 1.1, color: '#333' }}>{first.owner}</div>
               )}
               <div style={{ fontSize: `${s.name}pt`, lineHeight: 1.15, fontWeight: 700 }}>
-                {firstSame ? (first.name || first.owner) : first.name}
+                {firstSame ? (first.owner || first.name) : first.name}
               </div>
               <div style={{ fontSize: `${s.resi}pt`, lineHeight: 1.15, wordBreak: 'break-all' }}>
                 {(first.resi || '').slice(0, -4)}
-                <b style={{ fontWeight: 900 }}>{(first.resi || '').slice(-4)}</b>
+                <b style={{ fontSize: `${s.resiTail}pt`, fontWeight: 900 }}>{(first.resi || '').slice(-4)}</b>
               </div>
               <span style={{ position: 'absolute', right: '1.5mm', bottom: '0.8mm', fontSize: `${s.date}pt`, color: '#555' }}>
                 {today}
@@ -155,8 +164,8 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
         </div>
 
         <p className="px-5 pt-3 text-xs text-slate-500">
-          Kalau nama pengguna sama dengan nama penerima, label hanya menampilkan satu nama.
-          Kalau berbeda, nama pengguna dicetak kecil di atas nama penerima.
+          Label hanya menampilkan satu nama kalau nama penerima sama dengan nama pengguna,
+          kosong, atau berpola "J+nama". Selain itu nama pengguna dicetak di atas nama penerima.
         </p>
 
         {/* Daftar label */}
