@@ -12,6 +12,7 @@ export default function AdminGallery() {
   const [ownerFilter, setOwnerFilter] = useState('all');    // 'all'|owner id
   const [selected, setSelected]   = useState(new Set());
   const [downloading, setDownloading] = useState(false);
+  const [downloadedIds, setDownloadedIds] = useState(new Set());
 
   useEffect(() => {
     Promise.all([
@@ -91,6 +92,12 @@ export default function AdminGallery() {
       const p = targets[i];
       const filename = `${slugify(cardName(p))}_${slugify(p.tracking_number)}`;
       await downloadImage(p.photo_url, filename, { name: cardName(p), tracking: p.tracking_number });
+      // Catat supaya tidak terunduh dua kali tanpa sengaja
+      fetch('/api/photos/downloaded', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: p._type.toLowerCase(), ids: [p.id] }),
+      }).then(() => setDownloadedIds(prev => new Set(prev).add(p.id))).catch(() => {});
       if (i < targets.length - 1) await new Promise(r => setTimeout(r, 400));
     }
     setDownloading(false);
@@ -218,6 +225,13 @@ export default function AdminGallery() {
                     }`}>
                       {isSelected && <span className="text-white text-[10px] font-bold">✓</span>}
                     </div>
+                    {/* Sudah pernah diunduh */}
+                    {(p.photo_dl_admin || downloadedIds.has(p.id)) && (
+                      <span className="absolute bottom-2 right-2 text-[10px] font-semibold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full">
+                        ✓ Downloaded
+                      </span>
+                    )}
+
                     {/* Type badge */}
                     <span className={`absolute top-2 left-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                       p._type === 'HC' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'

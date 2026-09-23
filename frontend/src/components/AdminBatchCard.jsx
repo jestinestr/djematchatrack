@@ -387,12 +387,12 @@ export function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, se
         <p className="font-semibold text-sm text-gray-800 truncate">{p.recipient_name}</p>
         <p className="text-xs text-gray-400 font-mono truncate">{p.tracking_number}</p>
         <div className="flex flex-wrap gap-1 mt-1">
-          <span className="text-xs bg-matcha-50 text-matcha-700 px-1.5 py-0.5 rounded-full border border-matcha-100">
+          <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full border border-slate-200">
             {p.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
           </span>
           {showOwner && (
             p.owner ? (
-              <span className="text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded-full border border-sky-100">
+              <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full border border-sky-100">
                 👤 {p.owner.label}
               </span>
             ) : (
@@ -402,10 +402,10 @@ export function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, se
             )
           )}
           {p.estimated_weight_grams > 0 && (
-            <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">{p.estimated_weight_grams}g</span>
+            <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">{p.estimated_weight_grams}g</span>
           )}
           {(p.type === 'paperbased' ? p.estimated_quantity > 0 : type === 'HC' && p.estimated_quantity > 1) && (
-            <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full">{p.estimated_quantity} pcs</span>
+            <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">{p.estimated_quantity} pcs</span>
           )}
           {fee > 0 && (
             <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-100">
@@ -413,7 +413,7 @@ export function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, se
             </span>
           )}
           {extra > 0 && (
-            <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
+            <span className="text-xs bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full border border-orange-100">
               ➕ {money(extra, p.currency)}
             </span>
           )}
@@ -429,7 +429,7 @@ export function ParcelRow({ parcel: p, type, readOnly, showOwner, storageEnd, se
           )}
           {p.pkg && (
             <span className={`text-xs px-1.5 py-0.5 rounded-full border font-semibold ${
-              p.pkg.over ? 'bg-red-100 text-red-700 border-red-300' : 'bg-teal-50 text-teal-700 border-teal-200'
+              p.pkg.over ? 'bg-red-100 text-red-700 border-red-300' : 'bg-slate-100 text-slate-600 border-slate-200'
             }`} title={`${p.pkg.name} periode ${p.pkg.period_no}`}>
               📦 {p.pkg.name} · {p.pkg.over ? `+${p.pkg.pos - p.pkg.quota} kelebihan` : `${p.pkg.pos}/${p.pkg.quota}`}
             </span>

@@ -23,23 +23,29 @@ export default function AdminInvoice() {
   const [chosen, setChosen]   = useState(new Set()); // id resi yang ikut ditagih
   const [payingId, setPayingId] = useState(null);
 
-  // Daftar batch untuk tipe terpilih
+  // WH memakai box, HC masih memakai batch
+  const isBox = type === 'WH';
+
   useEffect(() => {
-    fetch(`/api/batches/all/${type}`)
+    const url = isBox ? '/api/boxes?status=all' : `/api/batches/all/${type}`;
+    fetch(url)
       .then(r => r.json())
       .then(list => {
-        setBatchList(list || []);
-        setBatchId(String(list?.[0]?.id || ''));
+        const rows = (list || []).map(b => (isBox
+          ? { id: b.id, label: `${b.owner?.label || '—'} - ${b.name}`, closed: b.status !== 'open' }
+          : { id: b.id, label: `Batch #${b.batch_number}`, closed: b.status !== 'active' }));
+        setBatchList(rows);
+        setBatchId(String(rows?.[0]?.id || ''));
       })
       .catch(() => setBatchList([]));
-  }, [type]);
+  }, [type, isBox]);
 
   // Rekap invoice batch terpilih
   useEffect(() => {
     if (!batchId) { setData(null); return; }
     setLoading(true);
     setSelected(new Set());
-    fetch(`/api/invoices/batch/${batchId}`)
+    fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`)
       .then(r => r.json())
       .then(d => {
         setData(d);
@@ -58,7 +64,7 @@ export default function AdminInvoice() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [batchId]);
+  }, [batchId, isBox]);
 
   const rawCustomers = data?.customers || [];
   const customers = useMemo(() => rawCustomers.map(c => {
@@ -92,7 +98,7 @@ export default function AdminInvoice() {
         body: JSON.stringify({ type, parcel_ids: ids, paid, batch_id: batchId, owner_code_id: c.owner?.id }),
       });
       if (res.ok) {
-        const fresh = await fetch(`/api/invoices/batch/${batchId}`).then(r => r.json());
+        const fresh = await fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`).then(r => r.json());
         setData(fresh);
         setChosen(unpaidIds(fresh));
       }
@@ -135,7 +141,7 @@ export default function AdminInvoice() {
     const d = drafts[ownerId] || {};
     setSavingId(ownerId);
     try {
-      const res = await fetch(`/api/invoices/batch/${batchId}/owner/${ownerId}`, {
+      const res = await fetch(isBox ? `/api/invoices/box/${batchId}/extra` : `/api/invoices/batch/${batchId}/owner/${ownerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,7 +152,7 @@ export default function AdminInvoice() {
       });
       if (res.ok) {
         // muat ulang supaya total ikut terbarui
-        const fresh = await fetch(`/api/invoices/batch/${batchId}`).then(r => r.json());
+        const fresh = await fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`).then(r => r.json());
         setData(fresh);
       }
     } finally {
@@ -268,11 +274,9 @@ export default function AdminInvoice() {
           onChange={e => setBatchId(e.target.value)}
           className="input-field text-sm w-auto py-1.5"
         >
-          {batchList.length === 0 && <option value="">Belum ada batch</option>}
+          {batchList.length === 0 && <option value="">{isBox ? 'Belum ada box' : 'Belum ada batch'}</option>}
           {batchList.map(b => (
-            <option key={b.id} value={b.id}>
-              Batch #{b.batch_number} {b.status === 'active' ? '● Aktif' : '✓ Selesai'}
-            </option>
+            <option key={b.id} value={b.id}>{b.label}{b.closed ? ' · ditutup' : ''}</option>
           ))}
         </select>
 
@@ -597,7 +601,7 @@ function buildInvoicesHTML(batch, customers, type) {
           <img class="logo" src="${window.location.origin}/ava.png" alt="">
           <div>
             <h1>Djematcha</h1>
-            <p class="sub">Invoice ${esc(typeLabel)} · Batch #${esc(batch?.batch_number)}</p>
+            <p class="sub">Invoice ${esc(typeLabel)} · ${esc(batch?.label || 'Batch #' + batch?.batch_number)}</p>
           </div>
         </div>
         <div class="right">

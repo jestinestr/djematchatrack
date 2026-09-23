@@ -130,6 +130,70 @@ router.put('/batch/:batchId/owner/:ownerId', async (req, res) => {
   res.json(data);
 });
 
+// ── Invoice satu box (Warehouse) ────────────────────────────────────
+//  Judulnya ikut paket kalau pelanggan berpaket:
+//    "Paket A periode 1 - Box 3", selain itu cukup "Box 3".
+router.get('/box/:boxId', async (req, res) => {
+  try {
+    const { data: box, error: boxErr } = await supabase
+      .from('boxes').select('*').eq('id', req.params.boxId).single();
+    if (boxErr || !box) return res.status(404).json({ error: 'Box tidak ditemukan' });
+
+    const [{ data: rows, error }, codes, { data: pkgs }] = await Promise.all([
+      supabase.from('wh_parcels').select('*').eq('box_id', box.id),
+      fetchCodes(),
+      supabase.from('customer_packages').select('*')
+        .eq('owner_code_id', box.owner_code_id).eq('status', 'active').limit(1),
+    ]);
+    if (error) return res.status(500).json({ error: error.message });
+
+    const parcels = attachOwners(rows || [], codes);
+    const owner = codes.find(c => String(c.id) === String(box.owner_code_id)) || null;
+    const pkg = pkgs?.[0] || null;
+    const title = pkg ? `${pkg.name} periode ${pkg.period_no} - ${box.name}` : box.name;
+
+    const totals = emptyTotals();
+    for (const p of parcels) addParcel(totals, p, 'WH');
+    if (num(box.additional_fee)) {
+      totals[currencyOf(box.additional_fee_currency)].additional += num(box.additional_fee);
+    }
+
+    res.json({
+      batch: { id: box.id, type: 'WH', batch_number: box.name, label: title, status: box.status },
+      box: { ...box, owner: owner && { id: owner.id, label: owner.label, code: owner.code } },
+      customers: [{
+        owner: owner && { id: owner.id, label: owner.label, code: owner.code },
+        parcels: parcels.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+        parcel_count: parcels.length,
+        totals: finalize(totals),
+        box_title: title,
+        invoice: {
+          additional_fee: num(box.additional_fee),
+          additional_fee_currency: currencyOf(box.additional_fee_currency),
+          additional_note: box.additional_note || '',
+        },
+      }],
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Simpan additional fee manual pada box ───────────────────────────
+router.put('/box/:boxId/extra', async (req, res) => {
+  const { additional_fee, additional_fee_currency, additional_note } = req.body;
+  const { data, error } = await supabase
+    .from('boxes')
+    .update({
+      additional_fee: Math.max(0, num(additional_fee)),
+      additional_fee_currency: currencyOf(additional_fee_currency),
+      additional_note: additional_note?.trim() || null,
+    })
+    .eq('id', req.params.boxId).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 // ── Tandai resi lunas / batal lunas ─────────────────────────────────
 //  body: { type: 'HC'|'WH', parcel_ids: [...], paid: true|false,
 //          batch_id, owner_code_id }

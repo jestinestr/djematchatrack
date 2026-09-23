@@ -95,7 +95,7 @@ export default function ParcelCard({
           )}
           {parcel.pkg && (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border font-semibold ${
-                  parcel.pkg.over ? 'bg-red-50 text-red-700 border-red-200' : 'bg-teal-50 text-teal-700 border-teal-200'
+                  parcel.pkg.over ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}>
                   📦 {parcel.pkg.over ? `+${parcel.pkg.pos - parcel.pkg.quota} kelebihan` : `${parcel.pkg.pos}/${parcel.pkg.quota}`}
                 </span>
@@ -107,7 +107,7 @@ export default function ParcelCard({
               )}
               {parcel.photo_url ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200 font-semibold">
-                  📷 Arrived photo
+                  📷 {parcel.photo_dl_user ? 'Downloaded ✓' : 'Arrived photo'}
                 </span>
               ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
@@ -115,22 +115,22 @@ export default function ParcelCard({
                 </span>
               )}
               {parcel.estimated_weight_grams > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600 border border-slate-200">
                   ⚖️ {formatWeight(parcel.estimated_weight_grams)}
                 </span>
               )}
               {(parcel.type === 'paperbased' ? parcel.estimated_quantity > 0 : isHC && parcel.estimated_quantity > 1) && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 border border-purple-100">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600 border border-slate-200">
                   🔢 {parcel.estimated_quantity} pcs
                 </span>
               )}
               {fee > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-100">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-200">
                   💰 {money(fee, parcel.currency)}
                 </span>
               )}
               {extra > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-orange-50 text-orange-700 border border-orange-100">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-200">
                   ➕ {money(extra, parcel.currency)}
                 </span>
               )}

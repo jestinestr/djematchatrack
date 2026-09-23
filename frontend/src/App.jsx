@@ -14,6 +14,7 @@ import AdminGallery from './pages/AdminGallery';
 import AdminInvoice from './pages/AdminInvoice';
 import AdminLog from './pages/AdminLog';
 import AdminPackages from './pages/AdminPackages';
+import AdminSettings from './pages/AdminSettings';
 import AdminTarif from './pages/AdminTarif';
 
 function RequireAdmin({ children }) {
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/admin/codes" element={<AdminCodes />} />
         <Route path="/admin/log" element={<AdminLog />} />
         <Route path="/admin/packages" element={<AdminPackages />} />
+        <Route path="/admin/settings" element={<AdminSettings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -118,6 +118,19 @@ export default function UserPanel({ type }) {
       })),
       (done, total) => setProgress({ done, total })
     );
+    // Catat status unduhan supaya pelanggan tahu mana yang sudah diambil
+    fetchAsUser('/api/photos/downloaded/mine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: meta.path, ids: targets.map(p => p.id) }),
+    }).then(() => {
+      const ids = new Set(targets.map(p => p.id));
+      setBatches(prev => prev.map(g => ({
+        ...g,
+        parcels: g.parcels.map(p => (ids.has(p.id) ? { ...p, photo_dl_user: new Date().toISOString() } : p)),
+      })));
+    }).catch(() => {});
+
     setProgress(null);
     setPicked(new Set());
     setPicking(false);
