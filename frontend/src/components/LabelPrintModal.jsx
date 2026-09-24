@@ -17,7 +17,7 @@ function resiHTML(tn) {
   return `${esc(s.slice(0, -4))}<b>${esc(s.slice(-4))}</b>`;
 }
 
-export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
+export default function LabelPrintModal({ parcels, ownerName, type, onClose, onPrinted }) {
   const [size, setSize] = useState('40x30');
   const [rows, setRows] = useState(() =>
     parcels.map(p => ({
@@ -86,6 +86,8 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose }) {
 
     const w = window.open('', '_blank');
     if (!w) return;
+    // Penanda urutan bongkar ikut tahu label mana yang sudah keluar
+    onPrinted?.(rows.map(r => r.id));
     w.document.write(html);
     w.document.close();
     w.focus();

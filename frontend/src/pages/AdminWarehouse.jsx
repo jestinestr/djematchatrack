@@ -6,6 +6,7 @@ import LabelPrintModal from '../components/LabelPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone } from '../utils/format';
+import { useOpenMarks } from '../utils/openMarks';
 
 export default function AdminWarehouse() {
   const [boxes, setBoxes] = useState([]);
@@ -29,6 +30,13 @@ export default function AdminWarehouse() {
   const [selected, setSelected] = useState(new Set()); // resi tercentang di tabel
   const [labelTargets, setLabelTargets] = useState(null);
   const searchRef = useRef(null);
+
+  // Penanda urutan bongkar paket — lihat utils/openMarks.js
+  const allParcels = useMemo(
+    () => [...boxes.flatMap(b => b.parcels || []), ...unassigned],
+    [boxes, unassigned]
+  );
+  const openMarks = useOpenMarks(allParcels);
 
   // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
   useEffect(() => {
@@ -363,6 +371,26 @@ export default function AdminWarehouse() {
         </div>
       )}
 
+      {/* Ringkasan penanda bongkar */}
+      {view === 'list' && openMarks.count > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+          <span className="text-base leading-none">🔖</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-amber-900">
+              {openMarks.count} resi ditandai dibuka · berikutnya nomor {openMarks.nextNumber}
+            </p>
+            <p className="text-[11px] text-amber-700/80">
+              Nomor hilang sendiri setelah label dicetak dan foto arrival masuk
+            </p>
+          </div>
+          <div className="flex-1" />
+          <button onClick={openMarks.clearAll}
+            className="text-[11px] font-semibold text-amber-800 hover:text-amber-950 underline whitespace-nowrap">
+            Reset semua
+          </button>
+        </div>
+      )}
+
       {/* Semua resi dalam bentuk tabel */}
       {view === 'list' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -380,6 +408,7 @@ export default function AdminWarehouse() {
                     />
                   </th>
                   <th className="px-3 py-2 text-left w-10">No</th>
+                  <th className="px-3 py-2 text-center w-16" title="Urutan paket dibuka — untuk mencocokkan foto arrival">Buka</th>
                   <th className="px-3 py-2 text-left">User</th>
                   <th className="px-3 py-2 text-left">Penerima</th>
                   <th className="px-3 py-2 text-left w-14">Foto</th>
@@ -408,6 +437,9 @@ export default function AdminWarehouse() {
                         />
                       </td>
                       <td className="px-3 py-2 text-slate-400">{listPaged.from + i}</td>
+                      <td className="px-3 py-2 text-center">
+                        <OpenMarkCell parcel={p} marks={openMarks} />
+                      </td>
                       <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
                       <td className="px-3 py-2">
                         <div className="text-slate-700 truncate max-w-[140px]">{p.recipient_name}</div>
@@ -484,7 +516,7 @@ export default function AdminWarehouse() {
                   );
                 })}
                 {listPaged.items.length === 0 && (
-                  <tr><td colSpan="12" className="px-3 py-12 text-center text-slate-400">
+                  <tr><td colSpan="13" className="px-3 py-12 text-center text-slate-400">
                     {search ? `Tidak ada resi untuk "${search}"` : 'Belum ada resi'}
                   </td></tr>
                 )}
@@ -517,6 +549,7 @@ export default function AdminWarehouse() {
       {labelTargets && (
         <LabelPrintModal
           parcels={labelTargets}
+          onPrinted={openMarks.markPrinted}
           type="WH"
           onClose={() => setLabelTargets(null)}
         />
@@ -541,6 +574,51 @@ export default function AdminWarehouse() {
       {detail && (
         <ParcelDetailModal parcel={detail} type="WH" isAdmin onClose={() => setDetail(null)} />
       )}
+    </div>
+  );
+}
+
+// ── Penanda urutan bongkar paket ────────────────────────────────────
+//  Satu kolom kecil di tabel: klik "+" saat paket dibuka, nomornya dipakai
+//  untuk mencocokkan foto arrival. Dua titik di bawah nomor menunjukkan apa
+//  yang masih kurang — label dan foto — karena begitu keduanya beres,
+//  nomornya hilang sendiri.
+function OpenMarkCell({ parcel, marks }) {
+  const mark = marks.get(parcel.id);
+
+  if (!mark) {
+    return (
+      <button
+        onClick={() => marks.mark(parcel.id)}
+        title={`Tandai sebagai paket ke-${marks.nextNumber} yang dibuka`}
+        className="w-7 h-7 rounded-lg border border-dashed border-slate-300 text-slate-300
+                   hover:border-slate-500 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+      >
+        +
+      </button>
+    );
+  }
+
+  const hasPhoto = !!parcel.photo_url;
+  const dot = (on, label) => (
+    <span title={label}
+      className={`w-1.5 h-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+  );
+
+  return (
+    <div className="inline-flex flex-col items-center gap-0.5">
+      <button
+        onClick={() => marks.unmark(parcel.id)}
+        title={`Paket ke-${mark.order} yang dibuka — klik untuk membatalkan tanda`}
+        className="w-7 h-7 rounded-lg bg-slate-800 text-white text-xs font-bold
+                   hover:bg-red-600 transition-colors"
+      >
+        {mark.order}
+      </button>
+      <span className="flex gap-1 items-center">
+        {dot(mark.printed, mark.printed ? 'Label sudah dicetak' : 'Label belum dicetak')}
+        {dot(hasPhoto, hasPhoto ? 'Foto arrival sudah ada' : 'Foto arrival belum ada')}
+      </span>
     </div>
   );
 }
