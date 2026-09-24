@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
 import { ManualMineNotice, UnclaimedNotice } from '../components/ManualNotices';
+import TodayNotice from '../components/TodayNotice';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
 import { fetchAsUser, downloadMany, slugify, cardName } from '../utils/format';
 
@@ -39,6 +40,7 @@ export default function UserPanel({ type }) {
   // pelanggan. Yang sudah bilang "bukan punyaku" tidak ditanya lagi,
   // kecuali muncul resi nyasar yang baru.
   const [unclaimed, setUnclaimed] = useState([]);
+  const [today, setToday] = useState({ admin_active: false, mine: [] });
   const [hiddenUnclaimed, setHiddenUnclaimed] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('unclaimed_hidden') || '[]')); }
     catch { return new Set(); }
@@ -88,10 +90,24 @@ export default function UserPanel({ type }) {
   );
   const updates = useMemo(() => collectUpdates(myParcels, since), [myParcels, since]);
 
+  // Kartu harian hanya membawa data ringkas; cari versi lengkapnya supaya
+  // modal detail tetap menampilkan biaya, box, dan foto.
+  function openFromNotice(p) {
+    const full = myParcels.find(x => String(x.id) === String(p.id)) || p;
+    setDetail(full);
+  }
+
   function markSeen() {
     writeLastSeen(accessCode);
     setSince(Date.now());
   }
+
+  useEffect(() => {
+    fetchAsUser('/api/parcels/today')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => d && setToday(d))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchAsUser('/api/parcels/unclaimed')
@@ -359,14 +375,24 @@ export default function UserPanel({ type }) {
 
             {!loading && !error && batch && (
               <>
-                {/* Kabar baru sejak kunjungan terakhir */}
-                <UpdateBanner
-                  name={viewer?.label}
-                  since={since}
-                  updates={updates}
-                  onSeen={markSeen}
-                  onOpenParcel={p => setDetail(p)}
+                {/* Kerjaan admin hari ini */}
+                <TodayNotice
+                  adminActive={today.admin_active}
+                  parcels={today.mine}
+                  onOpenParcel={p => openFromNotice(p)}
                 />
+
+                {/* Kabar baru sejak kunjungan terakhir — dilewati kalau kartu
+                    hari ini sudah menyampaikan hal yang sama */}
+                {!today.mine.length && (
+                  <UpdateBanner
+                    name={viewer?.label}
+                    since={since}
+                    updates={updates}
+                    onSeen={markSeen}
+                    onOpenParcel={p => setDetail(p)}
+                  />
+                )}
 
                 {/* Resi yang diketik admin + resi nyasar yang belum diklaim */}
                 <ManualMineNotice

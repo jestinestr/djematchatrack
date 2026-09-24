@@ -414,6 +414,61 @@ function registerCrud(kind) {
   });
 }
 
+// ── Apa yang admin kerjakan hari ini ────────────────────────────────
+//  Dipakai panel pelanggan untuk menyapa: "hari ini admin update nih".
+//  Dua kemungkinan jawaban:
+//    mine berisi  -> ada resi dia yang baru masuk / baru dapat foto
+//    mine kosong  -> admin memang lagi kerja, tapi belum menyentuh resinya
+//
+//  Batas "hari ini" pakai jam Jakarta, bukan jam server (Vercel = UTC).
+function jakartaStartOfDay() {
+  const OFFSET = 7 * 60 * 60 * 1000;
+  const here = new Date(Date.now() + OFFSET);
+  const midnight = Date.UTC(here.getUTCFullYear(), here.getUTCMonth(), here.getUTCDate());
+  return new Date(midnight - OFFSET).toISOString();
+}
+
+router.get('/today', async (req, res) => {
+  const rawCode = (req.get('X-Access-Code') || '').trim();
+  if (!rawCode) return res.status(401).json({ error: 'Kode akses tidak dikirim' });
+
+  try {
+    const codes = await fetchCodes();
+    const me = codes.find(c => norm(c.code) === norm(rawCode));
+    if (!me) return res.status(401).json({ error: 'Kode akses tidak valid' });
+
+    const since = jakartaStartOfDay();
+    const columns = 'id, tracking_number, recipient_name, photo_url, created_at, photo_uploaded_at';
+
+    const [logs, ...lists] = await Promise.all([
+      // Catatan aktivitas admin = penanda paling jujur "hari ini ada kerjaan"
+      supabase.from('activity_logs').select('id', { count: 'exact', head: true }).gte('created_at', since),
+      ...['hc', 'wh'].map(async kind => {
+        const { data } = await supabase
+          .from(TABLE[kind]).select(columns)
+          .eq('owner_code_id', me.id)
+          .or(`created_at.gte.${since},photo_uploaded_at.gte.${since}`)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        return (data || []).map(p => ({
+          ...p,
+          kind,
+          // yang paling menarik buat pelanggan: resinya baru, atau fotonya baru
+          what: p.created_at >= since ? 'baru' : 'foto',
+        }));
+      }),
+    ]);
+
+    const mine = lists.flat().sort(sortNewest);
+    res.json({
+      admin_active: (logs.count || 0) > 0 || mine.length > 0,
+      mine,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Resi input manual yang belum ada pemiliknya ─────────────────────
 //  Ditampilkan ke semua pelanggan supaya yang merasa punya bisa klaim ke
 //  admin. Hanya resi bertanda "input manual" — resi biasa yang pemiliknya
