@@ -370,7 +370,6 @@ export default function UserPanel({ type }) {
 
                 {/* Resi yang diketik admin + resi nyasar yang belum diklaim */}
                 <ManualMineNotice
-                  name={viewer?.label}
                   parcels={manualMine}
                   onOpenParcel={p => setDetail(p)}
                 />

@@ -25,7 +25,7 @@ function ParcelLine({ parcel, index }) {
 }
 
 // ── Resi manual milik sendiri ───────────────────────────────────────
-export function ManualMineNotice({ name, parcels, onOpenParcel }) {
+export function ManualMineNotice({ parcels, onOpenParcel }) {
   if (!parcels.length) return null;
 
   return (
@@ -34,11 +34,10 @@ export function ManualMineNotice({ name, parcels, onOpenParcel }) {
         <span className="text-2xl leading-none">✍️</span>
         <div className="min-w-0">
           <p className="text-sm font-bold text-violet-900">
-            Hai{name ? ` ${name}` : ''}, {parcels.length} resi kamu diinput manual sama admin
+            Hi! {parcels.length === 1 ? 'Resi ini' : `${parcels.length} resi ini`} sudah diinput manual oleh admin
           </p>
           <p className="text-xs text-violet-700/90 mt-0.5 leading-snug">
-            Resi ini diketik tangan, bukan dari setoran kamu. Cek sebentar datanya ya —
-            kalau ada yang keliru tinggal bilang ke admin. Jangan lupa selalu update! 💚
+            Jangan lupa selalu update ya! 💚
           </p>
         </div>
       </div>
@@ -70,11 +69,10 @@ export function UnclaimedNotice({ parcels, onDismiss }) {
         <span className="text-2xl leading-none">🫶</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-amber-900">
-            Halo! Ada {parcels.length} resi nyasar yang belum ada pemiliknya
+            Hello, kalau kamu pemilik resi ini:
           </p>
           <p className="text-xs text-amber-800/90 mt-0.5 leading-snug">
-            Kalau salah satunya punya kamu, langsung klaim ke admin ya.
-            Cukup cintamu yang nggak dianggap — barang kamu jangan, dong! 🥹
+            Ada {parcels.length} resi yang belum ketemu pemiliknya.
           </p>
         </div>
         {onDismiss && (
@@ -89,6 +87,13 @@ export function UnclaimedNotice({ parcels, onDismiss }) {
       <div className="space-y-1.5 mt-3">
         {parcels.map((p, i) => <ParcelLine key={`${p.kind}-${p.id}`} parcel={p} index={i + 1} />)}
       </div>
+
+      <p className="text-xs font-bold text-amber-900 mt-3 leading-snug">
+        Pls claim ke admin ya 🙏
+      </p>
+      <p className="text-[11px] text-amber-700/90 leading-snug">
+        Cukup cintamu yang nggak dianggap — barang kamu jangan yaa! 🥹
+      </p>
     </div>
   );
 }
