@@ -128,6 +128,11 @@ export default function ParcelDetailModal({
                   <span className="text-red-600 font-semibold">{rupiah(parcel.fine_amount)}</span>
                 </DetailRow>
               )}
+              {parcel.note && (
+                <DetailRow icon="📝" label="Catatan">
+                  <span className="text-gray-600 text-right">{parcel.note}</span>
+                </DetailRow>
+              )}
               {(fee > 0 || extra > 0) && (
                 <div className="flex items-center justify-between gap-2 pt-2.5 mt-1 border-t-2 border-dashed border-cream-200">
                   <span className="text-xs font-bold text-matcha-700">Total</span>

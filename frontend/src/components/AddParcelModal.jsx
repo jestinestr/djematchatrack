@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CURRENCIES, money, rupiah, normCurrency } from '../utils/format';
+import { CURRENCIES, money, normCurrency } from '../utils/format';
 import LabelPrintModal from './LabelPrintModal';
 
 // Judul kecil pemisah antar kelompok isian
@@ -50,7 +50,7 @@ export default function AddParcelModal({
     hc_fee: parcel?.hc_fee?.toString() || '',
     wh_fee: parcel ? (parcel.wh_fee?.toString() || '') : type === 'WH' ? String(unitFee) : '',
     additional_fee: parcel?.additional_fee?.toString() || '',
-    fine_amount: parcel?.fine_amount ? String(parcel.fine_amount) : '',
+    note: parcel?.note || '',
     is_manual_input: parcel?.is_manual_input || false,
     need_unboxing: parcel?.need_unboxing || false,
     freebies_stay: parcel?.freebies_stay || false,
@@ -160,7 +160,7 @@ export default function AddParcelModal({
     fd.append('type', form.parcel_type);
     fd.append('currency', form.currency);
     fd.append('additional_fee', form.additional_fee || '0');
-    fd.append('fine_amount', form.fine_amount || '0');
+    fd.append('note', form.note || '');
     fd.append('owner_code_id', form.owner_code_id || '');
     fd.append('is_manual_input', form.is_manual_input ? 'true' : 'false');
     fd.append('freebies_stay', form.freebies_stay ? 'true' : 'false');
@@ -395,7 +395,7 @@ export default function AddParcelModal({
             </div>
           </div>
 
-          <SectionTitle>Penanda &amp; Denda</SectionTitle>
+          <SectionTitle>Penanda &amp; Catatan</SectionTitle>
 
           {/* Video unboxing — khusus WH, biaya dari tarif batch */}
           {!isHC && (
@@ -427,34 +427,25 @@ export default function AddParcelModal({
             <div>
               <div className="text-sm font-semibold text-amber-800">✍️ Tandai sebagai input manual</div>
               <div className="text-xs text-amber-600">
-                Sekadar penanda — tidak menambah denda. Muncul sebagai label kuning di daftar resi
+                Sekadar penanda. Muncul sebagai label kuning di daftar resi
                 dan sebagai kolom tersendiri saat export CSV.
               </div>
             </div>
           </label>
 
-          {/* Denda — diisi sendiri, tidak otomatis */}
+          {/* Catatan bebas — menggantikan kolom Denda */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Denda (Rp)
-              <span className="text-xs text-gray-400 font-normal ml-1">opsional, diisi sendiri</span>
+              Catatan
+              <span className="text-xs text-gray-400 font-normal ml-1">opsional, cuma untuk admin</span>
             </label>
-            <input
-              type="number" min="0"
-              className="input-field"
-              value={form.fine_amount}
-              onChange={e => setField('fine_amount', e.target.value)}
-              placeholder="0"
+            <textarea
+              rows={2}
+              className="input-field resize-none"
+              value={form.note}
+              onChange={e => setField('note', e.target.value)}
+              placeholder="mis. dus penyok, isi kurang 1, minta digabung..."
             />
-            {fineAmount > 0 && String(form.fine_amount) !== String(fineAmount) && (
-              <p className="text-xs text-gray-400 mt-1">
-                Denda batch ini:{' '}
-                <button type="button" className="text-red-500 underline font-medium"
-                  onClick={() => setField('fine_amount', String(fineAmount))}>
-                  pakai {rupiah(fineAmount)}
-                </button>
-              </p>
-            )}
           </div>
 
           {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}

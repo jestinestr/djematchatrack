@@ -214,15 +214,15 @@ export default function AdminWarehouse() {
       <div className="flex items-center gap-3 mb-4">
         <span className="text-2xl">🏭</span>
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Warehouse</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-xl font-bold text-matcha-800">Warehouse</h1>
+          <p className="text-sm text-gray-500">
             {openBoxes.length} box aktif · {totals.count} resi · {formatMulti(totals)}
           </p>
         </div>
         <button
           onClick={() => setAdding(true)}
-          className="ml-auto text-xs font-semibold px-3 py-2 rounded-xl bg-slate-800 text-white
-                     border border-slate-800 hover:bg-slate-700 transition-colors"
+          className="ml-auto text-xs font-semibold px-3 py-2 rounded-xl bg-matcha-800 text-white
+                     border border-matcha-800 hover:bg-matcha-700 transition-colors"
           title="Tambah resi tanpa harus masuk ke box dulu"
         >
           + Tambah Resi
@@ -230,7 +230,7 @@ export default function AdminWarehouse() {
         <button
           onClick={() => setShowForm(v => !v)}
           className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
-            showForm ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'
+            showForm ? 'bg-matcha-800 text-white border-matcha-800' : 'bg-white text-gray-600 border-cream-300 hover:border-matcha-300'
           }`}
         >
           {showForm ? 'Tutup form' : '+ Box baru'}
@@ -239,10 +239,10 @@ export default function AdminWarehouse() {
 
       {/* Buat box */}
       {showForm && (
-      <form onSubmit={createBox} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 mb-4">
+      <form onSubmit={createBox} className="bg-white rounded-2xl border border-cream-200 shadow-sm p-3 mb-4">
         <div className="grid sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Pelanggan</label>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Pelanggan</label>
             <select className="input-field text-sm py-2" value={form.owner_code_id} required
               onChange={e => setForm(f => ({ ...f, owner_code_id: e.target.value }))}>
               <option value="">— pilih —</option>
@@ -252,7 +252,7 @@ export default function AdminWarehouse() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Nama box</label>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Nama box</label>
             <input className="input-field text-sm py-2" value={form.name} required placeholder="Box 1 / Box A"
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
@@ -263,10 +263,10 @@ export default function AdminWarehouse() {
       )}
 
       {/* Cari & saring — menempel di atas saat daftar digulir */}
-      <div className="sticky top-0 z-20 -mx-5 md:-mx-7 px-5 md:px-7 py-3 mb-3 bg-cream-100/95 backdrop-blur border-b border-slate-200">
+      <div className="sticky top-0 z-20 -mx-5 md:-mx-7 px-5 md:px-7 py-3 mb-3 bg-cream-100/95 backdrop-blur border-b border-cream-200">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
           <input
             ref={searchRef}
             autoFocus
@@ -278,7 +278,7 @@ export default function AdminWarehouse() {
           />
           {search && (
             <button onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-matcha-600 text-lg leading-none">×</button>
           )}
         </div>
         <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}
@@ -293,16 +293,16 @@ export default function AdminWarehouse() {
           <option value="freebies">🎁 Freebies tinggal</option>
           <option value="manual">✍️ Input manual</option>
         </select>
-        <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer whitespace-nowrap">
+        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap">
           <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}
-            className="accent-slate-700" />
+            className="accent-matcha-700" />
           Termasuk box tertutup
         </label>
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-0.5">
+        <div className="flex gap-1 bg-cream-100 rounded-xl p-0.5">
           {[['box', 'Per Box'], ['list', 'Semua Resi']].map(([v, l]) => (
             <button key={v} onClick={() => setView(v)}
               className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                view === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                view === v ? 'bg-white text-matcha-800 shadow-sm' : 'text-gray-500 hover:text-matcha-700'
               }`}>
               {l}
             </button>
@@ -311,7 +311,7 @@ export default function AdminWarehouse() {
       </div>
 
       {/* Ringkasan hasil pencarian — langsung terlihat tanpa menggulir */}
-      <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
         <span>
           {view === 'list'
             ? `${flat.length} resi ditemukan`
@@ -319,7 +319,7 @@ export default function AdminWarehouse() {
         </span>
         {(search || ownerFilter !== 'all' || extraFilter !== 'all') && (
           <button onClick={() => { setSearch(''); setOwnerFilter('all'); setExtraFilter('all'); }}
-            className="text-slate-500 hover:text-slate-800 underline">
+            className="text-gray-500 hover:text-matcha-800 underline">
             Reset pencarian
           </button>
         )}
@@ -327,7 +327,7 @@ export default function AdminWarehouse() {
           <label className="ml-auto flex items-center gap-1.5">
             Tampil
             <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
-              className="border border-slate-200 rounded-lg px-1.5 py-0.5 bg-white">
+              className="border border-cream-200 rounded-lg px-1.5 py-0.5 bg-white">
               {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             per halaman
@@ -360,7 +360,7 @@ export default function AdminWarehouse() {
 
       {/* Aksi untuk resi tercentang */}
       {view === 'list' && selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-slate-800 text-white rounded-xl px-3 py-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2 bg-matcha-800 text-white rounded-xl px-3 py-2 mb-3">
           <span className="text-xs font-semibold">{selected.size} resi dipilih</span>
           <button onClick={() => setSelected(new Set())}
             className="text-xs text-white/70 hover:text-white underline">Batal pilih</button>
@@ -369,7 +369,7 @@ export default function AdminWarehouse() {
             <select
               value=""
               onChange={e => { moveSelected(e.target.value); e.target.value = ''; }}
-              className="text-xs rounded-lg px-2 py-1.5 text-slate-700"
+              className="text-xs rounded-lg px-2 py-1.5 text-gray-700"
               title="Pindahkan semua resi terpilih ke box"
             >
               <option value="">Pindahkan ke box...</option>
@@ -380,7 +380,7 @@ export default function AdminWarehouse() {
           )}
           <button
             onClick={() => setLabelTargets(picked)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-slate-800 hover:bg-slate-100"
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-matcha-800 hover:bg-cream-100"
           >
             🏷 Cetak Label ({selected.size})
           </button>
@@ -429,17 +429,17 @@ export default function AdminWarehouse() {
 
       {/* Semua resi dalam bentuk tabel */}
       {view === 'list' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-slate-400 bg-slate-50 border-b border-slate-200">
+                <tr className="text-[10px] uppercase tracking-wide text-gray-400 bg-cream-50 border-b border-cream-200">
                   <th className="px-2 py-2 w-8">
                     <input
                       type="checkbox"
                       checked={listPaged.items.length > 0 && listPaged.items.every(p => selected.has(p.id))}
                       onChange={togglePage}
-                      className="accent-slate-700 cursor-pointer"
+                      className="accent-matcha-700 cursor-pointer"
                       title="Pilih semua di halaman ini"
                     />
                   </th>
@@ -461,57 +461,61 @@ export default function AdminWarehouse() {
                 {listPaged.items.map((p, i) => {
                   const days = storageDays(p, p.box?.closed_at);
                   return (
-                    <tr key={p.id} className={`border-b border-slate-100 last:border-0 ${
-                      selected.has(p.id) ? 'bg-slate-50' : 'hover:bg-slate-50/70'
+                    <tr key={p.id} className={`border-b border-cream-100 last:border-0 ${
+                      selected.has(p.id) ? 'bg-cream-50' : 'hover:bg-cream-50/70'
                     }`}>
                       <td className="px-2 py-2">
                         <input
                           type="checkbox"
                           checked={selected.has(p.id)}
                           onChange={() => toggleSel(p.id)}
-                          className="accent-slate-700 cursor-pointer"
+                          className="accent-matcha-700 cursor-pointer"
                         />
                       </td>
-                      <td className="px-3 py-2 text-slate-400">{listPaged.from + i}</td>
+                      <td className="px-3 py-2 text-gray-400">{listPaged.from + i}</td>
                       <td className="px-3 py-2 text-center">
                         <OpenMarkCell parcel={p} marks={openMarks} />
                       </td>
-                      <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
+                      <td className="px-3 py-2 text-gray-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
                       <td className="px-3 py-2">
-                        <div className="text-slate-700 truncate max-w-[140px]">{p.recipient_name}</div>
-                        <div className="text-[11px] font-mono text-slate-400 truncate max-w-[140px]">{p.tracking_number}</div>
+                        <div className="text-gray-700 truncate max-w-[140px]">{p.recipient_name}</div>
+                        <div className="text-[11px] font-mono text-gray-400 truncate max-w-[140px]">{p.tracking_number}</div>
                       </td>
                       <td className="px-3 py-2">
                         {p.photo_url ? (
-                          <img src={p.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover border border-slate-200" />
+                          <img src={p.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover border border-cream-200" />
                         ) : (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-gray-300">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
                         {p.type === 'paperbased' ? 'Paperbased' : 'Barang'}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
                           {p.need_unboxing && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-800 text-white whitespace-nowrap"
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-600 text-white whitespace-nowrap"
                               title="Pelanggan minta video unboxing">🎥 Unboxing</span>
                           )}
                           {p.freebies_stay && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 whitespace-nowrap"
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-cream-200 text-gray-700 whitespace-nowrap"
                               title="Freebies ditinggal di gudang">🎁 Freebies</span>
+                          )}
+                          {p.note && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-cream-200 text-gray-700 whitespace-nowrap"
+                              title={p.note}>📝 Catatan</span>
                           )}
                           {p.is_manual_input && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap"
                               title="Resi diketik manual">✍️ Manual</span>
                           )}
-                          {!p.need_unboxing && !p.freebies_stay && !p.is_manual_input && (
-                            <span className="text-slate-300">—</span>
+                          {!p.need_unboxing && !p.freebies_stay && !p.is_manual_input && !p.note && (
+                            <span className="text-gray-300">—</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-right text-slate-600">{p.estimated_quantity || 1}</td>
-                      <td className="px-3 py-2 text-right text-slate-700 whitespace-nowrap">
+                      <td className="px-3 py-2 text-right text-gray-600">{p.estimated_quantity || 1}</td>
+                      <td className="px-3 py-2 text-right text-gray-700 whitespace-nowrap">
                         {baseFee(p, 'WH') > 0 ? money(baseFee(p, 'WH'), p.currency) : '—'}
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -519,7 +523,7 @@ export default function AdminWarehouse() {
                           <span className={`text-xs px-1.5 py-0.5 rounded-full border ${storageTone(days)}`}>
                             Hari ke-{days}
                           </span>
-                        ) : <span className="text-slate-300">—</span>}
+                        ) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-3 py-2">
                         <select
@@ -527,7 +531,7 @@ export default function AdminWarehouse() {
                           onChange={e => moveOne(p.id, e.target.value)}
                           disabled={!p.owner}
                           title={p.owner ? 'Pindahkan resi ini ke box lain' : 'Resi tanpa pemilik belum bisa dimasukkan ke box'}
-                          className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full text-xs border border-cream-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-cream-400 disabled:bg-cream-50 disabled:text-gray-400"
                         >
                           <option value="">— tanpa box —</option>
                           {openBoxes
@@ -540,26 +544,26 @@ export default function AdminWarehouse() {
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button onClick={() => setLabelTargets([p])} title="Cetak label resi ini"
-                          className="text-slate-400 hover:text-slate-700 px-1">🏷</button>
+                          className="text-gray-400 hover:text-matcha-700 px-1">🏷</button>
                         <button onClick={() => setDetail(p)} title="Lihat detail"
-                          className="text-slate-400 hover:text-slate-700 px-1">👁</button>
+                          className="text-gray-400 hover:text-matcha-700 px-1">👁</button>
                         <button onClick={() => setEditing(p)} title="Edit resi"
-                          className="text-slate-400 hover:text-slate-700 px-1">✏️</button>
+                          className="text-gray-400 hover:text-matcha-700 px-1">✏️</button>
                         <button onClick={() => removeParcel(p.id)} title="Hapus resi"
-                          className="text-slate-400 hover:text-red-600 px-1">🗑</button>
+                          className="text-gray-400 hover:text-red-600 px-1">🗑</button>
                       </td>
                     </tr>
                   );
                 })}
                 {listPaged.items.length === 0 && (
-                  <tr><td colSpan="13" className="px-3 py-12 text-center text-slate-400">
+                  <tr><td colSpan="13" className="px-3 py-12 text-center text-gray-400">
                     {search ? `Tidak ada resi untuk "${search}"` : 'Belum ada resi'}
                   </td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <Pager paged={listPaged} className="px-3 py-2.5 border-t border-slate-100" />
+          <Pager paged={listPaged} className="px-3 py-2.5 border-t border-cream-100" />
         </div>
       )}
 
@@ -567,7 +571,7 @@ export default function AdminWarehouse() {
       {view === 'box' && (loading ? (
         <LoadingSpinner text="Memuat box..." />
       ) : shown.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-sm">
+        <div className="bg-white rounded-2xl border border-cream-200 p-12 text-center text-gray-400 text-sm">
           {boxes.length === 0 ? 'Belum ada box. Buat box pertama lewat form di atas.' : 'Tidak ada box yang cocok.'}
         </div>
       ) : (
@@ -643,8 +647,8 @@ function OpenMarkCell({ parcel, marks }) {
       <button
         onClick={() => marks.mark(parcel.id)}
         title={`Tandai sebagai paket ke-${marks.nextNumber} yang dibuka`}
-        className="w-7 h-7 rounded-lg border border-dashed border-slate-300 text-slate-300
-                   hover:border-slate-500 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+        className="w-7 h-7 rounded-lg border border-dashed border-cream-300 text-gray-300
+                   hover:border-matcha-400 hover:text-matcha-600 hover:bg-cream-50 transition-colors"
       >
         +
       </button>
@@ -654,7 +658,7 @@ function OpenMarkCell({ parcel, marks }) {
   const hasPhoto = !!parcel.photo_url;
   const dot = (on, label) => (
     <span title={label}
-      className={`w-1.5 h-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+      className={`w-1.5 h-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-cream-300'}`} />
   );
 
   return (
@@ -662,7 +666,7 @@ function OpenMarkCell({ parcel, marks }) {
       <button
         onClick={() => marks.unmark(parcel.id)}
         title={`Paket ke-${mark.order} yang dibuka — klik untuk membatalkan tanda`}
-        className="w-7 h-7 rounded-lg bg-slate-800 text-white text-xs font-bold
+        className="w-7 h-7 rounded-lg bg-matcha-800 text-white text-xs font-bold
                    hover:bg-red-600 transition-colors"
       >
         {mark.order}
