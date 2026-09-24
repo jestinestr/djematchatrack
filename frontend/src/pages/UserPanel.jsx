@@ -5,6 +5,8 @@ import ParcelDetailModal from '../components/ParcelDetailModal';
 import RequestForm from '../components/RequestForm';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
+import UpdateBanner from '../components/UpdateBanner';
+import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
 import { fetchAsUser, downloadMany, slugify, cardName } from '../utils/format';
 
 const META = {
@@ -27,6 +29,10 @@ export default function UserPanel({ type }) {
   const [sideOpen, setSideOpen] = useState(false);
   const [detail, setDetail]   = useState(null);
   const [photoFilter, setPhotoFilter] = useState('all'); // all | yes | no
+
+  // Kabar baru sejak kunjungan terakhir — lihat utils/updates.js
+  const accessCode = sessionStorage.getItem('access_code') || '';
+  const [since, setSince] = useState(() => readLastSeen(accessCode));
 
   // Mode pilih foto untuk unduh massal
   const [picking, setPicking]     = useState(false);
@@ -58,9 +64,24 @@ export default function UserPanel({ type }) {
         setBatches(groups);
         setActiveId(groups[0]?.id ?? null);
         setLoading(false);
+        // Kunjungan pertama di perangkat ini: catat waktunya saja, jangan
+        // menyapa dengan "kabar baru" yang isinya seluruh riwayat.
+        if (!readLastSeen(accessCode)) writeLastSeen(accessCode);
       })
       .catch(e => { setError(e.message); setLoading(false); });
-  }, [meta.path]);
+  }, [meta.path, accessCode]);
+
+  // Semua resi milik pelanggan, lintas batch/box — dasar hitungan kabar baru
+  const myParcels = useMemo(
+    () => batches.flatMap(b => (b.parcels || []).filter(p => p.is_mine)),
+    [batches]
+  );
+  const updates = useMemo(() => collectUpdates(myParcels, since), [myParcels, since]);
+
+  function markSeen() {
+    writeLastSeen(accessCode);
+    setSince(Date.now());
+  }
 
   const batch = useMemo(
     () => batches.find(b => b.id === activeId) || null,
@@ -304,6 +325,15 @@ export default function UserPanel({ type }) {
 
             {!loading && !error && batch && (
               <>
+                {/* Kabar baru sejak kunjungan terakhir */}
+                <UpdateBanner
+                  name={viewer?.label}
+                  since={since}
+                  updates={updates}
+                  onSeen={markSeen}
+                  onOpenParcel={p => setDetail(p)}
+                />
+
                 {/* Kuota paket WH pelanggan */}
                 {pkg && (
                   <div className={`border-2 rounded-2xl px-4 py-3 ${pkg.overflow ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
@@ -441,6 +471,7 @@ export default function UserPanel({ type }) {
                           selected={picked.has(p.id)}
                           onSelect={() => togglePick(p.id)}
                           onOpen={() => setDetail(p)}
+                          isNew={isFresh(p, since)}
                           storageEnd={batch.completed_at}
                         />
                       ))}

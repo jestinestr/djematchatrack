@@ -7,6 +7,7 @@ export default function ParcelCard({
   selected = false,
   onSelect,
   onOpen,
+  isNew = false,
   storageEnd,
 }) {
   const isHC = String(type).toUpperCase() === 'HC';
@@ -98,6 +99,11 @@ export default function ParcelCard({
                   parcel.pkg.over ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}>
                   📦 {parcel.pkg.over ? `+${parcel.pkg.pos - parcel.pkg.quota} kelebihan` : `${parcel.pkg.pos}/${parcel.pkg.quota}`}
+                </span>
+              )}
+              {isNew && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-matcha-600 text-white font-bold">
+                  ✨ Baru
                 </span>
               )}
               {parcel.need_unboxing && (
