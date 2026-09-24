@@ -2,8 +2,7 @@ import { useState } from 'react';
 
 import { LABEL_SIZES, ownerOnly, labelToday } from '../utils/label';
 
-// Ukuran label dan aturan penulisan nama dipakai bersama halaman lain
-// (termasuk panel foto di ponsel) — sumbernya di utils/label.js.
+// Ukuran label dan aturan penulisan nama ada di utils/label.js.
 export { LABEL_SIZES };
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => (

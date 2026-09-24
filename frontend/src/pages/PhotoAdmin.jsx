@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../utils/image';
 import { clearSession } from '../utils/auth';
-import { LABEL_SIZES, drawLabel, labelRow, labelToBlob, labelFilename } from '../utils/label';
 
 // Panel khusus untuk pegang ponsel: cari resi, jepret/unggah foto, selesai.
 // Sengaja tidak menampilkan biaya, denda, invoice, atau kode akses.
@@ -258,110 +257,6 @@ export default function PhotoAdmin() {
           </p>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Label resi untuk printer Niimbot ────────────────────────────────
-//  Niimbot B1 mencetak lewat aplikasinya sendiri (Bluetooth), bukan lewat
-//  dialog print browser. Jadi di sini label digambar jadi PNG ukuran asli
-//  lalu dibagikan ke aplikasi Niimbot atau disimpan ke galeri.
-function LabelCard({ parcel, onToast }) {
-  const [size, setSize] = useState('40x30');
-  const [preview, setPreview] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const canvasRef = useRef(null);
-
-  const row = labelRow(parcel);
-  const { owner, name, resi } = row;
-
-  useEffect(() => {
-    const canvas = canvasRef.current || (canvasRef.current = document.createElement('canvas'));
-    drawLabel(canvas, { owner, name, resi }, size);
-    setPreview(canvas.toDataURL('image/png'));
-  }, [owner, name, resi, size]);
-
-  const canShareFile = typeof navigator !== 'undefined' && !!navigator.canShare;
-
-  async function withBlob(fn) {
-    setBusy(true);
-    setError('');
-    try {
-      const blob = await labelToBlob(canvasRef.current);
-      if (!blob) throw new Error('Label gagal dibuat');
-      await fn(new File([blob], labelFilename(row, size), { type: 'image/png' }));
-    } catch (e) {
-      // Batal dari lembar berbagi bukan kesalahan
-      if (e.name !== 'AbortError') setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const share = () => withBlob(async file => {
-    if (!navigator.canShare?.({ files: [file] })) {
-      throw new Error('Ponsel ini tidak bisa berbagi gambar — pakai Simpan saja');
-    }
-    await navigator.share({ files: [file], title: `Label ${resi}` });
-  });
-
-  const download = () => withBlob(async file => {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    onToast('⬇️ Label tersimpan');
-  });
-
-  return (
-    <div className="bg-white rounded-3xl border-2 border-cream-200 p-3">
-      <div className="flex items-center justify-between mb-2.5">
-        <p className="font-bold text-sm text-gray-700">🏷️ Cetak Label</p>
-        <div className="flex gap-1 bg-cream-100 rounded-full p-0.5">
-          {Object.keys(LABEL_SIZES).map(key => (
-            <button key={key} onClick={() => setSize(key)}
-              className={`text-[11px] font-bold px-2.5 py-1 rounded-full transition ${
-                size === key ? 'bg-matcha-800 text-white' : 'text-gray-500'
-              }`}>
-              {key.replace('x', ' × ')}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {preview && (
-        <div className="flex justify-center py-1">
-          <img src={preview} alt="Pratinjau label"
-               className="border-2 border-cream-200 rounded-lg"
-               style={{ width: `${LABEL_SIZES[size].w * 6}px`, imageRendering: 'auto' }} />
-        </div>
-      )}
-
-      {error && <p className="text-[11px] text-red-500 font-semibold text-center mt-2">{error}</p>}
-
-      <div className="flex gap-2 mt-3">
-        {canShareFile && (
-          <button onClick={share} disabled={busy}
-            className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-matcha-800 text-white
-                       active:translate-y-[1px] disabled:opacity-50">
-            📤 Kirim ke Niimbot
-          </button>
-        )}
-        <button onClick={download} disabled={busy}
-          className={`text-xs font-bold py-2.5 rounded-2xl border-2 border-cream-300 text-matcha-700
-                      bg-cream-50 active:translate-y-[1px] disabled:opacity-50 ${canShareFile ? 'px-4' : 'flex-1'}`}>
-          ⬇️ Simpan
-        </button>
-      </div>
-
-      <p className="text-[11px] text-gray-400 text-center mt-2 leading-snug">
-        {canShareFile
-          ? 'Pilih aplikasi Niimbot di menu berbagi, lalu cetak gambarnya.'
-          : 'Buka aplikasi Niimbot → tambah gambar → pilih file yang barusan disimpan.'}
-      </p>
     </div>
   );
 }
@@ -633,9 +528,6 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
               </div>
             );
           })}
-
-          {/* Cetak label */}
-          <LabelCard parcel={parcel} onToast={onToast} />
 
           {/* Ubah data seperlunya */}
           <div className="bg-white rounded-3xl border-2 border-cream-200 overflow-hidden">
