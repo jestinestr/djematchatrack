@@ -4,9 +4,10 @@
 // Ukuran label (mm). Niimbot B1 yang dipakai sehari-hari = 40 × 30.
 // Ukuran huruf (pt) sesuai permintaan untuk B1; 30 × 20 mengikuti
 // perbandingan yang sama supaya tetap muat.
+// Semua ukuran huruf dinaikkan 1 (2026-09-24) supaya lebih terbaca.
 export const LABEL_SIZES = {
-  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 9.5, name: 11.5, resi: 9.5, resiTail: 14,   date: 9 },
-  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 7,   name: 8.5,  resi: 7,   resiTail: 10.5, date: 6.5 },
+  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 10.5, name: 12.5, resi: 10.5, resiTail: 15,   date: 10 },
+  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 8,    name: 9.5,  resi: 8,    resiTail: 11.5, date: 7.5 },
 };
 
 const same = (a, b) =>
@@ -39,11 +40,13 @@ const ptToPx = pt => (pt * DPI) / 72;
 const FONT = '"Arial Narrow", Arial, Helvetica, sans-serif';
 
 // Kecilkan huruf sampai muat selebar label; kalau sudah mentok, potong teks.
+// Batas 0.5 dipakai supaya nama yang panjang sekali tetap utuh — huruf boleh
+// mengecil sampai separuh sebelum terpaksa dipotong.
 function fitText(ctx, text, maxWidth, sizePx, weight) {
   let size = sizePx;
   const set = s => { ctx.font = `${weight} ${s}px ${FONT}`; };
   set(size);
-  while (ctx.measureText(text).width > maxWidth && size > sizePx * 0.6) {
+  while (ctx.measureText(text).width > maxWidth && size > sizePx * 0.5) {
     size -= 1;
     set(size);
   }
