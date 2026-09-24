@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../utils/image';
-import { clearSession } from '../utils/auth';
+import { clearSession, isUploader } from '../utils/auth';
 
 // Panel khusus untuk pegang ponsel: cari resi, jepret/unggah foto, selesai.
 // Sengaja tidak menampilkan biaya, denda, invoice, atau kode akses.
@@ -80,9 +80,18 @@ export default function PhotoAdmin() {
     setActive(a => (a && rowKey(a) === rowKey(target) ? { ...a, ...changes } : a));
   }, []);
 
-  function logout() {
-    clearSession();
-    navigate('/admin');
+  // Admin yang mampir ke sini cukup balik ke panelnya — jangan sampai
+  // ter-logout cuma gara-gara selesai upload foto. Akun khusus foto tidak
+  // punya panel admin, jadi buat dia tombolnya tetap Keluar.
+  const uploaderOnly = isUploader();
+
+  function leave() {
+    if (uploaderOnly) {
+      clearSession();
+      navigate('/admin');
+    } else {
+      navigate('/admin/wh');
+    }
   }
 
   const withPhoto = parcels.filter(p => p.photo_url).length;
@@ -102,9 +111,9 @@ export default function PhotoAdmin() {
               <p className="text-white font-bold text-sm leading-tight">Upload Foto</p>
               <p className="text-matcha-200 text-[11px] opacity-80">Djematcha · panel foto</p>
             </div>
-            <button onClick={logout}
-              className="text-white/70 hover:text-white text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/10 active:scale-95 transition">
-              Keluar
+            <button onClick={leave}
+              className="text-white/70 hover:text-white text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/10 active:scale-95 transition whitespace-nowrap">
+              {uploaderOnly ? 'Keluar' : '← Kembali'}
             </button>
           </div>
 
