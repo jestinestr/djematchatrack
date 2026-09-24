@@ -388,6 +388,40 @@ function registerCrud(kind) {
   });
 }
 
+// ── Resi input manual yang belum ada pemiliknya ─────────────────────
+//  Ditampilkan ke semua pelanggan supaya yang merasa punya bisa klaim ke
+//  admin. Hanya resi bertanda "input manual" — resi biasa yang pemiliknya
+//  belum di-assign tidak ikut, itu urusan admin sendiri.
+//
+//  Butuh kode akses yang sah supaya daftarnya tidak terbuka untuk umum.
+router.get('/unclaimed', async (req, res) => {
+  const rawCode = (req.get('X-Access-Code') || '').trim();
+  if (!rawCode) return res.status(401).json({ error: 'Kode akses tidak dikirim' });
+
+  try {
+    const codes = await fetchCodes();
+    if (!codes.some(c => norm(c.code) === norm(rawCode))) {
+      return res.status(401).json({ error: 'Kode akses tidak valid' });
+    }
+
+    const columns = 'id, tracking_number, recipient_name, created_at';
+    const lists = await Promise.all(['hc', 'wh'].map(async kind => {
+      const { data, error } = await supabase
+        .from(TABLE[kind]).select(columns)
+        .eq('is_manual_input', true)
+        .is('owner_code_id', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw new Error(error.message);
+      return (data || []).map(p => ({ ...p, kind }));
+    }));
+
+    res.json({ parcels: lists.flat().sort(sortNewest) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 for (const kind of ['hc', 'wh']) {
   registerAdminList(kind);
   registerUserView(kind);

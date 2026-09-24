@@ -6,6 +6,7 @@ import RequestForm from '../components/RequestForm';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
+import { ManualMineNotice, UnclaimedNotice } from '../components/ManualNotices';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
 import { fetchAsUser, downloadMany, slugify, cardName } from '../utils/format';
 
@@ -33,6 +34,15 @@ export default function UserPanel({ type }) {
   // Kabar baru sejak kunjungan terakhir — lihat utils/updates.js
   const accessCode = sessionStorage.getItem('access_code') || '';
   const [since, setSince] = useState(() => readLastSeen(accessCode));
+
+  // Resi input manual yang belum ada pemiliknya — ditawarkan ke semua
+  // pelanggan. Yang sudah bilang "bukan punyaku" tidak ditanya lagi,
+  // kecuali muncul resi nyasar yang baru.
+  const [unclaimed, setUnclaimed] = useState([]);
+  const [hiddenUnclaimed, setHiddenUnclaimed] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('unclaimed_hidden') || '[]')); }
+    catch { return new Set(); }
+  });
 
   // Mode pilih foto untuk unduh massal
   const [picking, setPicking]     = useState(false);
@@ -82,6 +92,30 @@ export default function UserPanel({ type }) {
     writeLastSeen(accessCode);
     setSince(Date.now());
   }
+
+  useEffect(() => {
+    fetchAsUser('/api/parcels/unclaimed')
+      .then(r => (r.ok ? r.json() : { parcels: [] }))
+      .then(d => setUnclaimed(d.parcels || []))
+      .catch(() => {});
+  }, []);
+
+  const unclaimedShown = useMemo(
+    () => unclaimed.filter(p => !hiddenUnclaimed.has(`${p.kind}-${p.id}`)),
+    [unclaimed, hiddenUnclaimed]
+  );
+
+  function hideUnclaimed() {
+    const keys = unclaimed.map(p => `${p.kind}-${p.id}`);
+    setHiddenUnclaimed(new Set(keys));
+    try { localStorage.setItem('unclaimed_hidden', JSON.stringify(keys)); } catch { /* mode privat */ }
+  }
+
+  // Resi manual milik sendiri — diketik admin, jadi perlu dicek pelanggan
+  const manualMine = useMemo(
+    () => myParcels.filter(p => p.is_manual_input),
+    [myParcels]
+  );
 
   const batch = useMemo(
     () => batches.find(b => b.id === activeId) || null,
@@ -333,6 +367,14 @@ export default function UserPanel({ type }) {
                   onSeen={markSeen}
                   onOpenParcel={p => setDetail(p)}
                 />
+
+                {/* Resi yang diketik admin + resi nyasar yang belum diklaim */}
+                <ManualMineNotice
+                  name={viewer?.label}
+                  parcels={manualMine}
+                  onOpenParcel={p => setDetail(p)}
+                />
+                <UnclaimedNotice parcels={unclaimedShown} onDismiss={hideUnclaimed} />
 
                 {/* Kuota paket WH pelanggan */}
                 {pkg && (

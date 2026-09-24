@@ -38,6 +38,13 @@ export default function AdminWarehouse() {
   );
   const openMarks = useOpenMarks(allParcels);
 
+  // Resi yang diketik admin tapi pemiliknya belum ditentukan — ini yang
+  // muncul sebagai "resi nyasar" di panel pelanggan
+  const manualUnowned = useMemo(
+    () => allParcels.filter(p => p.is_manual_input && !p.owner_code_id),
+    [allParcels]
+  );
+
   // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
   useEffect(() => {
     function onKey(e) {
@@ -367,6 +374,26 @@ export default function AdminWarehouse() {
             className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-slate-800 hover:bg-slate-100"
           >
             🏷 Cetak Label ({selected.size})
+          </button>
+        </div>
+      )}
+
+      {/* Resi ketikan tangan yang belum ada pemiliknya */}
+      {view === 'list' && manualUnowned.length > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200">
+          <span className="text-base leading-none">🔔</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-rose-900">
+              {manualUnowned.length} resi input manual belum ada pemiliknya
+            </p>
+            <p className="text-[11px] text-rose-700/80">
+              Pelanggan sudah melihat daftarnya di panel masing-masing untuk diklaim
+            </p>
+          </div>
+          <div className="flex-1" />
+          <button onClick={() => setExtraFilter('manual')}
+            className="text-[11px] font-semibold text-rose-800 hover:text-rose-950 underline whitespace-nowrap">
+            Lihat resinya
           </button>
         </div>
       )}
