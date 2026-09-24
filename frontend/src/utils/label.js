@@ -4,10 +4,11 @@
 // Ukuran label (mm). Niimbot B1 yang dipakai sehari-hari = 40 × 30.
 // Ukuran huruf (pt) sesuai permintaan untuk B1; 30 × 20 mengikuti
 // perbandingan yang sama supaya tetap muat.
-// Semua ukuran huruf dinaikkan 1 (2026-09-24) supaya lebih terbaca.
+// 2026-09-24: semua ukuran naik 1, lalu nama pengguna jadi 11 dan nama
+// penerima jadi 14 di B1 (30 × 20 ikut proporsinya, ~0,75).
 export const LABEL_SIZES = {
-  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 10.5, name: 12.5, resi: 10.5, resiTail: 15,   date: 10 },
-  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 8,    name: 9.5,  resi: 8,    resiTail: 11.5, date: 7.5 },
+  '40x30': { w: 40, h: 30, label: '40 × 30 mm (Niimbot B1)', owner: 11, name: 14,   resi: 10.5, resiTail: 15,   date: 10 },
+  '30x20': { w: 30, h: 20, label: '30 × 20 mm',              owner: 8,  name: 10.5, resi: 8,    resiTail: 11.5, date: 7.5 },
 };
 
 const same = (a, b) =>
