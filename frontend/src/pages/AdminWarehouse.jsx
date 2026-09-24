@@ -26,6 +26,7 @@ export default function AdminWarehouse() {
   const [pageSize, setPageSize] = useState(10);
   const [extraFilter, setExtraFilter] = useState('all'); // all | unboxing | freebies | manual
   const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);   // tambah resi dari tampilan Semua Resi
   const [detail, setDetail] = useState(null);
   const [selected, setSelected] = useState(new Set()); // resi tercentang di tabel
   const [labelTargets, setLabelTargets] = useState(null);
@@ -219,8 +220,16 @@ export default function AdminWarehouse() {
           </p>
         </div>
         <button
+          onClick={() => setAdding(true)}
+          className="ml-auto text-xs font-semibold px-3 py-2 rounded-xl bg-slate-800 text-white
+                     border border-slate-800 hover:bg-slate-700 transition-colors"
+          title="Tambah resi tanpa harus masuk ke box dulu"
+        >
+          + Tambah Resi
+        </button>
+        <button
           onClick={() => setShowForm(v => !v)}
-          className={`ml-auto text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
+          className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
             showForm ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'
           }`}
         >
@@ -579,6 +588,22 @@ export default function AdminWarehouse() {
           onPrinted={openMarks.markPrinted}
           type="WH"
           onClose={() => setLabelTargets(null)}
+        />
+      )}
+
+      {adding && (
+        <AddParcelModal
+          type="WH"
+          batchId={tarif?.batchId}
+          boxId=""
+          boxName="Resi baru — box bisa dipilih di tabel setelah tersimpan"
+          feePerGram={tarif?.fee_per_gram || 0}
+          feeCurrency={tarif?.fee_currency || 'CNY'}
+          fineAmount={Number(tarif?.fine_amount ?? 2000)}
+          unboxingFee={Number(tarif?.unboxing_fee ?? 0.75)}
+          unitFee={Number(tarif?.unit_fee ?? 1.5)}
+          onClose={() => setAdding(false)}
+          onAdded={() => { setAdding(false); load(); }}
         />
       )}
 

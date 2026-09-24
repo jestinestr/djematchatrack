@@ -85,7 +85,11 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
 </style></head><body>${labels}</body></html>`;
 
     const w = window.open('', '_blank');
-    if (!w) return;
+    // Popup diblokir browser — tanpa kabar, tombol Cetak terasa rusak
+    if (!w) {
+      alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
+      return;
+    }
     // Penanda urutan bongkar ikut tahu label mana yang sudah keluar
     onPrinted?.(rows.map(r => r.id));
     w.document.write(html);
