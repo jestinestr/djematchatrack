@@ -33,6 +33,7 @@ export default function PhotoAdmin() {
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState('all');       // all | hc | wh
   const [missingOnly, setMissingOnly] = useState(true);
+  const [unboxingOnly, setUnboxingOnly] = useState(false);
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,6 +58,7 @@ export default function PhotoAdmin() {
       const params = new URLSearchParams();
       if (query.trim()) params.set('q', query.trim());
       if (missingOnly) params.set('missing', '1');
+      if (unboxingOnly) params.set('unboxing', '1');
       if (kind !== 'all') params.set('kind', kind);
 
       fetch(`/api/photos/worklist?${params}`, { signal: controller.signal })
@@ -71,7 +73,7 @@ export default function PhotoAdmin() {
     }, query ? 350 : 0);
 
     return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
-  }, [query, kind, missingOnly]);
+  }, [query, kind, missingOnly, unboxingOnly]);
 
   // Perbarui satu baris di daftar tanpa memuat ulang semuanya
   const patchRow = useCallback((target, changes) => {
@@ -85,6 +87,7 @@ export default function PhotoAdmin() {
   }
 
   const withPhoto = parcels.filter(p => p.photo_url).length;
+  const needUnboxing = parcels.filter(p => p.need_unboxing).length;
 
   return (
     <div className="min-h-screen bg-cream-100 pb-10">
@@ -142,6 +145,12 @@ export default function PhotoAdmin() {
               }`}>
               {missingOnly ? '📷 Belum ada foto' : '📋 Semua resi'}
             </button>
+            <button onClick={() => setUnboxingOnly(v => !v)}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition ${
+                unboxingOnly ? 'bg-violet-500 text-white' : 'bg-white/15 text-white/75'
+              }`}>
+              🎥 Unboxing
+            </button>
           </div>
         </div>
       </header>
@@ -160,8 +169,12 @@ export default function PhotoAdmin() {
           </div>
         ) : parcels.length === 0 ? (
           <div className="bg-white rounded-3xl border-2 border-cream-200 p-12 text-center text-gray-400">
-            <div className="text-4xl mb-3">{query ? '🔍' : '🎉'}</div>
-            <p className="font-bold text-gray-500">{query ? 'Resi tidak ditemukan' : 'Semua resi sudah ada fotonya'}</p>
+            <div className="text-4xl mb-3">{query ? '🔍' : unboxingOnly ? '🎥' : '🎉'}</div>
+            <p className="font-bold text-gray-500">
+              {query ? 'Resi tidak ditemukan'
+                : unboxingOnly ? 'Tidak ada yang minta video unboxing'
+                : 'Semua resi sudah ada fotonya'}
+            </p>
             <p className="text-xs mt-1">
               {query ? 'Coba kata kunci lain' : 'Matikan saringan untuk melihat semua resi'}
             </p>
@@ -170,12 +183,19 @@ export default function PhotoAdmin() {
           <>
             <p className="text-[11px] text-gray-400 font-semibold mb-2 px-1">
               {parcels.length} resi · {withPhoto} sudah ada foto
+              {needUnboxing > 0 && (
+                <span className="text-violet-600"> · 🎥 {needUnboxing} minta unboxing</span>
+              )}
             </p>
             <div className="space-y-2.5">
               {parcels.map(p => (
                 <button key={rowKey(p)} onClick={() => setActive(p)}
-                  className="w-full flex items-center gap-3 bg-white rounded-3xl border-2 border-cream-200 p-2.5
-                             text-left active:scale-[0.99] active:border-matcha-300 transition shadow-soft">
+                  className={`w-full flex items-center gap-3 bg-white rounded-3xl border-2 p-2.5
+                              text-left active:scale-[0.99] transition shadow-soft ${
+                    p.need_unboxing
+                      ? 'border-violet-400 ring-2 ring-violet-100'
+                      : 'border-cream-200 active:border-matcha-300'
+                  }`}>
                   {/* Cuplikan foto */}
                   <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-cream-100
                                   border-2 border-cream-200 flex items-center justify-center">
@@ -185,6 +205,11 @@ export default function PhotoAdmin() {
                   </div>
 
                   <div className="flex-1 min-w-0">
+                    {p.need_unboxing && (
+                      <p className="text-[10px] font-extrabold text-violet-700 leading-tight mb-0.5">
+                        🎥 JANGAN DIBUKA — rekam unboxing
+                      </p>
+                    )}
                     <p className="font-bold text-sm text-gray-800 truncate leading-tight">
                       {p.recipient_name || '—'}
                     </p>
@@ -471,7 +496,9 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
            className="w-full sm:max-w-lg bg-cream-50 rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto animate-pop-in">
 
         {/* Kepala */}
-        <div className="sticky top-0 bg-cream-50 px-4 pt-3 pb-3 border-b-2 border-cream-200 z-10">
+        <div className={`sticky top-0 px-4 pt-3 pb-3 border-b-2 z-10 ${
+          parcel.need_unboxing ? 'bg-violet-50 border-violet-200' : 'bg-cream-50 border-cream-200'
+        }`}>
           <div className="w-10 h-1 bg-cream-300 rounded-full mx-auto mb-3 sm:hidden" />
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
@@ -483,17 +510,35 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
               ✕
             </button>
           </div>
-          <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
             <TypeBadge parcel={parcel} />
             {parcel.owner && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-matcha-50 text-matcha-700">
                 👤 {parcel.owner.label}
               </span>
             )}
+            {parcel.need_unboxing && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-600 text-white">
+                🎥 Unboxing
+              </span>
+            )}
           </div>
         </div>
 
         <div className="p-4 space-y-3">
+          {parcel.need_unboxing && (
+            <div className="bg-violet-600 text-white rounded-3xl px-4 py-3 flex items-start gap-3">
+              <span className="text-2xl leading-none">🎥</span>
+              <div className="min-w-0">
+                <p className="font-extrabold text-sm leading-tight">Jangan dibuka dulu!</p>
+                <p className="text-[11px] text-violet-100 leading-snug mt-0.5">
+                  Pelanggan minta video unboxing — rekam dulu dari paket masih tersegel,
+                  baru dibuka.
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <p className="bg-red-50 text-red-600 text-xs font-semibold px-3 py-2.5 rounded-2xl">{error}</p>
           )}

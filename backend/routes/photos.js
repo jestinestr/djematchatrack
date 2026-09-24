@@ -78,24 +78,29 @@ const EDITABLE = {
   owner_code_id:          v => (v === '' || v == null ? null : parseInt(v)),
 };
 
-// box_id hanya ada di wh_parcels (pengelompokan box khusus Warehouse)
+// box_id dan need_unboxing hanya ada di wh_parcels (video unboxing memang
+// khusus Warehouse). need_unboxing penting dibawa ke panel foto: paket itu
+// harus direkam dulu, jangan sampai keburu dibuka.
 const BASE_COLUMNS = 'id, batch_id, tracking_number, recipient_name, owner_code_id, type, estimated_quantity, estimated_weight_grams, photo_url, co_photo_url, photo_uploaded_at, created_at';
-const columnsFor = kind => (kind === 'wh' ? `${BASE_COLUMNS}, box_id` : BASE_COLUMNS);
+const columnsFor = kind => (kind === 'wh' ? `${BASE_COLUMNS}, box_id, need_unboxing` : BASE_COLUMNS);
 
 const kindOf = v => (TABLE[String(v || '').toLowerCase()] ? String(v).toLowerCase() : null);
 
 // Daftar resi untuk dikerjakan: gabungan HC + WH, terbaru di atas.
-//  ?q=         cari nomor resi / nama penerima / nama pelanggan
-//  ?missing=1  hanya yang belum ada foto arrival
+//  ?q=          cari nomor resi / nama penerima / nama pelanggan
+//  ?missing=1   hanya yang belum ada foto arrival
+//  ?unboxing=1  hanya yang diminta video unboxing (otomatis WH saja)
 //  ?kind=hc|wh
 router.get('/worklist', async (req, res) => {
   const q = (req.query.q || '').trim();
   const missing = req.query.missing === '1' || req.query.missing === 'true';
+  const unboxing = req.query.unboxing === '1' || req.query.unboxing === 'true';
   const only = kindOf(req.query.kind);
   const limit = Math.min(parseInt(req.query.limit) || 200, 500);
 
   try {
-    const kinds = only ? [only] : ['hc', 'wh'];
+    // Unboxing cuma ada di WH, jadi HC tidak perlu ditanyakan sama sekali
+    const kinds = (unboxing ? ['wh'] : ['hc', 'wh']).filter(k => !only || k === only);
 
     const [codes, batchRes, boxRes] = await Promise.all([
       fetchCodes(),
@@ -124,6 +129,7 @@ router.get('/worklist', async (req, res) => {
         .order('created_at', { ascending: false })
         .limit(limit);
       if (missing) query = query.is('photo_url', null);
+      if (unboxing && kind === 'wh') query = query.eq('need_unboxing', true);
       return query;
     };
 
