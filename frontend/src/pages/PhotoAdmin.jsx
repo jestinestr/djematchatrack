@@ -547,6 +547,25 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
           {SLOTS.map(slot => {
             const url = parcel[slot.field];
             const uploading = busy === slot.key;
+            const pick = e => { handleFile(slot.key, e.target.files?.[0]); e.target.value = ''; };
+
+            // Dua jalan masuk yang jelas: foto lama dari galeri, atau jepret
+            // sekarang. Tombol galeri sengaja tanpa `capture`, karena atribut
+            // itu memaksa kamera dan justru menutup akses galeri di ponsel.
+            const PickButton = ({ camera, className, children }) => (
+              <label className={`cursor-pointer text-center ${className}`}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  {...(camera ? { capture: 'environment' } : {})}
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={pick}
+                />
+                {children}
+              </label>
+            );
+
             return (
               <div key={slot.key} className="bg-white rounded-3xl border-2 border-cream-200 p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -568,32 +587,45 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
                       </div>
                     )}
                   </div>
+                ) : uploading ? (
+                  <div className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
+                                  border-2 border-dashed border-matcha-300 bg-matcha-50">
+                    <span className="text-3xl">⏳</span>
+                    <span className="text-xs font-bold text-gray-500">Mengunggah…</span>
+                  </div>
                 ) : (
-                  <label className={`flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
-                                     border-2 border-dashed cursor-pointer transition ${
-                    uploading ? 'border-matcha-300 bg-matcha-50' : 'border-cream-300 hover:border-matcha-400 active:bg-cream-100'
-                  }`}>
-                    <input type="file" accept="image/*" capture="environment" className="hidden"
-                           disabled={uploading}
-                           onChange={e => { handleFile(slot.key, e.target.files?.[0]); e.target.value = ''; }} />
-                    <span className="text-3xl">{uploading ? '⏳' : '📷'}</span>
-                    <span className="text-xs font-bold text-gray-500">
-                      {uploading ? 'Mengunggah…' : 'Ambil / pilih foto'}
-                    </span>
-                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <PickButton camera
+                      className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
+                                 border-2 border-dashed border-cream-300 hover:border-matcha-400
+                                 active:bg-cream-100 transition">
+                      <span className="text-3xl">📷</span>
+                      <span className="text-xs font-bold text-gray-500">Jepret sekarang</span>
+                    </PickButton>
+                    <PickButton
+                      className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
+                                 border-2 border-dashed border-cream-300 hover:border-matcha-400
+                                 active:bg-cream-100 transition">
+                      <span className="text-3xl">🖼️</span>
+                      <span className="text-xs font-bold text-gray-500">Dari galeri</span>
+                    </PickButton>
+                  </div>
                 )}
 
                 {url && (
                   <div className="flex gap-2 mt-2">
-                    <label className="flex-1 text-center text-xs font-bold py-2.5 rounded-2xl
-                                      bg-matcha-800 text-white cursor-pointer active:translate-y-[1px]">
-                      <input type="file" accept="image/*" capture="environment" className="hidden"
-                             disabled={uploading}
-                             onChange={e => { handleFile(slot.key, e.target.files?.[0]); e.target.value = ''; }} />
-                      🔄 Ganti foto
-                    </label>
+                    <PickButton camera
+                      className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-matcha-800 text-white
+                                 active:translate-y-[1px]">
+                      📷 Jepret ulang
+                    </PickButton>
+                    <PickButton
+                      className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                                 border-2 border-cream-300 active:translate-y-[1px]">
+                      🖼️ Galeri
+                    </PickButton>
                     <button onClick={() => removePhoto(slot.key)} disabled={uploading}
-                      className="px-4 text-xs font-bold rounded-2xl bg-berry-50 text-berry-600 disabled:opacity-50">
+                      className="px-3.5 text-xs font-bold rounded-2xl bg-berry-50 text-berry-600 disabled:opacity-50">
                       Hapus
                     </button>
                   </div>
