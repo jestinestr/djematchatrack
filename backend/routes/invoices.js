@@ -59,6 +59,17 @@ router.get('/batch/:batchId', async (req, res) => {
     const parcels = attachOwners(rows || [], codes);
     const savedByOwner = new Map((saved || []).map(s => [String(s.owner_code_id), s]));
 
+    // Biaya tambahan boleh lebih dari satu baris (tabel invoice_fees).
+    // Kolom lama batch_invoices.additional_fee tetap dihitung supaya invoice
+    // yang sudah terlanjur diisi sebelum migrasi 014 tidak berubah angkanya.
+    const feeRows = await supabase.from('invoice_fees').select('*').eq('batch_id', batch.id);
+    const feesByOwner = new Map();
+    for (const row of feeRows.data || []) {
+      const key = String(row.owner_code_id);
+      if (!feesByOwner.has(key)) feesByOwner.set(key, []);
+      feesByOwner.get(key).push(row);
+    }
+
     // Kelompokkan per pemilik; resi tanpa pemilik masuk grup khusus
     const groups = new Map();
     for (const p of parcels) {
@@ -73,16 +84,25 @@ router.get('/batch/:batchId', async (req, res) => {
 
     const customers = [...groups.values()].map(g => {
       const invoice = g.owner ? savedByOwner.get(String(g.owner.id)) || null : null;
+      const fees = (g.owner ? feesByOwner.get(String(g.owner.id)) : null) || [];
+
       if (invoice) {
         // Additional fee manual dari invoice ikut masuk total
         const cur = currencyOf(invoice.additional_fee_currency);
         g.totals[cur].additional += num(invoice.additional_fee);
       }
+      for (const fee of fees) {
+        g.totals[currencyOf(fee.currency)].additional += num(fee.amount);
+      }
+
       return {
         owner: g.owner,
         parcels: g.parcels.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
         parcel_count: g.parcels.length,
         totals: finalize(g.totals),
+        fees: fees
+          .map(f => ({ id: f.id, label: f.label || '', amount: num(f.amount), currency: currencyOf(f.currency) }))
+          .sort((a, b) => a.id - b.id),
         invoice: invoice
           ? {
               additional_fee: num(invoice.additional_fee),
@@ -104,6 +124,61 @@ router.get('/batch/:batchId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Baris biaya tambahan (boleh banyak) ─────────────────────────────
+//  Biaya lama yang masih menempel di batch_invoices dipindah jadi baris
+//  pertama begitu pelanggan ini ditambahi baris baru, supaya ke depannya
+//  semua biaya duduk di satu tempat.
+async function migrateLegacyFee(batchId, ownerId) {
+  const { data: old } = await supabase
+    .from('batch_invoices')
+    .select('additional_fee, additional_fee_currency, additional_note')
+    .eq('batch_id', batchId).eq('owner_code_id', ownerId).maybeSingle();
+  if (!old || !num(old.additional_fee)) return;
+
+  const { error } = await supabase.from('invoice_fees').insert({
+    batch_id: batchId,
+    owner_code_id: ownerId,
+    label: old.additional_note || 'Biaya tambahan',
+    amount: num(old.additional_fee),
+    currency: currencyOf(old.additional_fee_currency),
+  });
+  if (error) return;
+
+  await supabase.from('batch_invoices')
+    .update({ additional_fee: 0, additional_note: null, updated_at: new Date().toISOString() })
+    .eq('batch_id', batchId).eq('owner_code_id', ownerId);
+}
+
+router.post('/batch/:batchId/owner/:ownerId/fees', async (req, res) => {
+  const batchId = parseInt(req.params.batchId);
+  const ownerId = parseInt(req.params.ownerId);
+  const amount = num(req.body.amount);
+  if (!amount) return res.status(400).json({ error: 'Nominal biaya tidak boleh kosong' });
+
+  try {
+    await migrateLegacyFee(batchId, ownerId);
+    const { data, error } = await supabase.from('invoice_fees').insert({
+      batch_id: batchId,
+      owner_code_id: ownerId,
+      label: req.body.label?.trim() || null,
+      amount: Math.max(0, amount),
+      currency: currencyOf(req.body.currency),
+    }).select().single();
+    if (error) throw new Error(error.message);
+    res.json(data);
+  } catch {
+    res.status(503).json({
+      error: 'Biaya tambahan bertingkat belum aktif — jalankan supabase/migrations/014_invoice_fees_package_payments.sql',
+    });
+  }
+});
+
+router.delete('/fees/:feeId', async (req, res) => {
+  const { error } = await supabase.from('invoice_fees').delete().eq('id', req.params.feeId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
 });
 
 // ── Simpan additional fee manual untuk satu pelanggan di satu batch ──

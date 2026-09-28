@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate, money } from '../utils/format';
+import PackagePayments, { PaymentBadge } from '../components/PackagePayments';
 
 // Paket standar — klik untuk mengisi form otomatis
 const PRESETS = [
@@ -175,6 +176,7 @@ export default function AdminPackages() {
                           +{p.overflow} kelebihan
                         </span>
                       )}
+                      <PaymentBadge pkg={p} />
                     </div>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
@@ -188,6 +190,8 @@ export default function AdminPackages() {
                     </button>
                   </div>
                 </div>
+
+                <PackagePayments pkg={p} onChanged={load} />
               </div>
             );
           })}

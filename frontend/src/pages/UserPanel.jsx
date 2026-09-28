@@ -9,7 +9,7 @@ import UpdateBanner from '../components/UpdateBanner';
 import { ManualMineNotice, UnclaimedNotice } from '../components/ManualNotices';
 import TodayNotice from '../components/TodayNotice';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
-import { fetchAsUser, downloadMany, slugify, cardName } from '../utils/format';
+import { fetchAsUser, downloadMany, slugify, cardName, money } from '../utils/format';
 
 const META = {
   HC: { icon: '✈️', title: 'Hand Carry', path: 'hc' },
@@ -420,6 +420,25 @@ export default function UserPanel({ type }) {
                         ? `Kuota sudah habis, ada ${pkg.overflow} resi kelebihan. Hubungi admin untuk perpanjang paket.`
                         : `Sisa ${pkg.remaining} resi lagi di paket ini.`}
                     </p>
+
+                    {/* Status pembayaran paket */}
+                    {pkg.price > 0 && (
+                      <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-white/60">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                          pkg.payment_status === 'lunas' ? 'bg-green-100 text-green-700 border-green-300'
+                          : pkg.payment_status === 'dp' ? 'bg-amber-100 text-amber-700 border-amber-300'
+                          : 'bg-red-100 text-red-700 border-red-300'
+                        }`}>
+                          {pkg.payment_status === 'lunas' ? '✓ Lunas'
+                            : pkg.payment_status === 'dp' ? 'Sudah DP' : 'Belum bayar'}
+                        </span>
+                        <p className="text-[11px] text-gray-600">
+                          {pkg.payment_status === 'lunas'
+                            ? `${money(pkg.price, 'CNY')} · terima kasih! 💚`
+                            : `${money(pkg.paid, 'CNY')} dari ${money(pkg.price, 'CNY')} · sisa ${money(pkg.due, 'CNY')}`}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

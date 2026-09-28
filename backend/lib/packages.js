@@ -61,12 +61,36 @@ async function loadPackageInfo() {
     });
   }
 
+  // Pembayaran (DP/cicilan). Statusnya dihitung dari jumlah bayar vs harga,
+  // bukan disimpan sebagai kolom sendiri, supaya tidak pernah ketinggalan
+  // zaman waktu ada cicilan baru masuk.
+  const pay = await supabase.from('package_payments').select('package_id, amount');
+  const paidBy = new Map();
+  for (const row of pay.data || []) {
+    const key = String(row.package_id);
+    paidBy.set(key, (paidBy.get(key) || 0) + Number(row.amount || 0));
+  }
+
   const packages = [...byId.values()].map(p => ({
     ...p,
     overflow: Math.max(0, p.used - p.quota),
     remaining: Math.max(0, p.quota - p.used),
+    ...paymentOf(p, paidBy.get(String(p.id)) || 0),
   }));
   return { packages, parcelInfo };
+}
+
+// Ringkasan pembayaran satu paket
+function paymentOf(pkg, paid) {
+  const price = Number(pkg.price || 0);
+  const due = Math.max(0, price - paid);
+  return {
+    price,
+    paid,
+    due,
+    // Tanpa harga, paket tidak bisa dibilang lunas atau belum — biarkan kosong
+    payment_status: !price ? 'none' : due <= 0 ? 'lunas' : paid > 0 ? 'dp' : 'belum',
+  };
 }
 
 // Tempelkan info paket (pkg) ke daftar resi WH
@@ -77,4 +101,4 @@ function attachPackage(parcels, parcelInfo) {
   });
 }
 
-module.exports = { activePackageId, packageHasRoom, loadPackageInfo, attachPackage };
+module.exports = { activePackageId, packageHasRoom, loadPackageInfo, attachPackage, paymentOf };

@@ -137,6 +137,54 @@ export default function AdminInvoice() {
     setDrafts(prev => ({ ...prev, [ownerId]: { ...prev[ownerId], ...patch } }));
   }
 
+  async function refreshInvoice() {
+    const fresh = await fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`)
+      .then(r => r.json());
+    setData(fresh);
+  }
+
+  // Biaya tambahan batch boleh banyak baris — tiap baris punya keterangan
+  async function addFee(ownerId) {
+    const d = drafts[ownerId] || {};
+    if (!Number(d.additional_fee)) return;
+    setSavingId(ownerId);
+    try {
+      const res = await fetch(`/api/invoices/batch/${batchId}/owner/${ownerId}/fees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Number(d.additional_fee),
+          currency: d.currency || 'IDR',
+          label: d.note || '',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Biaya gagal disimpan');
+        return;
+      }
+      setDraft(ownerId, { additional_fee: '', note: '' });
+      await refreshInvoice();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function removeFee(feeId) {
+    await fetch(`/api/invoices/fees/${feeId}`, { method: 'DELETE' });
+    await refreshInvoice();
+  }
+
+  // Biaya versi lama (satu angka di batch_invoices) dihapus lewat jalur lamanya
+  async function removeLegacyFee(ownerId) {
+    await fetch(`/api/invoices/batch/${batchId}/owner/${ownerId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ additional_fee: 0, additional_fee_currency: 'IDR', additional_note: '' }),
+    });
+    await refreshInvoice();
+  }
+
   async function saveAdditional(ownerId) {
     const d = drafts[ownerId] || {};
     setSavingId(ownerId);
@@ -392,12 +440,42 @@ export default function AdminInvoice() {
                     </div>
                   </div>
 
-                  {/* Additional fee manual */}
+                  {/* Biaya tambahan — batch boleh banyak baris */}
+                  {c.owner && !isBox && (c.fees?.length > 0 || Number(c.invoice.additional_fee) > 0) && (
+                    <div className="px-4 pt-3 space-y-1.5">
+                      {Number(c.invoice.additional_fee) > 0 && (
+                        <div className="flex items-center gap-2 text-sm bg-cream-50 rounded-xl px-3 py-2">
+                          <span className="flex-1 truncate text-gray-600">
+                            {c.invoice.additional_note || 'Biaya tambahan'}
+                          </span>
+                          <span className="font-bold text-orange-600 whitespace-nowrap">
+                            {money(c.invoice.additional_fee, c.invoice.additional_fee_currency)}
+                          </span>
+                          <button onClick={() => removeLegacyFee(c.owner.id)}
+                            title="Hapus biaya ini"
+                            className="text-gray-300 hover:text-red-500 px-1">✕</button>
+                        </div>
+                      )}
+                      {(c.fees || []).map(f => (
+                        <div key={f.id} className="flex items-center gap-2 text-sm bg-cream-50 rounded-xl px-3 py-2">
+                          <span className="flex-1 truncate text-gray-600">{f.label || 'Biaya tambahan'}</span>
+                          <span className="font-bold text-orange-600 whitespace-nowrap">
+                            {money(f.amount, f.currency)}
+                          </span>
+                          <button onClick={() => removeFee(f.id)}
+                            title="Hapus biaya ini"
+                            className="text-gray-300 hover:text-red-500 px-1">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tambah biaya */}
                   {c.owner && (
                     <div className="px-4 py-3 flex flex-wrap items-end gap-2 border-b border-cream-100">
                       <div className="w-32">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                          Additional Fee
+                          {isBox ? 'Additional Fee' : 'Tambah Biaya'}
                         </label>
                         <input
                           type="number" min="0" step="0.01"
@@ -430,11 +508,11 @@ export default function AdminInvoice() {
                         />
                       </div>
                       <button
-                        onClick={() => saveAdditional(c.owner.id)}
+                        onClick={() => (isBox ? saveAdditional(c.owner.id) : addFee(c.owner.id))}
                         disabled={savingId === c.owner.id}
                         className="btn-primary text-xs px-3 py-2 disabled:opacity-50"
                       >
-                        {savingId === c.owner.id ? '...' : '💾 Simpan'}
+                        {savingId === c.owner.id ? '...' : isBox ? '💾 Simpan' : '+ Tambah'}
                       </button>
                     </div>
                   )}
@@ -539,15 +617,42 @@ function calcTotals(c, picked, type) {
     t.IDR.fine += Number(p.fine_amount) || 0;
     t.CNY.unboxing += Number(p.unboxing_fee) || 0;
   }
-  // Additional fee manual per pelanggan ikut kalau ada resi yang ditagih
-  if (picked.length && Number(c.invoice?.additional_fee)) {
-    t[normCurrency(c.invoice.additional_fee_currency)].additional += Number(c.invoice.additional_fee);
+  // Biaya tambahan per pelanggan ikut kalau ada resi yang ditagih
+  if (picked.length) {
+    if (Number(c.invoice?.additional_fee)) {
+      t[normCurrency(c.invoice.additional_fee_currency)].additional += Number(c.invoice.additional_fee);
+    }
+    for (const f of c.fees || []) {
+      t[normCurrency(f.currency)].additional += Number(f.amount) || 0;
+    }
   }
   for (const k of ['IDR', 'CNY']) {
     const x = t[k];
     x.total = x.fee + x.additional + x.fine + x.unboxing;
   }
   return t;
+}
+
+// Rincian biaya tambahan di invoice cetak: tiap baris ditulis terpisah
+// lengkap dengan keterangannya, sisanya (biaya yang menempel di resi)
+// dijumlahkan jadi satu baris.
+function feeLines(c, cur) {
+  const rows = [];
+  if (normCurrency(c.invoice?.additional_fee_currency) === cur && Number(c.invoice?.additional_fee)) {
+    rows.push([c.invoice.additional_note || 'Additional fee', Number(c.invoice.additional_fee)]);
+  }
+  for (const f of c.fees || []) {
+    if (normCurrency(f.currency) === cur) rows.push([f.label || 'Additional fee', Number(f.amount)]);
+  }
+
+  const listed = rows.reduce((sum, [, amount]) => sum + amount, 0);
+  const sisa = (c.totals[cur].additional || 0) - listed;
+  if (sisa > 0.001) rows.push([`Additional fee (${CURRENCIES[cur].label})`, sisa]);
+
+  return rows.map(([label, amount]) => `<tr>
+          <td>${esc(label)}</td>
+          <td class="right">${esc(money(amount, cur))}</td>
+        </tr>`).join('');
 }
 
 /* ── Dokumen invoice untuk dicetak ───────────────────────── */
@@ -577,10 +682,7 @@ function buildInvoicesHTML(batch, customers, type) {
           <td>Subtotal biaya (${CURRENCIES[cur].label})</td>
           <td class="right">${esc(money(c.totals[cur].fee, cur))}</td>
         </tr>
-        ${c.totals[cur].additional ? `<tr>
-          <td>Additional fee (${CURRENCIES[cur].label})${c.invoice.additional_note ? ` — ${esc(c.invoice.additional_note)}` : ''}</td>
-          <td class="right">${esc(money(c.totals[cur].additional, cur))}</td>
-        </tr>` : ''}
+        ${feeLines(c, cur)}
         ${c.totals[cur].unboxing ? `<tr>
           <td>Video unboxing</td>
           <td class="right">${esc(money(c.totals[cur].unboxing, cur))}</td>

@@ -26,6 +26,65 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── Pembayaran paket (DP / cicilan / pelunasan) ─────────────────────
+//  Statusnya tidak disimpan; dihitung dari jumlah bayar vs harga paket.
+router.get('/:id/payments', async (req, res) => {
+  const { data, error } = await supabase
+    .from('package_payments').select('*')
+    .eq('package_id', req.params.id)
+    .order('paid_at', { ascending: true });
+  if (error) {
+    return res.status(503).json({
+      error: 'Pembayaran paket belum aktif — jalankan supabase/migrations/014_invoice_fees_package_payments.sql',
+    });
+  }
+  res.json(data || []);
+});
+
+router.post('/:id/payments', async (req, res) => {
+  const amount = Number(req.body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.status(400).json({ error: 'Nominal pembayaran tidak valid' });
+  }
+
+  const { data, error } = await supabase
+    .from('package_payments')
+    .insert({
+      package_id: parseInt(req.params.id),
+      amount,
+      note: req.body.note?.trim() || null,
+      ...(req.body.paid_at ? { paid_at: req.body.paid_at } : {}),
+    })
+    .select().single();
+  if (error) {
+    return res.status(503).json({
+      error: 'Pembayaran paket belum aktif — jalankan supabase/migrations/014_invoice_fees_package_payments.sql',
+    });
+  }
+
+  const { data: pkg } = await supabase
+    .from('customer_packages').select('name, period_no, owner_code_id').eq('id', req.params.id).single();
+  const codes = await fetchCodes();
+  const owner = codes.find(c => String(c.id) === String(pkg?.owner_code_id));
+
+  logActivity({
+    action: 'package_payment',
+    summary: `Pembayaran ${pkg?.name || 'paket'} ${owner ? `(${owner.label})` : ''} Rp ${Math.round(amount).toLocaleString('id-ID')}`,
+    detail: req.body.note?.trim() || null,
+    ref_type: 'package',
+    ref_id: req.params.id,
+  });
+
+  res.json(data);
+});
+
+router.delete('/payments/:paymentId', async (req, res) => {
+  const { error } = await supabase
+    .from('package_payments').delete().eq('id', req.params.paymentId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
 // ── Buat paket baru untuk pelanggan ─────────────────────────────────
 //  include_existing: resi WH pelanggan yang belum masuk paket ikut dihitung
 router.post('/', async (req, res) => {
