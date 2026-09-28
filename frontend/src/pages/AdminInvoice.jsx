@@ -18,6 +18,7 @@ export default function AdminInvoice() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
+  const [billPkg, setBillPkg] = useState(true);   // sisa paket ikut ditagih (bawaan: ya)
   const [drafts, setDrafts]   = useState({});   // ownerId -> {additional_fee, currency, note}
   const [savingId, setSavingId] = useState(null);
   const [chosen, setChosen]   = useState(new Set()); // id resi yang ikut ditagih
@@ -45,6 +46,7 @@ export default function AdminInvoice() {
     if (!batchId) { setData(null); return; }
     setLoading(true);
     setSelected(new Set());
+    setBillPkg(true);
     fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`)
       .then(r => r.json())
       .then(d => {
@@ -74,9 +76,9 @@ export default function AdminInvoice() {
       allParcels: c.parcels,
       parcels: picked,
       parcel_count: picked.length,
-      totals: calcTotals(c, picked, type),
+      totals: calcTotals(c, picked, type, billPkg),
     };
-  }), [rawCustomers, chosen, type]);
+  }), [rawCustomers, chosen, type, billPkg]);
 
   function toggleChosen(id) {
     setChosen(prev => {
@@ -452,6 +454,38 @@ export default function AdminInvoice() {
                     </div>
                   )}
 
+                  {/* Pembayaran paket WH */}
+                  {c.package_payment && c.package_payment.payment_status !== 'none' && (
+                    <div className="px-4 pt-3">
+                      {c.package_payment.payment_status === 'lunas' ? (
+                        <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                          <span>✓</span>
+                          <span className="flex-1 text-green-800 font-semibold">
+                            Fee warehouse {c.package_payment.name} sudah lunas
+                          </span>
+                          <span className="text-green-700 font-bold whitespace-nowrap">
+                            {money(c.package_payment.price, 'CNY')}
+                          </span>
+                        </div>
+                      ) : (
+                        <label className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 cursor-pointer">
+                          <input type="checkbox" checked={billPkg}
+                            onChange={e => setBillPkg(e.target.checked)}
+                            className="accent-matcha-700" />
+                          <span className="flex-1 text-amber-900">
+                            Tagih sisa fee warehouse {c.package_payment.name}
+                            <span className="text-amber-700/80">
+                              {' '}· sudah bayar {money(c.package_payment.paid, 'CNY')} dari {money(c.package_payment.price, 'CNY')}
+                            </span>
+                          </span>
+                          <span className="font-bold text-amber-800 whitespace-nowrap">
+                            {money(c.package_payment.due, 'CNY')}
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  )}
+
                   {/* Tambah biaya */}
                   {c.owner && (
                     <div className="px-4 py-3 flex flex-wrap items-end gap-2 border-b border-cream-100">
@@ -587,7 +621,7 @@ function unpaidIds(d) {
 }
 
 // Hitung ulang total dari resi yang dipilih saja
-function calcTotals(c, picked, type) {
+function calcTotals(c, picked, type, billPkg = true) {
   const t = {
     IDR: { fee: 0, additional: 0, fine: 0, unboxing: 0, total: 0 },
     CNY: { fee: 0, additional: 0, fine: 0, unboxing: 0, total: 0 },
@@ -608,6 +642,11 @@ function calcTotals(c, picked, type) {
       t[normCurrency(f.currency)].additional += Number(f.amount) || 0;
     }
   }
+  // Sisa pembayaran paket ditagih di invoice ini kecuali admin membatalkannya
+  if (billPkg && c.package_payment?.due > 0) {
+    t.CNY.additional += c.package_payment.due;
+  }
+
   for (const k of ['IDR', 'CNY']) {
     const x = t[k];
     x.total = x.fee + x.additional + x.fine + x.unboxing;
@@ -620,6 +659,10 @@ function calcTotals(c, picked, type) {
 // dijumlahkan jadi satu baris.
 function feeLines(c, cur) {
   const rows = [];
+  // Sisa fee paket ditulis sebagai barisnya sendiri supaya jelas ditagih apa
+  if (cur === 'CNY' && c.package_payment?.due > 0 && c.totals.CNY.additional >= c.package_payment.due) {
+    rows.push([`Sisa fee warehouse ${c.package_payment.name}`, c.package_payment.due]);
+  }
   if (normCurrency(c.invoice?.additional_fee_currency) === cur && Number(c.invoice?.additional_fee)) {
     rows.push([c.invoice.additional_note || 'Additional fee', Number(c.invoice.additional_fee)]);
   }
@@ -656,6 +699,14 @@ function buildInvoicesHTML(batch, customers, type) {
         <td class="right">${p.additional_fee ? esc(money(p.additional_fee, p.currency)) : '-'}</td>
         <td class="right">${p.fine_amount ? esc(rupiah(p.fine_amount)) : '-'}</td>
       </tr>`).join('');
+
+    // Catatan di kaki invoice: paket yang sudah lunas tidak ditagih lagi,
+    // tapi tetap ditulis supaya pelanggan tahu statusnya.
+    const paidNote = c.package_payment?.payment_status === 'lunas'
+      ? `<p class="note">✓ Fee warehouse ${esc(c.package_payment.name)} sudah LUNAS (${esc(money(c.package_payment.price, 'CNY'))}) — tidak ditagih di invoice ini.</p>`
+      : c.package_payment?.due > 0 && c.totals.CNY.additional < c.package_payment.due
+        ? `<p class="note">Sisa fee warehouse ${esc(c.package_payment.name)} ${esc(money(c.package_payment.due, 'CNY'))} belum ditagih di invoice ini.</p>`
+        : '';
 
     const summaryRows = ['IDR', 'CNY']
       .filter(cur => hasMoney(c.totals[cur]))
@@ -716,6 +767,7 @@ function buildInvoicesHTML(batch, customers, type) {
       </table>
 
       <table class="summary">${summaryRows}</table>
+      ${paidNote}
 
       <footer>
         <p>Terima kasih telah menggunakan jasa Djematcha 🍵</p>
@@ -771,6 +823,8 @@ function buildInvoicesHTML(batch, customers, type) {
                page-break-after: always; max-width: none; }
     .invoice:last-child { page-break-after: auto; }
   }
+  .note { margin: 6px 0 0; font-size: 11px; color: #44403c; background: #f5f5f4;
+          border-left: 3px solid #a8a29e; padding: 6px 10px; }
 </style>
 </head>
 <body>${pages}

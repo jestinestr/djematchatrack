@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
 const { fetchCodes, attachOwners } = require('../lib/owner');
+const { paymentOf } = require('../lib/packages');
 const { logActivity } = require('../lib/log');
 
 const TABLE = { HC: 'hc_parcels', WH: 'wh_parcels' };
@@ -267,6 +268,15 @@ router.get('/box/:boxId', async (req, res) => {
     const parcels = attachOwners(rows || [], codes);
     const owner = codes.find(c => String(c.id) === String(box.owner_code_id)) || null;
     const pkg = pkgs?.[0] || null;
+
+    // Status bayar paket ikut ke invoice: yang lunas cukup jadi catatan,
+    // yang masih kurang ditawarkan untuk ditagih di invoice ini.
+    let pkgPayment = null;
+    if (pkg) {
+      const pays = await supabase.from('package_payments').select('amount').eq('package_id', pkg.id);
+      const paid = (pays.data || []).reduce((sum, r) => sum + num(r.amount), 0);
+      pkgPayment = { name: pkg.name, period_no: pkg.period_no, ...paymentOf(pkg, paid) };
+    }
     const title = pkg ? `${pkg.name} periode ${pkg.period_no} - ${box.name}` : box.name;
 
     const feeRows = await supabase.from('invoice_fees').select('*').eq('box_id', box.id);
@@ -290,6 +300,7 @@ router.get('/box/:boxId', async (req, res) => {
         parcel_count: parcels.length,
         totals: finalize(totals),
         fees,
+        package_payment: pkgPayment,
         box_title: title,
         invoice: {
           additional_fee: num(box.additional_fee),
