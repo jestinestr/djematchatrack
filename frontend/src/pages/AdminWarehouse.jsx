@@ -44,6 +44,35 @@ export default function AdminWarehouse() {
   );
   const nextOpenNumber = Math.max(0, ...marked.map(p => p.open_order)) + 1;
 
+  // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'SELECT') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const load = useCallback(async () => {
+    const [data, c, batch] = await Promise.all([
+      fetch('/api/parcels/wh/boxes').then(r => r.json()),
+      fetch('/api/codes').then(r => r.json()),
+      fetch('/api/batches/active/WH').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    setBoxes(data.boxes || []);
+    setUnassigned(data.unassigned || []);
+    setCodes(Array.isArray(c) ? c : []);
+    // Batch WH tidak ditampilkan lagi, tapi tarif & id-nya masih dipakai
+    // di belakang layar supaya data lama tetap utuh
+    if (batch) setTarif({ batchId: batch.id, ...batch });
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   // Kalau migrasi 013 belum dijalankan, server menjawab dengan pesan yang
   // jelas — ditampilkan apa adanya supaya tombolnya tidak terasa rusak.
   const callMark = useCallback(async (url, options) => {
@@ -86,35 +115,6 @@ export default function AdminWarehouse() {
     () => allParcels.filter(p => p.is_manual_input && !p.owner_code_id),
     [allParcels]
   );
-
-  // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'SELECT') {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const load = useCallback(async () => {
-    const [data, c, batch] = await Promise.all([
-      fetch('/api/parcels/wh/boxes').then(r => r.json()),
-      fetch('/api/codes').then(r => r.json()),
-      fetch('/api/batches/active/WH').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]);
-    setBoxes(data.boxes || []);
-    setUnassigned(data.unassigned || []);
-    setCodes(Array.isArray(c) ? c : []);
-    // Batch WH tidak ditampilkan lagi, tapi tarif & id-nya masih dipakai
-    // di belakang layar supaya data lama tetap utuh
-    if (batch) setTarif({ batchId: batch.id, ...batch });
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function createBox(e) {
     e.preventDefault();
