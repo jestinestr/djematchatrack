@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { slugify, downloadImage, cardName } from '../utils/format';
+import { slugify, downloadImage, cardName, makePhotoCard } from '../utils/format';
 
 
 export default function AdminGallery() {
@@ -13,6 +13,7 @@ export default function AdminGallery() {
   const [selected, setSelected]   = useState(new Set());
   const [downloading, setDownloading] = useState(false);
   const [downloadedIds, setDownloadedIds] = useState(new Set());
+  const [preview, setPreview] = useState(null);   // { parcel, url } — pratinjau hasil unduhan
 
   useEffect(() => {
     Promise.all([
@@ -101,6 +102,23 @@ export default function AdminGallery() {
       if (i < targets.length - 1) await new Promise(r => setTimeout(r, 400));
     }
     setDownloading(false);
+  }
+
+  // Pratinjau memakai penyusun gambar yang sama dengan tombol Download,
+  // jadi yang dilihat admin persis file yang nanti terunduh.
+  async function showPreview(p) {
+    setPreview({ parcel: p, url: null, error: '' });
+    try {
+      const blob = await makePhotoCard(p.photo_url, cardName(p), p.tracking_number);
+      setPreview({ parcel: p, url: URL.createObjectURL(blob), error: '' });
+    } catch {
+      setPreview({ parcel: p, url: null, error: 'Pratinjau gagal dibuat' });
+    }
+  }
+
+  function closePreview() {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+    setPreview(null);
   }
 
   const allSelected = parcels.length > 0 && selected.size === parcels.length;
@@ -232,6 +250,17 @@ export default function AdminGallery() {
                       </span>
                     )}
 
+                    {/* Lihat hasil unduhannya */}
+                    <button
+                      onClick={e => { e.stopPropagation(); showPreview(p); }}
+                      title="Lihat seperti hasil unduhan"
+                      className="absolute bottom-2 left-2 w-7 h-7 rounded-full bg-white/90 text-gray-600
+                                 flex items-center justify-center text-xs shadow-soft
+                                 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    >
+                      👁
+                    </button>
+
                     {/* Type badge */}
                     <span className={`absolute top-2 left-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                       p._type === 'HC' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
@@ -250,6 +279,48 @@ export default function AdminGallery() {
             })}
           </div>
         </>
+      )}
+
+      {/* Pratinjau hasil unduhan */}
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+             onClick={closePreview}>
+          <div onClick={e => e.stopPropagation()}
+               className="bg-white rounded-3xl overflow-hidden max-w-md w-full max-h-[92vh] flex flex-col">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-cream-200">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-sm text-gray-800 truncate">{cardName(preview.parcel)}</p>
+                <p className="text-[11px] font-mono text-gray-400 truncate">{preview.parcel.tracking_number}</p>
+              </div>
+              <button onClick={closePreview}
+                className="w-8 h-8 rounded-full bg-cream-200 text-gray-500 flex items-center justify-center">✕</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 bg-cream-100">
+              {preview.error ? (
+                <p className="text-sm text-red-600 text-center py-10">{preview.error}</p>
+              ) : preview.url ? (
+                <img src={preview.url} alt="" className="w-full rounded-xl shadow-soft" />
+              ) : (
+                <p className="text-sm text-gray-400 text-center py-10 animate-pulse">Menyiapkan pratinjau…</p>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-cream-200">
+              <button
+                onClick={() => {
+                  const p = preview.parcel;
+                  downloadImage(p.photo_url, `${slugify(cardName(p))}_${slugify(p.tracking_number)}`,
+                    { name: cardName(p), tracking: p.tracking_number });
+                }}
+                disabled={!preview.url}
+                className="btn-primary w-full py-2.5 disabled:opacity-50"
+              >
+                ⬇️ Download foto ini
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CURRENCIES, money, normCurrency } from '../utils/format';
+import { CURRENCIES, money, normCurrency, weightSurcharge, weightTierLabel } from '../utils/format';
 import LabelPrintModal from './LabelPrintModal';
 
 // Judul kecil pemisah antar kelompok isian
@@ -90,6 +90,7 @@ export default function AddParcelModal({
   const feeField = isHC ? 'hc_fee' : 'wh_fee';
   const weight = parseInt(form.estimated_weight_grams) || 0;
   const autoFee = feePerGram > 0 && weight > 0 ? Math.round(weight * feePerGram * 100) / 100 : 0;
+  const surcharge = isHC ? 0 : weightSurcharge(weight);
 
   function setField(key, value) {
     setForm(f => ({ ...f, [key]: value }));
@@ -117,6 +118,17 @@ export default function AddParcelModal({
       // isi otomatis biaya kalau tarif per gram sudah diset
       if (feePerGram > 0 && w > 0) {
         next[feeField] = String(Math.round(w * feePerGram * 100) / 100);
+      }
+      // Warehouse: paket berat kena tambahan tetap. Diisikan ke Additional
+      // Fee supaya admin masih bisa mengubahnya kalau memang perlu, dan
+      // hanya kalau isinya masih angka bawaan dari berat sebelumnya.
+      if (!isHC) {
+        const before = weightSurcharge(f.estimated_weight_grams);
+        const after = weightSurcharge(v);
+        const current = Number(f.additional_fee) || 0;
+        if (after !== before && (!current || current === before)) {
+          next.additional_fee = after ? String(after) : '';
+        }
       }
       return next;
     });
@@ -357,6 +369,17 @@ export default function AddParcelModal({
               </label>
               <input type="number" min="0" step="0.01" className="input-field" value={form.additional_fee}
                 onChange={e => setField('additional_fee', e.target.value)} placeholder="0" />
+              {!isHC && surcharge > 0 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Berat {weightTierLabel(weight)} → tambahan ¥{surcharge}
+                  {Number(form.additional_fee) !== surcharge && (
+                    <button type="button" className="text-matcha-600 underline font-medium ml-1"
+                      onClick={() => setField('additional_fee', String(surcharge))}>
+                      pakai
+                    </button>
+                  )}
+                </p>
+              )}
             </div>
           </div>
 

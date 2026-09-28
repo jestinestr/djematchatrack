@@ -9,7 +9,7 @@ import UpdateBanner from '../components/UpdateBanner';
 import { ManualMineNotice, UnclaimedNotice } from '../components/ManualNotices';
 import TodayNotice from '../components/TodayNotice';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
-import { fetchAsUser, downloadMany, slugify, cardName, money } from '../utils/format';
+import { fetchAsUser, downloadMany, slugify, cardName, money, formatDate } from '../utils/format';
 
 const META = {
   HC: { icon: '✈️', title: 'Hand Carry', path: 'hc' },
@@ -444,6 +444,23 @@ export default function UserPanel({ type }) {
                   onOpenParcel={p => setDetail(p)}
                 />
                 <UnclaimedNotice parcels={unclaimedShown} onDismiss={hideUnclaimed} />
+
+                {/* Box yang sudah ditutup — barangnya sudah jalan ke pelanggan */}
+                {batch.status === 'closed' && (
+                  <div className="rounded-3xl border-2 border-sky-200 bg-sky-50 p-4 flex items-start gap-3">
+                    <span className="text-2xl leading-none">📮</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-sky-900">
+                        {batch.title} sudah ditutup dan dikirim
+                      </p>
+                      <p className="text-xs text-sky-700/90 mt-0.5 leading-snug">
+                        Admin sudah mengirim isinya ke alamat yang kamu minta
+                        {batch.closed_at ? ` pada ${formatDate(batch.closed_at, false)}` : ''}.
+                        Resi di bawah ini tinggal arsip ya 💚
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Tracker foto — berapa resi yang sudah difoto */}
                 {mine.length > 0 && (

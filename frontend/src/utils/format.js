@@ -92,6 +92,30 @@ export const tail4 = tn => String(tn || '').trim().slice(-4) || '----';
 
 // Susun foto jadi "kartu": foto persegi di atas, nama di kiri bawah,
 // 4 digit terakhir resi besar di kanan bawah. Foto asli tidak diubah.
+// ── Tambahan biaya menurut berat (Warehouse) ────────────────────────
+//  Paket berat makan tempat dan tenaga lebih, jadi di atas 3 kg ada
+//  tambahan tetap di luar tarif dasar. Satuannya Yuan, sama seperti
+//  tarif WH lainnya.
+export const WEIGHT_TIERS = [
+  { min: 3000, max: 5000,  extra: 0.75, label: '3 – 5 kg' },
+  { min: 5001, max: 10000, extra: 1.5,  label: '5 – 10 kg' },
+];
+
+// Di atas 10 kg tarifnya belum ditentukan; sementara ikut tingkat terakhir
+export function weightSurcharge(grams) {
+  const w = parseInt(grams) || 0;
+  if (w < WEIGHT_TIERS[0].min) return 0;
+  const tier = WEIGHT_TIERS.find(t => w >= t.min && w <= t.max);
+  return tier ? tier.extra : WEIGHT_TIERS[WEIGHT_TIERS.length - 1].extra;
+}
+
+export function weightTierLabel(grams) {
+  const w = parseInt(grams) || 0;
+  const tier = WEIGHT_TIERS.find(t => w >= t.min && w <= t.max);
+  if (tier) return tier.label;
+  return w > WEIGHT_TIERS[WEIGHT_TIERS.length - 1].max ? 'di atas 10 kg' : '';
+}
+
 export async function makePhotoCard(url, name, tracking) {
   const res = await fetch(url);
   if (!res.ok) throw new Error('Foto gagal dimuat');
@@ -104,19 +128,22 @@ export async function makePhotoCard(url, name, tracking) {
       i.src = src;
     });
 
-    const W = 1080, PAD = 60, PH = W - PAD * 2, H = PAD + PH + 260;
+    // Bentuk foto dibiarkan apa adanya — kalau admin sudah mengatur bingkainya
+    // (1:1, 4:3, 3:4) di perapi foto, yang diunduh harus sama persis, tidak
+    // dipotong ulang jadi persegi.
+    const W = 1080, PAD = 60, PW = W - PAD * 2;
+    const PH = Math.round(PW * (img.height / img.width));
+    const H = PAD + PH + 260;
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, W, H);
 
-    // Potong tengah supaya foto selalu persegi (seperti object-cover)
-    const side = Math.min(img.width, img.height);
-    ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, PAD, PAD, PH, PH);
+    ctx.drawImage(img, 0, 0, img.width, img.height, PAD, PAD, PW, PH);
     ctx.strokeStyle = '#d6d3d1';
     ctx.lineWidth = 2;
-    ctx.strokeRect(PAD, PAD, PH, PH);
+    ctx.strokeRect(PAD, PAD, PW, PH);
 
     const baseY = PAD + PH + 175;
     const tail = tail4(tracking);
