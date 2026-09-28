@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../utils/image';
 import { clearSession, isUploader } from '../utils/auth';
+import PhotoEditor from '../components/PhotoEditor';
 
 // Panel khusus untuk pegang ponsel: cari resi, jepret/unggah foto, selesai.
 // Sengaja tidak menampilkan biaya, denda, invoice, atau kode akses.
@@ -286,6 +287,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
   const [busy, setBusy] = useState('');     // slot yang sedang diunggah
   const [error, setError] = useState('');
   const [zoom, setZoom] = useState(null);
+  const [editorSlot, setEditorSlot] = useState(null); // slot foto yang sedang dirapikan
   const [editing, setEditing] = useState(false);
   const [codes, setCodes] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -311,12 +313,13 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
       .catch(() => {});
   }, [editing, codes.length]);
 
-  async function handleFile(slot, file) {
+  async function handleFile(slot, file, { rapi = false } = {}) {
     if (!file) return;
     setError('');
     setBusy(slot);
     try {
-      const small = await compressImage(file);
+      // Hasil dari editor sudah pas ukurannya, tidak perlu dikecilkan lagi
+      const small = rapi ? file : await compressImage(file);
       const fd = new FormData();
       fd.append('photo', small);
       fd.append('kind', parcel.kind);
@@ -332,7 +335,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
         co_photo_url: data.co_photo_url,
         photo_uploaded_at: data.photo_uploaded_at,
       });
-      onToast(slot === 'photo' ? '✅ Foto arrival tersimpan' : '✅ Foto CO tersimpan');
+      onToast(rapi ? '✅ Foto dirapikan' : slot === 'photo' ? '✅ Foto arrival tersimpan' : '✅ Foto CO tersimpan');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -533,21 +536,37 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
                 )}
 
                 {url && (
-                  <div className="flex gap-2 mt-2">
-                    <PickButton camera
-                      className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-matcha-800 text-white
-                                 active:translate-y-[1px]">
-                      📷 Jepret ulang
-                    </PickButton>
-                    <PickButton
-                      className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
-                                 border-2 border-cream-300 active:translate-y-[1px]">
-                      🖼️ Galeri
-                    </PickButton>
-                    <button onClick={() => removePhoto(slot.key)} disabled={uploading}
-                      className="px-3.5 text-xs font-bold rounded-2xl bg-berry-50 text-berry-600 disabled:opacity-50">
-                      Hapus
-                    </button>
+                  <div className="space-y-2 mt-2">
+                    {/* Lihat besar & rapikan posisinya */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => setZoom(url)}
+                        className="text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                                   border-2 border-cream-300 active:translate-y-[1px]">
+                        👁 Lihat
+                      </button>
+                      <button onClick={() => setEditorSlot(slot)} disabled={uploading}
+                        className="text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                                   border-2 border-cream-300 active:translate-y-[1px] disabled:opacity-50">
+                        ✂️ Atur posisi
+                      </button>
+                    </div>
+                    {/* Ganti fotonya sama sekali */}
+                    <div className="flex gap-2">
+                      <PickButton camera
+                        className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-matcha-800 text-white
+                                   active:translate-y-[1px]">
+                        📷 Jepret ulang
+                      </PickButton>
+                      <PickButton
+                        className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                                   border-2 border-cream-300 active:translate-y-[1px]">
+                        🖼️ Galeri
+                      </PickButton>
+                      <button onClick={() => removePhoto(slot.key)} disabled={uploading}
+                        className="px-3.5 text-xs font-bold rounded-2xl bg-berry-50 text-berry-600 disabled:opacity-50">
+                        Hapus
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -615,6 +634,18 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
         <div className="photo-zoom-overlay" onClick={e => { e.stopPropagation(); setZoom(null); }}>
           <img src={zoom} alt="" className="max-w-full max-h-full object-contain" />
         </div>
+      )}
+
+      {editorSlot && (
+        <PhotoEditor
+          url={parcel[editorSlot.field]}
+          title={editorSlot.label}
+          onClose={() => setEditorSlot(null)}
+          onSave={async file => {
+            await handleFile(editorSlot.key, file, { rapi: true });
+            setEditorSlot(null);
+          }}
+        />
       )}
     </div>
   );
