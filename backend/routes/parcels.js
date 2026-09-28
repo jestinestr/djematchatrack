@@ -239,6 +239,16 @@ function registerUserView(kind) {
 // ── Warehouse berbasis box ──────────────────────────────────────────
 //  Batch tidak lagi dipakai sebagai pengelompokan WH. Kolom batch_id
 //  tetap terisi di belakang layar supaya data lama tidak berubah.
+// Box terbuka milik pelanggan; yang terbaru dipakai kalau ada lebih dari satu
+async function openBoxOf(ownerCodeId) {
+  const { data } = await supabase
+    .from('boxes').select('id')
+    .eq('owner_code_id', ownerCodeId).eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  return data?.[0]?.id ?? null;
+}
+
 async function loadWhBoxes() {
   const [bx, rows] = await Promise.all([
     supabase.from('boxes').select('*'),
@@ -300,6 +310,12 @@ function registerCrud(kind) {
       const batch = await getBatch(parseInt(batch_id));
       const payload = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
       payload.batch_id = parseInt(batch_id);
+      // Resi WH yang diketik admin tanpa memilih box langsung ditaruh di box
+      // terbuka milik pemiliknya — kalau belum punya, biar jadi "tanpa box"
+      // dulu dan nanti ikut terangkut waktu box barunya dibuat.
+      if (kind === 'wh' && !payload.box_id && payload.owner_code_id) {
+        payload.box_id = await openBoxOf(payload.owner_code_id);
+      }
       if (kind === 'wh' && payload.owner_code_id) {
         const pkgId = await activePackageId(payload.owner_code_id);
         if (pkgId) payload.package_id = pkgId; // resi otomatis masuk paket aktif

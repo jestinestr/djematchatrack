@@ -64,14 +64,26 @@ router.post('/', async (req, res) => {
     .select().single();
   if (error) return res.status(500).json({ error: error.message });
 
+  // Resi pelanggan ini yang sedang menggantung tanpa box langsung ikut masuk.
+  // Ini yang terjadi pada resi yang tidak kebagian box waktu box lama ditutup:
+  // begitu box baru dibuka, mereka pindah sendiri.
+  const { data: loose } = await supabase
+    .from('wh_parcels').select('id')
+    .eq('owner_code_id', data.owner_code_id).is('box_id', null);
+  const adopted = (loose || []).map(p => p.id);
+  if (adopted.length) {
+    await supabase.from('wh_parcels').update({ box_id: data.id }).in('id', adopted);
+  }
+
   const [withOwner] = await withOwners([data]);
   logActivity({
     action: 'box_add',
     summary: `Buat box ${boxLabel(data, withOwner.owner?.label)}`,
+    detail: adopted.length ? `${adopted.length} resi tanpa box ikut dimasukkan` : null,
     ref_type: 'box',
     ref_id: data.id,
   });
-  res.json(withOwner);
+  res.json({ ...withOwner, adopted: adopted.length });
 });
 
 // ── Ubah nama / catatan box ─────────────────────────────────────────

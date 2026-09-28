@@ -10,6 +10,7 @@ export default function AdminGallery() {
   const [typeFilter, setTypeFilter] = useState('all');   // 'all'|'HC'|'WH'
   const [batchFilter, setBatchFilter] = useState('active'); // 'active'|batch_id
   const [ownerFilter, setOwnerFilter] = useState('all');    // 'all'|owner id
+  const [order, setOrder] = useState('new');                // 'new'|'old'
   const [selected, setSelected]   = useState(new Set());
   const [downloading, setDownloading] = useState(false);
   const [downloadedIds, setDownloadedIds] = useState(new Set());
@@ -66,8 +67,11 @@ export default function AdminGallery() {
       if (batchFilter === 'active') return p._batch.status === 'active';
       if (batchFilter !== 'all') return String(p._batch.id) === String(batchFilter);
       return true;
-    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [allParcels, typeFilter, batchFilter, ownerFilter]);
+    }).sort((a, b) => {
+      const selisih = new Date(b.created_at) - new Date(a.created_at);
+      return order === 'old' ? -selisih : selisih;
+    });
+  }, [allParcels, typeFilter, batchFilter, ownerFilter, order]);
 
   function toggleSelect(id) {
     setSelected(prev => {
@@ -173,6 +177,18 @@ export default function AdminGallery() {
             <option key={o.id} value={String(o.id)}>{o.label}</option>
           ))}
         </select>
+
+        {/* Urutan */}
+        <div className="flex gap-1 bg-white border border-cream-200 rounded-xl p-1">
+          {[['new', '↓ Terbaru'], ['old', '↑ Terlama']].map(([v, l]) => (
+            <button key={v} onClick={() => setOrder(v)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                order === v ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'
+              }`}>
+              {l}
+            </button>
+          ))}
+        </div>
 
         {/* Spacer */}
         <div className="flex-1" />

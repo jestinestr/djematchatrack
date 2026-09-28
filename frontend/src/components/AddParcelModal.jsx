@@ -91,6 +91,7 @@ export default function AddParcelModal({
   const weight = parseInt(form.estimated_weight_grams) || 0;
   const autoFee = feePerGram > 0 && weight > 0 ? Math.round(weight * feePerGram * 100) / 100 : 0;
   const surcharge = isHC ? 0 : weightSurcharge(weight);
+  const needQty = form.parcel_type === 'paperbased' && !form.is_manual_input;
 
   function setField(key, value) {
     setForm(f => ({ ...f, [key]: value }));
@@ -312,11 +313,17 @@ export default function AddParcelModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {form.parcel_type === 'paperbased' ? 'Jumlah paperbased (pcs)' : 'Qty (pcs)'}
-                  {form.parcel_type === 'paperbased' && <span className="text-red-500"> *</span>}
+                  {needQty && <span className="text-red-500"> *</span>}
                 </label>
                 <input type="number" min="1" className="input-field" value={form.estimated_quantity}
-                  required={form.parcel_type === 'paperbased'}
-                  onChange={e => setField('estimated_quantity', e.target.value)} placeholder="cth: 5" />
+                  required={needQty}
+                  onChange={e => setField('estimated_quantity', e.target.value)}
+                  placeholder={needQty ? 'cth: 5' : 'boleh dikosongkan'} />
+                {form.parcel_type === 'paperbased' && !needQty && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Resi ketikan sendiri — jumlah pcs tidak wajib diisi
+                  </p>
+                )}
               </div>
             ) : <div />}
           </div>

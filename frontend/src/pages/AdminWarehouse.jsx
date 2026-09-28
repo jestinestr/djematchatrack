@@ -24,6 +24,7 @@ export default function AdminWarehouse() {
   const [showForm, setShowForm] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [extraFilter, setExtraFilter] = useState('all'); // all | unboxing | freebies | manual
+  const [order, setOrder] = useState('new');     // new | old
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);   // tambah resi dari tampilan Semua Resi
   // Penanda urutan versi lama masih mengendap di browser ini. Dulu memang
@@ -223,16 +224,17 @@ export default function AdminWarehouse() {
         return true;
       })
       // Yang sudah ditandai dibuka naik ke atas sesuai nomornya — paling
-      // gampang dicari waktu mencocokkan foto. Sisanya terbaru di atas.
+      // gampang dicari waktu mencocokkan foto. Sisanya ikut urutan pilihan.
       .sort((a, b) => {
         const ao = a.open_order ?? null;
         const bo = b.open_order ?? null;
         if (ao !== null && bo !== null) return ao - bo;
         if (ao !== null) return -1;
         if (bo !== null) return 1;
-        return new Date(b.created_at) - new Date(a.created_at);
+        const selisih = new Date(b.created_at) - new Date(a.created_at);
+        return order === 'old' ? -selisih : selisih;
       });
-  }, [boxes, unassigned, search, ownerFilter, showClosed, extraFilter]);
+  }, [boxes, unassigned, search, ownerFilter, showClosed, extraFilter, order]);
 
   const listPaged = usePaged(flat, pageSize);
 
@@ -375,6 +377,16 @@ export default function AdminWarehouse() {
           <option value="freebies">🎁 Freebies tinggal</option>
           <option value="manual">✍️ Input manual</option>
         </select>
+        <div className="flex gap-1 bg-cream-100 rounded-xl p-0.5">
+          {[['new', '↓ Terbaru'], ['old', '↑ Terlama']].map(([v, l]) => (
+            <button key={v} onClick={() => setOrder(v)}
+              className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold transition-colors ${
+                order === v ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'
+              }`}>
+              {l}
+            </button>
+          ))}
+        </div>
         <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap"
                title="Box yang sudah ditutup tersimpan di halaman Arsip">
           <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}
