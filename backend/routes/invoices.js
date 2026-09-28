@@ -175,6 +175,48 @@ router.post('/batch/:batchId/owner/:ownerId/fees', async (req, res) => {
   }
 });
 
+// Biaya lama yang menempel di kolom box dipindah jadi baris pertama
+async function migrateLegacyBoxFee(boxId) {
+  const { data: box } = await supabase
+    .from('boxes').select('additional_fee, additional_fee_currency, additional_note')
+    .eq('id', boxId).maybeSingle();
+  if (!box || !num(box.additional_fee)) return;
+
+  const { error } = await supabase.from('invoice_fees').insert({
+    box_id: boxId,
+    label: box.additional_note || 'Biaya tambahan',
+    amount: num(box.additional_fee),
+    currency: currencyOf(box.additional_fee_currency),
+  });
+  if (error) return;
+
+  await supabase.from('boxes')
+    .update({ additional_fee: 0, additional_note: null })
+    .eq('id', boxId);
+}
+
+router.post('/box/:boxId/fees', async (req, res) => {
+  const boxId = parseInt(req.params.boxId);
+  const amount = num(req.body.amount);
+  if (!amount) return res.status(400).json({ error: 'Nominal biaya tidak boleh kosong' });
+
+  try {
+    await migrateLegacyBoxFee(boxId);
+    const { data, error } = await supabase.from('invoice_fees').insert({
+      box_id: boxId,
+      label: req.body.label?.trim() || null,
+      amount: Math.max(0, amount),
+      currency: currencyOf(req.body.currency),
+    }).select().single();
+    if (error) throw new Error(error.message);
+    res.json(data);
+  } catch {
+    res.status(503).json({
+      error: 'Biaya tambahan untuk box belum aktif — jalankan supabase/migrations/015_invoice_fees_box.sql',
+    });
+  }
+});
+
 router.delete('/fees/:feeId', async (req, res) => {
   const { error } = await supabase.from('invoice_fees').delete().eq('id', req.params.feeId);
   if (error) return res.status(500).json({ error: error.message });
@@ -227,11 +269,17 @@ router.get('/box/:boxId', async (req, res) => {
     const pkg = pkgs?.[0] || null;
     const title = pkg ? `${pkg.name} periode ${pkg.period_no} - ${box.name}` : box.name;
 
+    const feeRows = await supabase.from('invoice_fees').select('*').eq('box_id', box.id);
+    const fees = (feeRows.data || [])
+      .map(f => ({ id: f.id, label: f.label || '', amount: num(f.amount), currency: currencyOf(f.currency) }))
+      .sort((a, b) => a.id - b.id);
+
     const totals = emptyTotals();
     for (const p of parcels) addParcel(totals, p, 'WH');
     if (num(box.additional_fee)) {
       totals[currencyOf(box.additional_fee_currency)].additional += num(box.additional_fee);
     }
+    for (const fee of fees) totals[fee.currency].additional += fee.amount;
 
     res.json({
       batch: { id: box.id, type: 'WH', batch_number: box.name, label: title, status: box.status },
@@ -241,6 +289,7 @@ router.get('/box/:boxId', async (req, res) => {
         parcels: parcels.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
         parcel_count: parcels.length,
         totals: finalize(totals),
+        fees,
         box_title: title,
         invoice: {
           additional_fee: num(box.additional_fee),

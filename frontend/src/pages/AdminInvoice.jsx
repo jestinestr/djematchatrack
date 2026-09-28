@@ -149,7 +149,10 @@ export default function AdminInvoice() {
     if (!Number(d.additional_fee)) return;
     setSavingId(ownerId);
     try {
-      const res = await fetch(`/api/invoices/batch/${batchId}/owner/${ownerId}/fees`, {
+      const url = isBox
+        ? `/api/invoices/box/${batchId}/fees`
+        : `/api/invoices/batch/${batchId}/owner/${ownerId}/fees`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,9 +178,10 @@ export default function AdminInvoice() {
     await refreshInvoice();
   }
 
-  // Biaya versi lama (satu angka di batch_invoices) dihapus lewat jalur lamanya
+  // Biaya versi lama (satu angka di batch_invoices / boxes) dihapus lewat
+  // jalur lamanya, karena tempat simpannya juga masih yang lama
   async function removeLegacyFee(ownerId) {
-    await fetch(`/api/invoices/batch/${batchId}/owner/${ownerId}`, {
+    await fetch(isBox ? `/api/invoices/box/${batchId}/extra` : `/api/invoices/batch/${batchId}/owner/${ownerId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ additional_fee: 0, additional_fee_currency: 'IDR', additional_note: '' }),
@@ -185,28 +189,6 @@ export default function AdminInvoice() {
     await refreshInvoice();
   }
 
-  async function saveAdditional(ownerId) {
-    const d = drafts[ownerId] || {};
-    setSavingId(ownerId);
-    try {
-      const res = await fetch(isBox ? `/api/invoices/box/${batchId}/extra` : `/api/invoices/batch/${batchId}/owner/${ownerId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          additional_fee: Number(d.additional_fee) || 0,
-          additional_fee_currency: d.currency || 'IDR',
-          additional_note: d.note || '',
-        }),
-      });
-      if (res.ok) {
-        // muat ulang supaya total ikut terbarui
-        const fresh = await fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`).then(r => r.json());
-        setData(fresh);
-      }
-    } finally {
-      setSavingId(null);
-    }
-  }
 
   // ── Cetak ─────────────────────────────────────────────────────────
   function printInvoices() {
@@ -441,7 +423,7 @@ export default function AdminInvoice() {
                   </div>
 
                   {/* Biaya tambahan — batch boleh banyak baris */}
-                  {c.owner && !isBox && (c.fees?.length > 0 || Number(c.invoice.additional_fee) > 0) && (
+                  {c.owner && (c.fees?.length > 0 || Number(c.invoice.additional_fee) > 0) && (
                     <div className="px-4 pt-3 space-y-1.5">
                       {Number(c.invoice.additional_fee) > 0 && (
                         <div className="flex items-center gap-2 text-sm bg-cream-50 rounded-xl px-3 py-2">
@@ -475,7 +457,7 @@ export default function AdminInvoice() {
                     <div className="px-4 py-3 flex flex-wrap items-end gap-2 border-b border-cream-100">
                       <div className="w-32">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
-                          {isBox ? 'Additional Fee' : 'Tambah Biaya'}
+                          Tambah Biaya
                         </label>
                         <input
                           type="number" min="0" step="0.01"
@@ -508,11 +490,11 @@ export default function AdminInvoice() {
                         />
                       </div>
                       <button
-                        onClick={() => (isBox ? saveAdditional(c.owner.id) : addFee(c.owner.id))}
+                        onClick={() => addFee(c.owner.id)}
                         disabled={savingId === c.owner.id}
                         className="btn-primary text-xs px-3 py-2 disabled:opacity-50"
                       >
-                        {savingId === c.owner.id ? '...' : isBox ? '💾 Simpan' : '+ Tambah'}
+                        {savingId === c.owner.id ? '...' : '+ Tambah'}
                       </button>
                     </div>
                   )}
