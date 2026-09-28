@@ -26,6 +26,14 @@ export default function AdminWarehouse() {
   const [extraFilter, setExtraFilter] = useState('all'); // all | unboxing | freebies | manual
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);   // tambah resi dari tampilan Semua Resi
+  // Penanda urutan versi lama masih mengendap di browser ini. Dulu memang
+  // di situ tempatnya; sekarang sudah pindah ke database, jadi sisanya
+  // ditawarkan untuk dipulihkan sekali lalu dibuang.
+  const [oldMarks, setOldMarks] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wh_open_marks') || '{}'); }
+    catch { return {}; }
+  });
+  const [restoring, setRestoring] = useState(false);
   const [detail, setDetail] = useState(null);
   const [selected, setSelected] = useState(new Set()); // resi tercentang di tabel
   const [labelTargets, setLabelTargets] = useState(null);
@@ -97,6 +105,30 @@ export default function AdminWarehouse() {
 
   const clearOpenMarks = useCallback(() =>
     callMark('/api/photos/mark', { method: 'DELETE' }), [callMark]);
+
+  function forgetOldMarks() {
+    try { localStorage.removeItem('wh_open_marks'); } catch { /* mode privat */ }
+    setOldMarks({});
+  }
+
+  async function restoreOldMarks() {
+    setRestoring(true);
+    try {
+      const entries = Object.entries(oldMarks)
+        .sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+      for (const [id, mark] of entries) {
+        await fetch('/api/photos/mark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: 'wh', id, order: mark.order, printed: !!mark.printed }),
+        });
+      }
+      forgetOldMarks();
+      await load();
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   // Label yang benar-benar tercetak dicatat; nomornya lepas sendiri di server
   // begitu foto arrival-nya juga sudah masuk.
@@ -434,6 +466,31 @@ export default function AdminWarehouse() {
             className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-matcha-800 hover:bg-cream-100"
           >
             🏷 Cetak Label ({selected.size})
+          </button>
+        </div>
+      )}
+
+      {/* Penanda urutan lama yang masih tersimpan di browser ini */}
+      {view === 'list' && Object.keys(oldMarks).length > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-3.5 py-2.5 rounded-xl bg-sky-50 border border-sky-200">
+          <span className="text-base leading-none">🛟</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-sky-900">
+              Ketemu {Object.keys(oldMarks).length} penanda urutan lama di browser ini
+            </p>
+            <p className="text-[11px] text-sky-700/80">
+              Dari sebelum penanda pindah ke database — bisa dipulihkan sekarang
+            </p>
+          </div>
+          <div className="flex-1" />
+          <button onClick={restoreOldMarks} disabled={restoring}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-600 text-white
+                       hover:bg-sky-700 disabled:opacity-50 whitespace-nowrap">
+            {restoring ? 'Memulihkan…' : 'Pulihkan'}
+          </button>
+          <button onClick={forgetOldMarks} disabled={restoring}
+            className="text-[11px] font-semibold text-sky-700 hover:text-sky-900 underline whitespace-nowrap">
+            Buang
           </button>
         </div>
       )}

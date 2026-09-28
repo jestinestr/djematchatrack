@@ -228,13 +228,22 @@ async function clearIfDone(table, id) {
   }
 }
 
+//  body { kind, id }                  → dapat nomor berikutnya
+//  body { kind, id, order, printed }  → dipakai saat memulihkan penanda lama
+//                                       yang dulu tersimpan di browser
 router.post('/mark', async (req, res) => {
   const kind = kindOf(req.body.kind);
   if (!kind || !req.body.id) return res.status(400).json({ error: 'Data tidak valid' });
   if (!(await openMarkReady(res))) return;
 
+  const asked = parseInt(req.body.order);
+  const updates = {
+    open_order: Number.isFinite(asked) && asked > 0 ? asked : await nextOpenNumber(),
+    open_printed: req.body.printed === true || req.body.printed === 'true',
+  };
+
   const { data, error } = await supabase
-    .from(TABLE[kind]).update({ open_order: await nextOpenNumber() })
+    .from(TABLE[kind]).update(updates)
     .eq('id', req.body.id).select('id, open_order, open_printed').single();
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ...data, kind });
