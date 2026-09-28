@@ -366,10 +366,54 @@ export default function UserPanel({ type }) {
               </div>
             )}
 
+            {/* Kartu paket tampil walau resinya belum ada — di situlah status
+                DP paling perlu kelihatan */}
+            {/* Kuota paket WH pelanggan */}
+            {pkg && (
+              <div className={`border-2 rounded-2xl px-4 py-3 ${pkg.overflow ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">📦</span>
+                  <p className="text-sm font-bold text-gray-800 flex-1">
+                    {pkg.name} <span className="font-medium text-gray-500">· periode {pkg.period_no}</span>
+                  </p>
+                  <span className="text-sm font-black text-gray-800">{Math.min(pkg.used, pkg.quota)}/{pkg.quota}</span>
+                </div>
+                <div className="h-2 bg-white rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${pkg.overflow ? 'bg-red-500' : 'bg-teal-500'}`}
+                    style={{ width: `${Math.min(100, Math.round((pkg.used / pkg.quota) * 100))}%` }} />
+                </div>
+                <p className="text-xs mt-2 text-gray-600">
+                  {pkg.overflow
+                    ? `Kuota sudah habis, ada ${pkg.overflow} resi kelebihan. Hubungi admin untuk perpanjang paket.`
+                    : `Sisa ${pkg.remaining} resi lagi di paket ini.`}
+                </p>
+
+                {/* Status pembayaran paket */}
+                {pkg.price > 0 && (
+                  <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-white/60">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                      pkg.payment_status === 'lunas' ? 'bg-green-100 text-green-700 border-green-300'
+                      : pkg.payment_status === 'dp' ? 'bg-amber-100 text-amber-700 border-amber-300'
+                      : 'bg-red-100 text-red-700 border-red-300'
+                    }`}>
+                      {pkg.payment_status === 'lunas' ? '✓ Lunas'
+                        : pkg.payment_status === 'dp' ? 'Sudah DP' : 'Belum bayar'}
+                    </span>
+                    <p className="text-[11px] text-gray-600">
+                      {pkg.payment_status === 'lunas'
+                        ? `${money(pkg.price, 'CNY')} · terima kasih! 💚`
+                        : `${money(pkg.paid, 'CNY')} dari ${money(pkg.price, 'CNY')} · sisa ${money(pkg.due, 'CNY')}`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {!loading && !error && !batch && (
               <div className="card text-center py-16 text-gray-400">
                 <div className="text-4xl mb-3">📭</div>
-                <p>Belum ada paket untukmu</p>
+                <p>Belum ada resi untukmu</p>
+                <p className="text-sm mt-1">Resi yang masuk bakal muncul di sini</p>
               </div>
             )}
 
@@ -400,47 +444,6 @@ export default function UserPanel({ type }) {
                   onOpenParcel={p => setDetail(p)}
                 />
                 <UnclaimedNotice parcels={unclaimedShown} onDismiss={hideUnclaimed} />
-
-                {/* Kuota paket WH pelanggan */}
-                {pkg && (
-                  <div className={`border-2 rounded-2xl px-4 py-3 ${pkg.overflow ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">📦</span>
-                      <p className="text-sm font-bold text-gray-800 flex-1">
-                        {pkg.name} <span className="font-medium text-gray-500">· periode {pkg.period_no}</span>
-                      </p>
-                      <span className="text-sm font-black text-gray-800">{Math.min(pkg.used, pkg.quota)}/{pkg.quota}</span>
-                    </div>
-                    <div className="h-2 bg-white rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${pkg.overflow ? 'bg-red-500' : 'bg-teal-500'}`}
-                        style={{ width: `${Math.min(100, Math.round((pkg.used / pkg.quota) * 100))}%` }} />
-                    </div>
-                    <p className="text-xs mt-2 text-gray-600">
-                      {pkg.overflow
-                        ? `Kuota sudah habis, ada ${pkg.overflow} resi kelebihan. Hubungi admin untuk perpanjang paket.`
-                        : `Sisa ${pkg.remaining} resi lagi di paket ini.`}
-                    </p>
-
-                    {/* Status pembayaran paket */}
-                    {pkg.price > 0 && (
-                      <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-white/60">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                          pkg.payment_status === 'lunas' ? 'bg-green-100 text-green-700 border-green-300'
-                          : pkg.payment_status === 'dp' ? 'bg-amber-100 text-amber-700 border-amber-300'
-                          : 'bg-red-100 text-red-700 border-red-300'
-                        }`}>
-                          {pkg.payment_status === 'lunas' ? '✓ Lunas'
-                            : pkg.payment_status === 'dp' ? 'Sudah DP' : 'Belum bayar'}
-                        </span>
-                        <p className="text-[11px] text-gray-600">
-                          {pkg.payment_status === 'lunas'
-                            ? `${money(pkg.price, 'CNY')} · terima kasih! 💚`
-                            : `${money(pkg.paid, 'CNY')} dari ${money(pkg.price, 'CNY')} · sisa ${money(pkg.due, 'CNY')}`}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Tracker foto — berapa resi yang sudah difoto */}
                 {mine.length > 0 && (
