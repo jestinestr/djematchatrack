@@ -96,6 +96,7 @@ export default function PhotoAdmin() {
 
   const withPhoto = parcels.filter(p => p.photo_url).length;
   const needUnboxing = parcels.filter(p => p.need_unboxing).length;
+  const markedCount = parcels.filter(p => p.open_order != null).length;
 
   return (
     <div className="min-h-screen bg-cream-100 pb-10">
@@ -191,6 +192,7 @@ export default function PhotoAdmin() {
           <>
             <p className="text-[11px] text-gray-400 font-semibold mb-2 px-1">
               {parcels.length} resi · {withPhoto} sudah ada foto
+              {markedCount > 0 && <span className="text-matcha-700"> · 🔖 {markedCount} ditandai buka</span>}
               {needUnboxing > 0 && (
                 <span className="text-violet-600"> · 🎥 {needUnboxing} minta unboxing</span>
               )}
@@ -204,6 +206,15 @@ export default function PhotoAdmin() {
                       ? 'border-violet-400 ring-2 ring-violet-100'
                       : 'border-cream-200 active:border-matcha-300'
                   }`}>
+                  {/* Nomor urut bongkar, ditandai admin dari PC */}
+                  {p.open_order != null && (
+                    <span className="w-7 h-7 rounded-xl bg-matcha-800 text-white text-xs font-black
+                                     flex items-center justify-center flex-shrink-0"
+                          title={`Paket ke-${p.open_order} yang dibuka`}>
+                      {p.open_order}
+                    </span>
+                  )}
+
                   {/* Cuplikan foto */}
                   <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-cream-100
                                   border-2 border-cream-200 flex items-center justify-center">
@@ -415,6 +426,11 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
             </button>
           </div>
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            {parcel.open_order != null && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-matcha-800 text-white">
+                🔖 Buka ke-{parcel.open_order}
+              </span>
+            )}
             <TypeBadge parcel={parcel} />
             {parcel.owner && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-matcha-50 text-matcha-700">

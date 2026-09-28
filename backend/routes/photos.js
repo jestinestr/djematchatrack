@@ -5,6 +5,7 @@ const supabase = require('../supabase');
 const { uploadPhoto } = require('../lib/storage');
 const { fetchCodes, norm } = require('../lib/owner');
 const { logActivity, parcelLabel } = require('../lib/log');
+const { hasColumn } = require('../lib/columns');
 
 const TABLE = { hc: 'hc_parcels', wh: 'wh_parcels' };
 
@@ -82,7 +83,15 @@ const EDITABLE = {
 // khusus Warehouse). need_unboxing penting dibawa ke panel foto: paket itu
 // harus direkam dulu, jangan sampai keburu dibuka.
 const BASE_COLUMNS = 'id, batch_id, tracking_number, recipient_name, owner_code_id, type, estimated_quantity, estimated_weight_grams, photo_url, co_photo_url, photo_uploaded_at, created_at';
-const columnsFor = kind => (kind === 'wh' ? `${BASE_COLUMNS}, box_id, need_unboxing` : BASE_COLUMNS);
+
+// Kolom penanda urutan hanya diminta kalau migrasi 013 sudah dijalankan,
+// kalau tidak querynya gagal total dan daftar resi ikut kosong.
+async function columnsFor(kind) {
+  const cols = [BASE_COLUMNS];
+  if (kind === 'wh') cols.push('box_id', 'need_unboxing');
+  if (await hasColumn(TABLE[kind], 'open_order')) cols.push('open_order', 'open_printed');
+  return cols.join(', ');
+}
 
 const kindOf = v => (TABLE[String(v || '').toLowerCase()] ? String(v).toLowerCase() : null);
 
@@ -123,9 +132,13 @@ router.get('/worklist', async (req, res) => {
       };
     });
 
+    const columns = Object.fromEntries(await Promise.all(
+      kinds.map(async kind => [kind, await columnsFor(kind)])
+    ));
+
     const baseQuery = kind => {
       let query = supabase
-        .from(TABLE[kind]).select(columnsFor(kind))
+        .from(TABLE[kind]).select(columns[kind])
         .order('created_at', { ascending: false })
         .limit(limit);
       if (missing) query = query.is('photo_url', null);
@@ -160,11 +173,108 @@ router.get('/worklist', async (req, res) => {
       }
     }
 
-    rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    rows.sort(byOpenOrder);
     res.json({ parcels: rows.slice(0, limit) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Penanda urutan bongkar paket ────────────────────────────────────
+//  Nomornya dipakai untuk mencocokkan foto arrival dengan resinya. Disimpan
+//  di database (bukan browser) supaya nomor yang ditandai dari PC kelihatan
+//  juga waktu upload foto dari HP.
+//
+//  Urutan tampil: yang sudah ditandai naik ke atas sesuai nomornya, sisanya
+//  menyusul dari yang terbaru.
+function byOpenOrder(a, b) {
+  const ao = a.open_order ?? null;
+  const bo = b.open_order ?? null;
+  if (ao !== null && bo !== null) return ao - bo;
+  if (ao !== null) return -1;
+  if (bo !== null) return 1;
+  return new Date(b.created_at) - new Date(a.created_at);
+}
+
+async function openMarkReady(res) {
+  if (await hasColumn('wh_parcels', 'open_order')) return true;
+  res.status(503).json({
+    error: 'Penanda urutan belum aktif — jalankan supabase/migrations/013_open_order.sql di Supabase',
+  });
+  return false;
+}
+
+// Nomor berikutnya dihitung di server supaya dua alat tidak dapat nomor kembar
+async function nextOpenNumber() {
+  const tops = await Promise.all(['hc', 'wh'].map(async kind => {
+    const { data } = await supabase
+      .from(TABLE[kind]).select('open_order')
+      .not('open_order', 'is', null)
+      .order('open_order', { ascending: false })
+      .limit(1);
+    return data?.[0]?.open_order || 0;
+  }));
+  return Math.max(0, ...tops) + 1;
+}
+
+// Nomor dilepas begitu label tercetak DAN foto arrival sudah masuk
+async function clearIfDone(table, id) {
+  if (!(await hasColumn(table, 'open_order'))) return;
+  const { data } = await supabase
+    .from(table).select('open_order, open_printed, photo_url').eq('id', id).single();
+  if (!data || data.open_order === null) return;
+  if (data.open_printed && data.photo_url) {
+    await supabase.from(table).update({ open_order: null, open_printed: false }).eq('id', id);
+  }
+}
+
+router.post('/mark', async (req, res) => {
+  const kind = kindOf(req.body.kind);
+  if (!kind || !req.body.id) return res.status(400).json({ error: 'Data tidak valid' });
+  if (!(await openMarkReady(res))) return;
+
+  const { data, error } = await supabase
+    .from(TABLE[kind]).update({ open_order: await nextOpenNumber() })
+    .eq('id', req.body.id).select('id, open_order, open_printed').single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ...data, kind });
+});
+
+// Tandai labelnya sudah dicetak; kalau fotonya sudah ada, nomornya langsung lepas
+router.post('/mark/printed', async (req, res) => {
+  const kind = kindOf(req.body.kind);
+  const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+  if (!kind || !ids.length) return res.status(400).json({ error: 'Data tidak valid' });
+  if (!(await hasColumn(TABLE[kind], 'open_order'))) return res.json({ success: true, skipped: true });
+
+  const { error } = await supabase
+    .from(TABLE[kind]).update({ open_printed: true })
+    .in('id', ids).not('open_order', 'is', null);
+  if (error) return res.status(500).json({ error: error.message });
+
+  await Promise.all(ids.map(id => clearIfDone(TABLE[kind], id)));
+  res.json({ success: true });
+});
+
+router.delete('/mark/:kind/:id', async (req, res) => {
+  const kind = kindOf(req.params.kind);
+  if (!kind) return res.status(400).json({ error: 'Jenis resi tidak dikenal' });
+  if (!(await openMarkReady(res))) return;
+
+  const { error } = await supabase
+    .from(TABLE[kind]).update({ open_order: null, open_printed: false }).eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
+// Buang semua penanda sekaligus ("Reset semua" di tabel WH)
+router.delete('/mark', async (req, res) => {
+  if (!(await openMarkReady(res))) return;
+  await Promise.all(['hc', 'wh'].map(kind =>
+    supabase.from(TABLE[kind]).update({ open_order: null, open_printed: false })
+      .not('open_order', 'is', null)
+  ));
+  res.json({ success: true });
 });
 
 // Unggah / ganti satu foto saja.
@@ -195,6 +305,8 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
       ref_type: `${kind}_parcel`,
       ref_id: data.id,
     });
+
+    if (column === 'photo_url') await clearIfDone(TABLE[kind], data.id);
 
     res.json(data);
   } catch (e) {

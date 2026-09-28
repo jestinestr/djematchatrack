@@ -6,7 +6,6 @@ import LabelPrintModal from '../components/LabelPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone } from '../utils/format';
-import { useOpenMarks } from '../utils/openMarks';
 
 export default function AdminWarehouse() {
   const [boxes, setBoxes] = useState([]);
@@ -32,12 +31,54 @@ export default function AdminWarehouse() {
   const [labelTargets, setLabelTargets] = useState(null);
   const searchRef = useRef(null);
 
-  // Penanda urutan bongkar paket — lihat utils/openMarks.js
   const allParcels = useMemo(
     () => [...boxes.flatMap(b => b.parcels || []), ...unassigned],
     [boxes, unassigned]
   );
-  const openMarks = useOpenMarks(allParcels);
+
+  // Penanda urutan bongkar sekarang ikut data resi di database, jadi nomor
+  // yang ditandai di sini kelihatan juga dari panel foto di HP.
+  const marked = useMemo(
+    () => allParcels.filter(p => p.open_order != null),
+    [allParcels]
+  );
+  const nextOpenNumber = Math.max(0, ...marked.map(p => p.open_order)) + 1;
+
+  // Kalau migrasi 013 belum dijalankan, server menjawab dengan pesan yang
+  // jelas — ditampilkan apa adanya supaya tombolnya tidak terasa rusak.
+  const callMark = useCallback(async (url, options) => {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Penanda urutan gagal disimpan');
+      return false;
+    }
+    load();
+    return true;
+  }, [load]);
+
+  const markOpen = useCallback(id => callMark('/api/photos/mark', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'wh', id }),
+  }), [callMark]);
+
+  const unmarkOpen = useCallback(id =>
+    callMark(`/api/photos/mark/wh/${id}`, { method: 'DELETE' }), [callMark]);
+
+  const clearOpenMarks = useCallback(() =>
+    callMark('/api/photos/mark', { method: 'DELETE' }), [callMark]);
+
+  // Label yang benar-benar tercetak dicatat; nomornya lepas sendiri di server
+  // begitu foto arrival-nya juga sudah masuk.
+  const markPrinted = useCallback(async ids => {
+    await fetch('/api/photos/mark/printed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'wh', ids }),
+    });
+    load();
+  }, [load]);
 
   // Resi yang diketik admin tapi pemiliknya belum ditentukan — ini yang
   // muncul sebagai "resi nyasar" di panel pelanggan
@@ -149,7 +190,16 @@ export default function AdminWarehouse() {
         }
         return true;
       })
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      // Yang sudah ditandai dibuka naik ke atas sesuai nomornya — paling
+      // gampang dicari waktu mencocokkan foto. Sisanya terbaru di atas.
+      .sort((a, b) => {
+        const ao = a.open_order ?? null;
+        const bo = b.open_order ?? null;
+        if (ao !== null && bo !== null) return ao - bo;
+        if (ao !== null) return -1;
+        if (bo !== null) return 1;
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
   }, [boxes, unassigned, search, ownerFilter, showClosed, extraFilter]);
 
   const listPaged = usePaged(flat, pageSize);
@@ -293,10 +343,11 @@ export default function AdminWarehouse() {
           <option value="freebies">🎁 Freebies tinggal</option>
           <option value="manual">✍️ Input manual</option>
         </select>
-        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap">
+        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap"
+               title="Box yang sudah ditutup tersimpan di halaman Arsip">
           <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}
             className="accent-matcha-700" />
-          Termasuk box tertutup
+          Tampilkan box arsip
         </label>
         <div className="flex gap-1 bg-cream-100 rounded-xl p-0.5">
           {[['box', 'Per Box'], ['list', 'Semua Resi']].map(([v, l]) => (
@@ -408,19 +459,19 @@ export default function AdminWarehouse() {
       )}
 
       {/* Ringkasan penanda bongkar */}
-      {view === 'list' && openMarks.count > 0 && (
+      {view === 'list' && marked.length > 0 && (
         <div className="flex items-center gap-3 mb-3 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
           <span className="text-base leading-none">🔖</span>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-amber-900">
-              {openMarks.count} resi ditandai dibuka · berikutnya nomor {openMarks.nextNumber}
+              {marked.length} resi ditandai dibuka · berikutnya nomor {nextOpenNumber}
             </p>
             <p className="text-[11px] text-amber-700/80">
               Nomor hilang sendiri setelah label dicetak dan foto arrival masuk
             </p>
           </div>
           <div className="flex-1" />
-          <button onClick={openMarks.clearAll}
+          <button onClick={clearOpenMarks}
             className="text-[11px] font-semibold text-amber-800 hover:text-amber-950 underline whitespace-nowrap">
             Reset semua
           </button>
@@ -474,7 +525,7 @@ export default function AdminWarehouse() {
                       </td>
                       <td className="px-3 py-2 text-gray-400">{listPaged.from + i}</td>
                       <td className="px-3 py-2 text-center">
-                        <OpenMarkCell parcel={p} marks={openMarks} />
+                        <OpenMarkCell parcel={p} next={nextOpenNumber} onMark={markOpen} onUnmark={unmarkOpen} />
                       </td>
                       <td className="px-3 py-2 text-gray-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
                       <td className="px-3 py-2">
@@ -589,7 +640,7 @@ export default function AdminWarehouse() {
       {labelTargets && (
         <LabelPrintModal
           parcels={labelTargets}
-          onPrinted={openMarks.markPrinted}
+          onPrinted={markPrinted}
           type="WH"
           onClose={() => setLabelTargets(null)}
         />
@@ -635,18 +686,16 @@ export default function AdminWarehouse() {
 }
 
 // ── Penanda urutan bongkar paket ────────────────────────────────────
-//  Satu kolom kecil di tabel: klik "+" saat paket dibuka, nomornya dipakai
-//  untuk mencocokkan foto arrival. Dua titik di bawah nomor menunjukkan apa
+//  Klik "+" saat paket dibuka; nomornya tersimpan di database, jadi ikut
+//  kelihatan di panel foto HP. Dua titik di bawah nomor menunjukkan apa
 //  yang masih kurang — label dan foto — karena begitu keduanya beres,
-//  nomornya hilang sendiri.
-function OpenMarkCell({ parcel, marks }) {
-  const mark = marks.get(parcel.id);
-
-  if (!mark) {
+//  nomornya dilepas sendiri oleh server.
+function OpenMarkCell({ parcel, next, onMark, onUnmark }) {
+  if (parcel.open_order == null) {
     return (
       <button
-        onClick={() => marks.mark(parcel.id)}
-        title={`Tandai sebagai paket ke-${marks.nextNumber} yang dibuka`}
+        onClick={() => onMark(parcel.id)}
+        title={`Tandai sebagai paket ke-${next} yang dibuka`}
         className="w-7 h-7 rounded-lg border border-dashed border-cream-300 text-gray-300
                    hover:border-matcha-400 hover:text-matcha-600 hover:bg-cream-50 transition-colors"
       >
@@ -664,15 +713,15 @@ function OpenMarkCell({ parcel, marks }) {
   return (
     <div className="inline-flex flex-col items-center gap-0.5">
       <button
-        onClick={() => marks.unmark(parcel.id)}
-        title={`Paket ke-${mark.order} yang dibuka — klik untuk membatalkan tanda`}
+        onClick={() => onUnmark(parcel.id)}
+        title={`Paket ke-${parcel.open_order} yang dibuka — klik untuk membatalkan tanda`}
         className="w-7 h-7 rounded-lg bg-matcha-800 text-white text-xs font-bold
                    hover:bg-red-600 transition-colors"
       >
-        {mark.order}
+        {parcel.open_order}
       </button>
       <span className="flex gap-1 items-center">
-        {dot(mark.printed, mark.printed ? 'Label sudah dicetak' : 'Label belum dicetak')}
+        {dot(parcel.open_printed, parcel.open_printed ? 'Label sudah dicetak' : 'Label belum dicetak')}
         {dot(hasPhoto, hasPhoto ? 'Foto arrival sudah ada' : 'Foto arrival belum ada')}
       </span>
     </div>

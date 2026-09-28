@@ -6,6 +6,7 @@ const { uploadPhoto } = require('../lib/storage');
 const { fetchCodes, attachOwners, maskParcel, norm } = require('../lib/owner');
 const { logActivity, batchLabel, parcelLabel } = require('../lib/log');
 const { activePackageId, loadPackageInfo, attachPackage } = require('../lib/packages');
+const { stripMissing } = require('../lib/columns');
 
 // Use memory storage — file goes to Supabase Storage, not disk
 const upload = multer({
@@ -78,26 +79,6 @@ function buildPayload(kind, body, batch = null) {
     if (body.box_id) payload.box_id = parseInt(body.box_id);
     else if (body.box_id === '') payload.box_id = null;
   }
-  return payload;
-}
-
-// Kolom `note` baru ada setelah migrasi 012 dijalankan di Supabase. Selama
-// belum, kolomnya dibuang dari payload supaya tambah/edit resi tetap jalan
-// dan tidak gagal dengan "column does not exist".
-const noteReady = {};
-async function supportsNote(table) {
-  if (noteReady[table] === undefined) {
-    const { error } = await supabase.from(table).select('note').limit(1);
-    noteReady[table] = !error;
-    if (error) {
-      console.warn(`[parcels] kolom note belum ada di ${table} — jalankan supabase/migrations/012_parcel_note.sql`);
-    }
-  }
-  return noteReady[table];
-}
-
-async function stripUnsupported(table, payload) {
-  if ('note' in payload && !(await supportsNote(table))) delete payload.note;
   return payload;
 }
 
@@ -317,7 +298,7 @@ function registerCrud(kind) {
 
     try {
       const batch = await getBatch(parseInt(batch_id));
-      const payload = await stripUnsupported(table, buildPayload(kind, req.body, batch));
+      const payload = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
       payload.batch_id = parseInt(batch_id);
       if (kind === 'wh' && payload.owner_code_id) {
         const pkgId = await activePackageId(payload.owner_code_id);
@@ -352,7 +333,7 @@ function registerCrud(kind) {
       const { data: current } = await supabase
         .from(table).select('batch_id, owner_code_id, tracking_number').eq('id', req.params.id).single();
       const batch = await getBatch(current?.batch_id);
-      const updates = await stripUnsupported(table, buildPayload(kind, req.body, batch));
+      const updates = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
       // Ganti pemilik → resi ikut paket aktif pemilik baru
       if (kind === 'wh' && String(current?.owner_code_id ?? '') !== String(updates.owner_code_id ?? '')) {
         const pkgId = await activePackageId(updates.owner_code_id);

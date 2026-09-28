@@ -8,7 +8,7 @@ const formatDate = str => (str
   : '-');
 
 /* ── Detail Drawer ──────────────────────────────────────── */
-function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDeleted }) {
+function BatchDetailDrawer({ batch, type, title, subtitle, onClose, onParcelEdited, onParcelDeleted }) {
   const [editingParcel, setEditingParcel] = useState(null);
   const parcels = batch.parcels || [];
   const totals = sumParcels(parcels, type);
@@ -37,8 +37,8 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
           <div className="flex items-center gap-3">
             <span className="text-xl">{type === 'HC' ? '✈️' : '🏭'}</span>
             <div>
-              <h2 className="font-bold text-matcha-800 text-base">Batch #{batch.batch_number}</h2>
-              <p className="text-xs text-gray-500">{type === 'HC' ? 'Hand Carry' : 'Warehouse'} · Selesai {formatDate(batch.completed_at)}</p>
+              <h2 className="font-bold text-matcha-800 text-base">{title}</h2>
+              <p className="text-xs text-gray-500">{subtitle}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">×</button>
@@ -129,7 +129,7 @@ function BatchDetailDrawer({ batch, type, onClose, onParcelEdited, onParcelDelet
 }
 
 /* ── Batch Row (table row) ──────────────────────────────── */
-function BatchRow({ batch, type, onClick }) {
+function BatchRow({ batch, type, icon, iconBg, title, subtitle, date, onClick }) {
   const parcels = batch.parcels || [];
   const totals = sumParcels(parcels, type);
   const totalFines = totals.fine;
@@ -143,14 +143,14 @@ function BatchRow({ batch, type, onClick }) {
       {/* Icon + Batch name */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${type === 'HC' ? 'bg-sky-100' : 'bg-amber-100'}`}>
-            {type === 'HC' ? '✈️' : '🏭'}
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${iconBg}`}>
+            {icon}
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-800 group-hover:text-matcha-700 transition-colors">
-              Batch #{batch.batch_number}
+              {title}
             </p>
-            <p className="text-xs text-gray-400">{type === 'HC' ? 'Hand Carry' : 'Warehouse'}</p>
+            <p className="text-xs text-gray-400">{subtitle}</p>
           </div>
         </div>
       </td>
@@ -168,7 +168,7 @@ function BatchRow({ batch, type, onClick }) {
       </td>
       {/* Date */}
       <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell whitespace-nowrap">
-        {formatDate(batch.completed_at)}
+        {formatDate(date)}
       </td>
       {/* Chevron */}
       <td className="px-4 py-3 text-gray-300 group-hover:text-matcha-500 transition-colors text-right">
@@ -184,15 +184,19 @@ export default function AdminArchive() {
   const [whBatches, setWhBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const [selected, setSelected] = useState(null); // { batch, type }
+  const [closedBoxes, setClosedBoxes] = useState([]);
+  const [selected, setSelected] = useState(null); // { batch, type, title, subtitle }
 
   useEffect(() => {
     Promise.all([
       fetch('/api/parcels/hc/all').then(r => r.json()),
       fetch('/api/parcels/wh/all').then(r => r.json()),
-    ]).then(([hc, wh]) => {
+      fetch('/api/parcels/wh/boxes').then(r => r.json()),
+    ]).then(([hc, wh, boxData]) => {
       setHcBatches(hc.filter(b => b.status === 'completed'));
       setWhBatches(wh.filter(b => b.status === 'completed'));
+      // Box yang sudah ditutup pindah ke sini, tidak lagi menuhin halaman WH
+      setClosedBoxes((boxData.boxes || []).filter(b => b.status !== 'open'));
       setLoading(false);
     });
   }, []);
@@ -226,14 +230,39 @@ export default function AdminArchive() {
 
   const showHC = filter === 'all' || filter === 'HC';
   const showWH = filter === 'all' || filter === 'WH';
+  const showBox = filter === 'all' || filter === 'BOX';
 
-  // merged + sorted rows for table
+  const batchRow = (b, type) => ({
+    key: `${type}-${b.id}`,
+    batch: b,
+    type,
+    icon: type === 'HC' ? '✈️' : '🏭',
+    iconBg: type === 'HC' ? 'bg-sky-100' : 'bg-amber-100',
+    title: `Batch #${b.batch_number}`,
+    subtitle: type === 'HC' ? 'Hand Carry' : 'Warehouse',
+    date: b.completed_at,
+    sort: b.completed_at,
+  });
+
+  const boxRow = b => ({
+    key: `BOX-${b.id}`,
+    batch: b,
+    type: 'WH',           // hitungan biaya tetap memakai tarif Warehouse
+    icon: '📦',
+    iconBg: 'bg-matcha-100',
+    title: `${b.owner?.label || 'Tanpa pemilik'} — ${b.name}`,
+    subtitle: 'Box ditutup',
+    date: b.closed_at,
+    sort: b.closed_at,
+  });
+
   const rows = [
-    ...(showHC ? hcBatches.map(b => ({ batch: b, type: 'HC' })) : []),
-    ...(showWH ? whBatches.map(b => ({ batch: b, type: 'WH' })) : []),
-  ].sort((a, b) => (b.batch.batch_number || 0) - (a.batch.batch_number || 0));
+    ...(showHC ? hcBatches.map(b => batchRow(b, 'HC')) : []),
+    ...(showWH ? whBatches.map(b => batchRow(b, 'WH')) : []),
+    ...(showBox ? closedBoxes.map(boxRow) : []),
+  ].sort((a, b) => new Date(b.sort || 0) - new Date(a.sort || 0));
 
-  const totalArchived = hcBatches.length + whBatches.length;
+  const totalArchived = hcBatches.length + whBatches.length + closedBoxes.length;
 
   return (
     <div className="p-5 md:p-7 max-w-3xl mx-auto">
@@ -242,13 +271,15 @@ export default function AdminArchive() {
         <div className="flex items-center gap-3">
           <span className="text-3xl">📁</span>
           <div>
-            <h1 className="text-xl font-bold text-matcha-800">Arsip Batch</h1>
-            <p className="text-sm text-gray-500">{totalArchived} batch selesai</p>
+            <h1 className="text-xl font-bold text-matcha-800">Arsip</h1>
+            <p className="text-sm text-gray-500">
+              {totalArchived} tersimpan · {closedBoxes.length} box ditutup
+            </p>
           </div>
         </div>
         {/* Filter */}
         <div className="flex gap-1 bg-white border border-cream-200 rounded-xl p-1">
-          {[['all', 'Semua'], ['HC', '✈️ HC'], ['WH', '🏭 WH']].map(([val, label]) => (
+          {[['all', 'Semua'], ['BOX', '📦 Box'], ['HC', '✈️ HC'], ['WH', '🏭 WH']].map(([val, label]) => (
             <button
               key={val}
               onClick={() => setFilter(val)}
@@ -268,15 +299,15 @@ export default function AdminArchive() {
       ) : rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">🗄️</div>
-          <p>Belum ada batch yang diarsipkan</p>
-          <p className="text-sm mt-1">Selesaikan batch aktif untuk melihatnya di sini</p>
+          <p>Belum ada yang diarsipkan</p>
+          <p className="text-sm mt-1">Box yang ditutup dan batch yang selesai muncul di sini</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
           {/* Table header */}
           <div className="px-4 py-2.5 border-b border-cream-100 bg-cream-50">
             <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_80px_120px_110px_24px] gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-              <span>Batch</span>
+              <span>Box / Batch</span>
               <span className="hidden sm:block">Resi</span>
               <span className="hidden md:block">Denda / Fee</span>
               <span className="hidden sm:block">Tanggal Selesai</span>
@@ -287,12 +318,17 @@ export default function AdminArchive() {
           {/* Rows */}
           <table className="w-full">
             <tbody>
-              {rows.map(({ batch, type }) => (
+              {rows.map(row => (
                 <BatchRow
-                  key={`${type}-${batch.id}`}
-                  batch={batch}
-                  type={type}
-                  onClick={() => setSelected({ batch, type })}
+                  key={row.key}
+                  batch={row.batch}
+                  type={row.type}
+                  icon={row.icon}
+                  iconBg={row.iconBg}
+                  title={row.title}
+                  subtitle={row.subtitle}
+                  date={row.date}
+                  onClick={() => setSelected(row)}
                 />
               ))}
             </tbody>
@@ -305,6 +341,8 @@ export default function AdminArchive() {
         <BatchDetailDrawer
           batch={selected.batch}
           type={selected.type}
+          title={selected.title}
+          subtitle={`${selected.subtitle} · ${formatDate(selected.date)}`}
           onClose={() => setSelected(null)}
           onParcelEdited={updated => handleParcelEdited(selected.type, selected.batch.id, updated)}
           onParcelDeleted={parcelId => handleParcelDeleted(selected.type, selected.batch.id, parcelId)}
