@@ -69,6 +69,7 @@ app.use('/api/logs', require('./routes/logs'));
 app.use('/api/packages', require('./routes/packages'));
 app.use('/api/boxes', require('./routes/boxes').router);
 app.use('/api/photos', require('./routes/photos'));
+app.use('/api/settings', require('./routes/settings'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV || 'development' }));

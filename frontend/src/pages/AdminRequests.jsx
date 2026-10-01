@@ -24,6 +24,8 @@ export default function AdminRequests() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'HC' | 'WH'
   const [codes, setCodes] = useState([]);
+  const [autoAcc, setAutoAcc] = useState(null);   // null = belum kebaca
+  const [autoBusy, setAutoBusy] = useState(false);
 
   useEffect(() => {
     fetch('/api/codes').then(r => r.json()).then(setCodes).catch(() => {});
@@ -45,6 +47,30 @@ export default function AdminRequests() {
     setRequests(prev => prev.map(r => (idSet.has(r.id)
       ? { ...r, owner_code_id: ownerId, owner: owner && { id: owner.id, code: owner.code, label: owner.label } }
       : r)));
+  }
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(d => setAutoAcc({ on: !!d.auto_approve_requests, ready: d._ready !== false }))
+      .catch(() => setAutoAcc({ on: false, ready: false }));
+  }, []);
+
+  // Mode auto ACC: setoran resi baru langsung jadi resi tanpa menunggu admin.
+  async function toggleAutoAcc(on) {
+    setAutoBusy(true);
+    try {
+      const res = await fetch('/api/settings/auto_approve_requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: on }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Setelan gagal disimpan'); return; }
+      setAutoAcc({ on, ready: true });
+    } finally {
+      setAutoBusy(false);
+    }
   }
 
   function load(status) {
@@ -153,11 +179,36 @@ export default function AdminRequests() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <span className="text-3xl">📬</span>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-matcha-800">Setor Resi</h1>
           <p className="text-sm text-gray-500">Resi yang disetor pengguna</p>
         </div>
+
+        {/* Auto ACC */}
+        {autoAcc && (
+          <button
+            onClick={() => toggleAutoAcc(!autoAcc.on)}
+            disabled={autoBusy || !autoAcc.ready}
+            title={autoAcc.ready
+              ? 'Setoran resi baru langsung disetujui tanpa menunggu admin'
+              : 'Jalankan migrasi 016 di Supabase dulu'}
+            className={`text-xs font-bold px-3 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
+              autoAcc.on
+                ? 'bg-matcha-800 text-white border-matcha-800'
+                : 'bg-white text-gray-500 border-cream-300 hover:border-matcha-300'
+            }`}
+          >
+            {autoAcc.on ? '⚡ Auto ACC nyala' : '⚡ Auto ACC mati'}
+          </button>
+        )}
       </div>
+
+      {autoAcc?.on && (
+        <p className="text-xs text-matcha-700 bg-matcha-50 border border-matcha-200 rounded-xl px-3 py-2 mb-4">
+          Setoran resi baru langsung jadi resi tanpa menunggu kamu. Permintaan
+          perbaikan tetap masuk daftar ini untuk dicek sendiri.
+        </p>
+      )}
 
       {/* Tabs + Type filter row */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -322,6 +373,12 @@ export default function AdminRequests() {
                         {r.parcel_type === 'paperbased' && r.quantity > 0 && (
                           <span className="text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded-full border border-sky-200 font-semibold">
                             📄 {r.quantity} pcs
+                          </span>
+                        )}
+                        {r.kind === 'fix' && (
+                          <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-300 font-bold"
+                            title="Pelanggan minta data resi yang sudah ada diperbaiki — bukan resi baru">
+                            🛠 Minta perbaikan
                           </span>
                         )}
                         {r.freebies_stay && (

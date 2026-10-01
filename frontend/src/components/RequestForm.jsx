@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { fetchAsUser } from '../utils/format';
 
 const emptyRow = () => ({
@@ -11,6 +11,8 @@ const emptyRow = () => ({
   notes: '',
   coPhoto: null,
   coPreview: null,
+  kind: 'new',        // 'new' | 'fix' — fix = minta admin benerin data resi
+  check: null,        // hasil pengecekan nomor resi ke server
 });
 
 export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
@@ -21,6 +23,40 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
 
   function updateRow(idx, field, value) {
     setItems(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+
+  // ── Cek nomor resi ke server ──────────────────────────────────────
+  //  Supaya pelanggan tahu resinya sudah pernah masuk sebelum menekan
+  //  kirim, bukan ditolak belakangan tanpa penjelasan.
+  const checkTimer = useRef(null);
+
+  const checkTracking = useCallback(async (idx, value) => {
+    const nomor = String(value || '').trim();
+    if (!nomor) {
+      setItems(prev => prev.map((r, i) => (i === idx ? { ...r, check: null } : r)));
+      return;
+    }
+    setItems(prev => prev.map((r, i) => (i === idx ? { ...r, check: { status: 'checking' } } : r)));
+    try {
+      const res = await fetchAsUser('/api/requests/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tracking_numbers: [nomor] }),
+      });
+      const data = await res.json();
+      const hit = data.results?.[0] || { status: 'new' };
+      setItems(prev => prev.map((r, i) =>
+        (i === idx && r.tracking_number.trim() === nomor ? { ...r, check: hit } : r)));
+    } catch {
+      setItems(prev => prev.map((r, i) => (i === idx ? { ...r, check: null } : r)));
+    }
+  }, []);
+
+  function handleTrackingChange(idx, value) {
+    setItems(prev => prev.map((r, i) =>
+      (i === idx ? { ...r, tracking_number: value, check: null, kind: 'new' } : r)));
+    clearTimeout(checkTimer.current);
+    checkTimer.current = setTimeout(() => checkTracking(idx, value), 500);
   }
 
   function handleCoPhoto(idx, file) {
@@ -53,6 +89,15 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
         setError(`Resi #${i + 1}: jumlah paperbased wajib diisi`);
         return;
       }
+      const bentrok = item.check?.status === 'parcel' || item.check?.status === 'pending';
+      if (bentrok && item.kind !== 'fix') {
+        setError(`Resi #${i + 1} (${item.tracking_number.trim()}) sudah pernah masuk. Hapus barisnya, atau centang "Ada yang keliru" kalau datanya perlu diperbaiki.`);
+        return;
+      }
+      if (item.kind === 'fix' && !item.notes.trim()) {
+        setError(`Resi #${i + 1}: tulis dulu bagian yang keliru di kolom catatan`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -61,9 +106,9 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
       fd.append('type', type);
 
       // Append items as JSON (without file objects)
-      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing, quantity, recipient_name, freebies_stay }) => ({
+      const itemsData = items.map(({ tracking_number, parcel_type, notes, need_unboxing, quantity, recipient_name, freebies_stay, kind }) => ({
         tracking_number, parcel_type, notes, need_unboxing: type === 'WH' && need_unboxing,
-        recipient_name, freebies_stay,
+        recipient_name, freebies_stay, kind,
         quantity: parcel_type === 'paperbased' ? parseInt(quantity) || null : null,
       }));
       fd.append('items', JSON.stringify(itemsData));
@@ -77,7 +122,7 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Gagal mengirim'); return; }
 
-      setSuccess(true);
+      setSuccess(data.auto_approved > 0 ? 'auto' : true);
       setTimeout(() => {
         setSuccess(false);
         setItems([emptyRow()]);
@@ -95,7 +140,11 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
       <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
         <div className="text-4xl mb-2">✅</div>
         <p className="font-bold text-green-700">Resi berhasil disetor!</p>
-        <p className="text-sm text-green-600 mt-1">Admin akan segera memproses resimu</p>
+        <p className="text-sm text-green-600 mt-1">
+          {success === 'auto'
+            ? 'Langsung diproses — resimu sudah masuk daftar'
+            : 'Admin akan segera memproses resimu'}
+        </p>
       </div>
     );
   }
@@ -130,12 +179,49 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
 
             {/* Tracking number */}
             <input
-              className="input-field font-mono text-sm"
+              className={`input-field font-mono text-sm ${
+                item.check?.status === 'parcel' || item.check?.status === 'pending'
+                  ? 'border-amber-400' : ''
+              }`}
               placeholder="Nomor resi (cth: JD1234567890)"
               value={item.tracking_number}
-              onChange={e => updateRow(idx, 'tracking_number', e.target.value)}
+              onChange={e => handleTrackingChange(idx, e.target.value)}
+              onBlur={e => checkTracking(idx, e.target.value)}
               required
             />
+
+            {/* Peringatan resi kembar + pilihan perbaikan */}
+            {item.check?.status === 'checking' && (
+              <p className="text-[11px] text-gray-400">Mengecek nomor resi…</p>
+            )}
+            {(item.check?.status === 'parcel' || item.check?.status === 'pending') && (
+              <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-3">
+                <p className="text-xs font-bold text-amber-900">
+                  ⚠️ Resi ini sudah {item.check.status === 'pending' ? 'kamu setor dan masih diproses' : 'tercatat di sistem'}
+                  {item.check.kind ? ` (${item.check.kind})` : ''}
+                </p>
+                <p className="text-[11px] text-amber-800/90 mt-0.5 leading-snug">
+                  {item.check.mine
+                    ? `Atas nama ${item.check.recipient_name || 'kamu'}. Tidak perlu disetor lagi ya.`
+                    : 'Kalau kamu yakin ini punyamu, pilih "Ada yang keliru" di bawah dan tulis keterangannya.'}
+                </p>
+
+                <label className="flex items-start gap-2 mt-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item.kind === 'fix'}
+                    onChange={e => updateRow(idx, 'kind', e.target.checked ? 'fix' : 'new')}
+                    className="mt-0.5 accent-amber-600"
+                  />
+                  <span className="text-[11px] text-amber-900 leading-snug">
+                    Ada yang keliru — minta admin perbaiki datanya
+                    <span className="block text-amber-700/80">
+                      Tulis bagian yang salah di kolom catatan, resinya tidak akan dibuat dobel.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
 
             {/* Penerima — opsional, untuk penerima yang beda dengan pemilik akun */}
             <input
