@@ -95,6 +95,17 @@ export default function ParcelDetailModal({
 
             <p className="text-sm font-mono text-gray-400 mb-4 break-all">{parcel.tracking_number}</p>
 
+            {parcel.note && (
+              <div className="mb-4 rounded-2xl border-2 border-amber-200 bg-amber-50 px-3.5 py-3">
+                <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wide">
+                  📝 Catatan dari admin
+                </p>
+                <p className="text-sm text-amber-900/90 mt-1 leading-snug whitespace-pre-line">
+                  {parcel.note}
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2.5">
               <DetailRow icon="📦" label="Jenis">
                 {parcel.type === 'paperbased' ? '📄 Paperbased' : '📦 Barang'}
@@ -130,11 +141,6 @@ export default function ParcelDetailModal({
               {parcel.fine_amount > 0 && (
                 <DetailRow icon="⚠️" label="Denda">
                   <span className="text-red-600 font-semibold">{rupiah(parcel.fine_amount)}</span>
-                </DetailRow>
-              )}
-              {parcel.note && (
-                <DetailRow icon="📝" label="Catatan">
-                  <span className="text-gray-600 text-right">{parcel.note}</span>
                 </DetailRow>
               )}
               {(fee > 0 || extra > 0) && (
