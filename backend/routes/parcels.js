@@ -466,6 +466,99 @@ router.get('/today', async (req, res) => {
   }
 });
 
+// ── Pelanggan membetulkan sendiri data resinya ──────────────────────
+//  Daripada menyetor "permintaan perbaikan" lalu menunggu admin, pelanggan
+//  boleh langsung mengubah data yang memang dia yang tahu: nama penerima,
+//  jenis paket, jumlah, dan permintaan unboxing/freebies.
+//
+//  Yang TIDAK boleh disentuh: biaya, denda, pemilik, box, batch, dan foto
+//  arrival — itu wilayah admin dan menyangkut tagihan.
+//
+//  Hanya resi miliknya sendiri, dan hanya selagi boxnya masih terbuka
+//  (atau batch HC masih aktif). Yang sudah ditutup berarti sudah ditagih.
+const MINE_EDITABLE = {
+  recipient_name: v => String(v || '').trim(),
+  parcel_type:    v => (v === 'paperbased' ? 'paperbased' : 'barang'),
+  quantity:       v => Math.max(1, parseInt(v) || 1),
+  need_unboxing:  v => v === true || v === 'true',
+  freebies_stay:  v => v === true || v === 'true',
+};
+
+async function canCustomerEdit(kind, parcel) {
+  if (kind === 'wh') {
+    if (!parcel.box_id) return true;            // belum masuk box, masih bebas
+    const { data: box } = await supabase
+      .from('boxes').select('status').eq('id', parcel.box_id).single();
+    return box?.status === 'open';
+  }
+  const batch = await getBatch(parcel.batch_id);
+  return batch?.status === 'active';
+}
+
+router.patch('/:kind/:id/mine', async (req, res) => {
+  const kind = String(req.params.kind || '').toLowerCase();
+  const table = TABLE[kind];
+  if (!table) return res.status(400).json({ error: 'Jenis resi tidak dikenal' });
+
+  const rawCode = (req.get('X-Access-Code') || '').trim();
+  if (!rawCode) return res.status(401).json({ error: 'Kode akses tidak dikirim' });
+
+  try {
+    const codes = await fetchCodes();
+    const me = codes.find(c => norm(c.code) === norm(rawCode));
+    if (!me) return res.status(401).json({ error: 'Kode akses tidak valid' });
+
+    const { data: parcel } = await supabase
+      .from(table).select('*').eq('id', req.params.id).single();
+    if (!parcel) return res.status(404).json({ error: 'Resi tidak ditemukan' });
+    if (String(parcel.owner_code_id || '') !== String(me.id)) {
+      return res.status(403).json({ error: 'Resi ini bukan milikmu' });
+    }
+    if (!(await canCustomerEdit(kind, parcel))) {
+      return res.status(409).json({
+        error: 'Resi ini sudah masuk box/batch yang ditutup. Hubungi admin kalau masih ada yang keliru.',
+      });
+    }
+
+    const updates = {};
+    for (const [field, clean] of Object.entries(MINE_EDITABLE)) {
+      if (req.body[field] === undefined) continue;
+      if (field === 'quantity') updates.estimated_quantity = clean(req.body[field]);
+      else if (field === 'parcel_type') updates.type = clean(req.body[field]);
+      else if (field === 'need_unboxing' && kind !== 'wh') continue;
+      else updates[field] = clean(req.body[field]);
+    }
+    if (!updates.recipient_name && 'recipient_name' in updates) {
+      return res.status(400).json({ error: 'Nama penerima tidak boleh kosong' });
+    }
+
+    // Video unboxing menyangkut biaya, jadi tarifnya ikut dihitung ulang
+    // memakai tarif batch — bukan angka yang dikirim pelanggan.
+    if (kind === 'wh' && updates.need_unboxing !== undefined) {
+      const batch = await getBatch(parcel.batch_id);
+      updates.unboxing_fee = updates.need_unboxing ? Math.max(0, num(batch?.unboxing_fee, 0.75)) : 0;
+    }
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'Tidak ada yang diubah' });
+
+    const { data, error } = await supabase
+      .from(table).update(updates).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+
+    const berubah = Object.keys(updates).filter(k => k !== 'unboxing_fee').join(', ');
+    logActivity({
+      action: 'parcel_edit',
+      summary: `${me.label} membetulkan sendiri resi ${data.tracking_number}`,
+      detail: `Kolom: ${berubah}`,
+      ref_type: `${kind}_parcel`,
+      ref_id: data.id,
+    });
+
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Resi input manual yang belum ada pemiliknya ─────────────────────
 //  Ditampilkan ke semua pelanggan supaya yang merasa punya bisa klaim ke
 //  admin. Hanya resi bertanda "input manual" — resi biasa yang pemiliknya

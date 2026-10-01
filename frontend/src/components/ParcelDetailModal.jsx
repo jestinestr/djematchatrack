@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import MyParcelEdit from './MyParcelEdit';
 import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, slugify, storageDays } from '../utils/format';
 
 // isAdmin: kalau true, foto CO ikut ditampilkan
@@ -10,6 +11,9 @@ export default function ParcelDetailModal({
   siblings = [],
   onSelectSibling,
   onClose,
+  canEditMine = false,     // pelanggan boleh membetulkan resinya sendiri
+  unboxingFee = 0.75,
+  onEdited,
 }) {
   const [zoomUrl, setZoomUrl] = useState(null);
 
@@ -184,6 +188,15 @@ export default function ParcelDetailModal({
                   ))}
                 </div>
               </div>
+            )}
+
+            {canEditMine && !parcel.masked && (
+              <MyParcelEdit
+                parcel={parcel}
+                type={type}
+                unboxingFee={unboxingFee}
+                onSaved={onEdited}
+              />
             )}
 
             <button onClick={onClose} className="btn-primary w-full mt-5 py-2.5">Tutup</button>

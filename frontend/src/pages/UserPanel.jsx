@@ -627,6 +627,15 @@ export default function UserPanel({ type }) {
           siblings={mine}
           onSelectSibling={setDetail}
           onClose={() => setDetail(null)}
+          canEditMine={!!detail.is_mine}
+          onEdited={updated => {
+            // Perbarui di tempat supaya tidak perlu memuat ulang halaman
+            setBatches(list => list.map(b => ({
+              ...b,
+              parcels: (b.parcels || []).map(p => (p.id === updated.id ? { ...p, ...updated } : p)),
+            })));
+            setDetail(d => (d && d.id === updated.id ? { ...d, ...updated } : d));
+          }}
         />
       )}
     </div>

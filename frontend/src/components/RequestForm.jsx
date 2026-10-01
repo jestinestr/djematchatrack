@@ -202,10 +202,11 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
                 </p>
                 <p className="text-[11px] text-amber-800/90 mt-0.5 leading-snug">
                   {item.check.mine
-                    ? `Atas nama ${item.check.recipient_name || 'kamu'}. Tidak perlu disetor lagi ya.`
+                    ? `Atas nama ${item.check.recipient_name || 'kamu'}. Tidak perlu disetor lagi ya — kalau ada yang keliru, buka resinya di daftar bawah lalu pilih "Betulkan sendiri".`
                     : 'Kalau kamu yakin ini punyamu, pilih "Ada yang keliru" di bawah dan tulis keterangannya.'}
                 </p>
 
+                {!item.check.mine && (
                 <label className="flex items-start gap-2 mt-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -220,6 +221,7 @@ export default function RequestForm({ type, unboxingFee = 0.75, onSubmitted }) {
                     </span>
                   </span>
                 </label>
+                )}
               </div>
             )}
 
