@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
   CURRENCIES, money, rupiah, baseFee, normCurrency,
@@ -15,6 +15,7 @@ export default function AdminInvoice() {
   const [type, setType]       = useState('WH');
   const [batchList, setBatchList] = useState([]);
   const [search, setSearch] = useState('');
+  const [billings, setBillings] = useState({ ready: true, list: [] });
   const [batchId, setBatchId] = useState('');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
@@ -215,16 +216,63 @@ export default function AdminInvoice() {
   }
 
 
+  // ── Penagihan berjalan ────────────────────────────────────────────
+  const loadBillings = useCallback(() => {
+    fetch('/api/billings?status=unpaid')
+      .then(r => r.json())
+      .then(d => setBillings({ ready: d.ready !== false, list: d.billings || [] }))
+      .catch(() => setBillings({ ready: false, list: [] }));
+  }, []);
+
+  useEffect(() => { loadBillings(); }, [loadBillings]);
+
+  async function setBillingPaid(bill, paid) {
+    if (paid && !window.confirm(`Tandai "${bill.title}" sudah lunas? ${bill.parcel_count} resi di dalamnya ikut ditandai lunas.`)) return;
+    await fetch(`/api/billings/${bill.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: paid ? 'paid' : 'unpaid' }),
+    });
+    loadBillings();
+    if (String(bill.ref_id) === String(batchId)) await refreshInvoice();
+  }
+
+  async function removeBilling(bill) {
+    if (!window.confirm(`Hapus "${bill.title}" dari daftar penagihan? Resinya tidak ikut terhapus.`)) return;
+    await fetch(`/api/billings/${bill.id}`, { method: 'DELETE' });
+    loadBillings();
+  }
+
   // ── Cetak ─────────────────────────────────────────────────────────
   function printInvoices() {
     const picked = customers.filter(c => c.owner && selected.has(c.owner.id) && c.parcels.length);
     if (!picked.length) return;
     const html = buildInvoicesHTML(batch, picked, type);
     const w = window.open('', '_blank');
-    if (!w) return;
+    if (!w) {
+      alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
+      return;
+    }
     w.document.write(html);
     w.document.close();
     w.focus();
+
+    // Yang sudah dicetak masuk daftar penagihan berjalan, supaya kelihatan
+    // siapa saja yang sedang ditunggu bayarannya.
+    Promise.all(picked.map(c => fetch('/api/billings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope: isBox ? 'box' : 'batch',
+        ref_id: batchId,
+        type,
+        owner_code_id: c.owner?.id,
+        title: invoiceTitle(batch, [c], type === 'HC' ? 'Hand Carry' : 'Warehouse'),
+        parcel_ids: c.parcels.map(p => p.id),
+        total_idr: c.totals.IDR.total,
+        total_cny: c.totals.CNY.total,
+      }),
+    }))).then(loadBillings).catch(() => {});
     // Dialog cetak dipanggil dari halamannya sendiri setelah logo termuat
   }
 
@@ -404,6 +452,45 @@ export default function AdminInvoice() {
               </div>
             ))}
           </div>
+
+          {/* Penagihan yang sedang berjalan */}
+          {billings.list.length > 0 && (
+            <div className="mb-4 rounded-2xl border-2 border-amber-200 bg-amber-50 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200">
+                <span className="text-base leading-none">🧾</span>
+                <p className="text-xs font-bold text-amber-900 flex-1">
+                  Penagihan berjalan ({billings.list.length})
+                </p>
+                <span className="text-[11px] text-amber-700/80">
+                  Invoice yang sudah dicetak, menunggu dibayar
+                </span>
+              </div>
+
+              <div className="divide-y divide-amber-100">
+                {billings.list.map(b => (
+                  <div key={b.id} className="flex items-center gap-2 px-4 py-2.5 bg-white/60">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{b.title}</p>
+                      <p className="text-[11px] text-gray-500">
+                        {b.parcel_count} resi · dicetak {formatDate(b.issued_at, false)}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-amber-800 whitespace-nowrap">
+                      {[b.total_idr ? money(b.total_idr, 'IDR') : null,
+                        b.total_cny ? money(b.total_cny, 'CNY') : null]
+                        .filter(Boolean).join(' + ') || '—'}
+                    </span>
+                    <button onClick={() => setBillingPaid(b, true)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white whitespace-nowrap">
+                      ✓ Lunas
+                    </button>
+                    <button onClick={() => removeBilling(b)} title="Buang dari daftar"
+                      className="text-gray-300 hover:text-red-500 px-1">✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Pilih semua */}
           <div className="flex items-center gap-2 mb-3 px-1">
