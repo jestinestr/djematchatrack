@@ -14,6 +14,7 @@ const hasMoney = t => t.fee > 0 || t.additional > 0 || t.fine > 0 || t.unboxing 
 export default function AdminInvoice() {
   const [type, setType]       = useState('WH');
   const [batchList, setBatchList] = useState([]);
+  const [search, setSearch] = useState('');
   const [batchId, setBatchId] = useState('');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
@@ -79,6 +80,28 @@ export default function AdminInvoice() {
       totals: calcTotals(c, picked, type, billPkg),
     };
   }), [rawCustomers, chosen, type, billPkg]);
+
+  // Pencarian menyaring dua hal sekaligus: pilihan box/batch di dropdown,
+  // dan kartu pelanggan di bawahnya. Nomor resi ikut dicari supaya admin
+  // bisa langsung menemukan invoice tempat sebuah resi ditagih.
+  const cocok = (teks, q) => String(teks || '').toLowerCase().includes(q);
+
+  const shownBatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return batchList;
+    return batchList.filter(b => cocok(b.label, q));
+  }, [batchList, search]);
+
+  const shownCustomers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(c =>
+      cocok(c.owner?.label, q) ||
+      cocok(c.owner?.code, q) ||
+      cocok(c.box_title, q) ||
+      (c.allParcels || []).some(p => cocok(p.tracking_number, q) || cocok(p.recipient_name, q))
+    );
+  }, [customers, search]);
 
   function toggleChosen(id) {
     setChosen(prev => {
@@ -306,13 +329,29 @@ export default function AdminInvoice() {
           onChange={e => setBatchId(e.target.value)}
           className="input-field text-sm w-auto py-1.5"
         >
-          {batchList.length === 0 && <option value="">{isBox ? 'Belum ada box' : 'Belum ada batch'}</option>}
-          {batchList.map(b => (
+          {shownBatches.length === 0 && (
+            <option value="">{search ? 'Tidak ada yang cocok' : isBox ? 'Belum ada box' : 'Belum ada batch'}</option>
+          )}
+          {shownBatches.map(b => (
             <option key={b.id} value={b.id}>{b.label}{b.closed ? ' · ditutup' : ''}</option>
           ))}
         </select>
 
-        <div className="flex-1" />
+        {/* Cari — menyaring daftar box/batch sekaligus pelanggan di dalamnya */}
+        <div className="relative flex-1 min-w-[180px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setSearch(''); }}
+            placeholder={isBox ? 'Cari pelanggan, box, atau nomor resi...' : 'Cari pelanggan atau nomor resi...'}
+            className="input-field text-sm py-1.5 pl-9 pr-8"
+          />
+          {search && (
+            <button onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+          )}
+        </div>
 
         <button
           onClick={exportCSV}
@@ -376,7 +415,12 @@ export default function AdminInvoice() {
 
           {/* Daftar pelanggan */}
           <div className="space-y-3">
-            {customers.map(c => {
+            {search && shownCustomers.length === 0 && (
+              <div className="bg-white rounded-2xl border border-cream-200 p-10 text-center text-gray-400 text-sm">
+                Tidak ada pelanggan atau resi yang cocok dengan "{search}"
+              </div>
+            )}
+            {shownCustomers.map(c => {
               const key = c.owner ? c.owner.id : '__none__';
               const isSel = c.owner && selected.has(c.owner.id);
               const d = drafts[key] || { additional_fee: '', currency: 'IDR', note: '' };
@@ -680,6 +724,26 @@ function feeLines(c, cur) {
         </tr>`).join('');
 }
 
+// Judul dokumen dipakai browser sebagai nama file waktu "Save as PDF",
+// jadi bentuknya dibuat seperti nama berkas yang rapi:
+//   Invoice Warehouse Box 1 - Sorai
+//   Invoice Hand Carry Batch 3 - Karina
+// Kalau sekali cetak berisi banyak pelanggan, namanya tidak dipaksa satu
+// orang — cukup jumlahnya.
+function invoiceTitle(batch, customers, typeLabel) {
+  const wadah = batch?.type === 'WH' && typeof batch?.batch_number === 'string'
+    ? batch.batch_number                      // invoice box: namanya sudah "Box 1"
+    : `Batch ${batch?.batch_number ?? ''}`.trim();
+
+  const nama = customers.length === 1
+    ? customers[0].owner?.label
+    : `${customers.length} pelanggan`;
+
+  // "Invoice Warehouse Box 1 - Sorai" — wadahnya nempel, nama dipisah tanda -
+  const kepala = [`Invoice ${typeLabel}`, wadah].filter(Boolean).join(' ');
+  return nama ? `${kepala} - ${nama}` : kepala;
+}
+
 /* ── Dokumen invoice untuk dicetak ───────────────────────── */
 function buildInvoicesHTML(batch, customers, type) {
   const today = formatDate(new Date().toISOString(), false);
@@ -779,7 +843,7 @@ function buildInvoicesHTML(batch, customers, type) {
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<title>Invoice ${esc(typeLabel)} Batch ${esc(batch?.batch_number)}</title>
+<title>${esc(invoiceTitle(batch, customers, typeLabel))}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
