@@ -673,6 +673,26 @@ export default function AdminInvoice() {
                         <span className="ml-1 text-green-600 font-semibold">· {c.allParcels.filter(p => p.paid_at).length} lunas</span>
                       )}
                     </summary>
+                    {tanpaFoto(c).length > 0 && (
+                      <div className="px-4 py-2 border-t border-cream-100 bg-amber-50/70 flex items-center gap-2">
+                        <span className="text-xs text-amber-800 flex-1">
+                          {tanpaFoto(c).length} resi belum ada foto arrival — tidak ikut tercentang.
+                        </span>
+                        <button
+                          onClick={() => setChosen(prev => {
+                            const next = new Set(prev);
+                            const ids = tanpaFoto(c).map(p => p.id);
+                            const semua = ids.every(id => next.has(id));
+                            ids.forEach(id => (semua ? next.delete(id) : next.add(id)));
+                            return next;
+                          })}
+                          className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-amber-300 text-amber-800 bg-white hover:bg-amber-100 flex-shrink-0"
+                        >
+                          {tanpaFoto(c).every(p => chosen.has(p.id)) ? 'Batal ikutkan' : 'Ikutkan juga'}
+                        </button>
+                      </div>
+                    )}
+
                     {c.parcels.length > 0 && (
                       <div className="px-4 py-2 border-t border-cream-100 bg-green-50/50 flex items-center gap-2">
                         <span className="text-xs text-gray-500 flex-1">
@@ -721,7 +741,14 @@ export default function AdminInvoice() {
                                 </span>
                               )}
                             </p>
-                            <p className="text-[11px] font-mono text-gray-400 truncate">{p.tracking_number}</p>
+                            <p className="text-[11px] font-mono text-gray-400 truncate">
+                              {p.tracking_number}
+                              {!p.paid_at && !p.photo_url && (
+                                <span className="ml-1.5 text-[10px] font-bold text-amber-600 font-sans">
+                                  · belum ada foto
+                                </span>
+                              )}
+                            </p>
                           </div>
                           <div className="text-right text-[11px] flex-shrink-0">
                             {baseFee(p, type) > 0 && (
@@ -747,9 +774,19 @@ export default function AdminInvoice() {
 }
 
 // Id semua resi yang belum lunas — pilihan bawaan tiap invoice
+// Resi yang tercentang begitu invoice dibuka.
+//
+// Hanya yang sudah ada foto arrival — artinya barangnya memang sudah sampai
+// dan layak ditagih. Resi yang fotonya belum ada sengaja dibiarkan kosong;
+// admin yang memutuskan sendiri kalau memang mau ikut ditagih.
 function unpaidIds(d) {
-  return new Set((d?.customers || []).flatMap(c => c.parcels.filter(p => !p.paid_at).map(p => p.id)));
+  return new Set(
+    (d?.customers || []).flatMap(c =>
+      c.parcels.filter(p => !p.paid_at && p.photo_url).map(p => p.id))
+  );
 }
+
+const tanpaFoto = c => (c.allParcels || []).filter(p => !p.paid_at && !p.photo_url);
 
 // Hitung ulang total dari resi yang dipilih saja
 function calcTotals(c, picked, type, billPkg = true) {
