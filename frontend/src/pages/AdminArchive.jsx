@@ -180,89 +180,67 @@ function BatchRow({ batch, type, icon, iconBg, title, subtitle, date, onClick })
 
 /* ── Main Archive Page ──────────────────────────────────── */
 export default function AdminArchive() {
-  const [hcBatches, setHcBatches] = useState([]);
-  const [whBatches, setWhBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [closedBoxes, setClosedBoxes] = useState([]);
+  const [billings, setBillings] = useState([]);
   const [selected, setSelected] = useState(null); // { batch, type, title, subtitle }
 
+  // Arsip = box yang sudah ditutup, beserta status penagihannya.
   useEffect(() => {
     Promise.all([
-      fetch('/api/parcels/hc/all').then(r => r.json()),
-      fetch('/api/parcels/wh/all').then(r => r.json()),
       fetch('/api/parcels/wh/boxes').then(r => r.json()),
-    ]).then(([hc, wh, boxData]) => {
-      setHcBatches(hc.filter(b => b.status === 'completed'));
-      setWhBatches(wh.filter(b => b.status === 'completed'));
-      // Box yang sudah ditutup pindah ke sini, tidak lagi menuhin halaman WH
+      fetch('/api/billings?status=all').then(r => r.json()).catch(() => ({ billings: [] })),
+    ]).then(([boxData, billData]) => {
       setClosedBoxes((boxData.boxes || []).filter(b => b.status !== 'open'));
+      setBillings(billData.billings || []);
       setLoading(false);
     });
   }, []);
 
-  function handleParcelEdited(type, batchId, updated) {
-    const setter = type === 'HC' ? setHcBatches : setWhBatches;
-    setter(prev => prev.map(b =>
-      b.id === batchId
-        ? { ...b, parcels: b.parcels.map(p => p.id === updated.id ? updated : p) }
-        : b
-    ));
-    // keep drawer in sync
-    setSelected(s => s && s.batch.id === batchId
-      ? { ...s, batch: { ...s.batch, parcels: s.batch.parcels.map(p => p.id === updated.id ? updated : p) } }
-      : s
-    );
+  // Resi di box arsip masih bisa dibetulkan dari dalam laci
+  function updateBox(boxId, ubah) {
+    setClosedBoxes(prev => prev.map(b => (b.id === boxId ? { ...b, parcels: ubah(b.parcels || []) } : b)));
+    setSelected(s => (s && s.batch.id === boxId
+      ? { ...s, batch: { ...s.batch, parcels: ubah(s.batch.parcels || []) } }
+      : s));
   }
 
-  function handleParcelDeleted(type, batchId, parcelId) {
-    const setter = type === 'HC' ? setHcBatches : setWhBatches;
-    setter(prev => prev.map(b =>
-      b.id === batchId
-        ? { ...b, parcels: b.parcels.filter(p => p.id !== parcelId) }
-        : b
-    ));
-    setSelected(s => s && s.batch.id === batchId
-      ? { ...s, batch: { ...s.batch, parcels: s.batch.parcels.filter(p => p.id !== parcelId) } }
-      : s
-    );
-  }
+  const handleParcelEdited = (type, boxId, updated) =>
+    updateBox(boxId, list => list.map(p => (p.id === updated.id ? updated : p)));
 
-  const showHC = filter === 'all' || filter === 'HC';
-  const showWH = filter === 'all' || filter === 'WH';
-  const showBox = filter === 'all' || filter === 'BOX';
+  const handleParcelDeleted = (type, boxId, parcelId) =>
+    updateBox(boxId, list => list.filter(p => p.id !== parcelId));
 
-  const batchRow = (b, type) => ({
-    key: `${type}-${b.id}`,
-    batch: b,
-    type,
-    icon: type === 'HC' ? '✈️' : '🏭',
-    iconBg: type === 'HC' ? 'bg-sky-100' : 'bg-amber-100',
-    title: `Batch #${b.batch_number}`,
-    subtitle: type === 'HC' ? 'Hand Carry' : 'Warehouse',
-    date: b.completed_at,
-    sort: b.completed_at,
-  });
+  // Penagihan terakhir tiap box, untuk menandai mana yang sudah lunas
+  const billOf = boxId => billings
+    .filter(b => b.scope === 'box' && String(b.ref_id) === String(boxId))
+    .sort((a, b) => new Date(b.issued_at) - new Date(a.issued_at))[0] || null;
 
-  const boxRow = b => ({
-    key: `BOX-${b.id}`,
-    batch: b,
-    type: 'WH',           // hitungan biaya tetap memakai tarif Warehouse
-    icon: '📦',
-    iconBg: 'bg-matcha-100',
-    title: `${b.owner?.label || 'Tanpa pemilik'} — ${b.name}`,
-    subtitle: 'Box ditutup',
-    date: b.closed_at,
-    sort: b.closed_at,
-  });
+  const rows = closedBoxes
+    .map(b => {
+      const bill = billOf(b.id);
+      return {
+        key: `BOX-${b.id}`,
+        batch: b,
+        type: 'WH',
+        icon: '📦',
+        iconBg: 'bg-matcha-100',
+        title: `${b.owner?.label || 'Tanpa pemilik'} — ${b.name}`,
+        subtitle: bill
+          ? (bill.status === 'paid' ? '✓ Sudah lunas' : '🧾 Sudah ditagih, belum lunas')
+          : 'Belum ditagih',
+        bill,
+        date: b.closed_at,
+        sort: b.closed_at,
+      };
+    })
+    .filter(r => filter === 'all'
+      || (filter === 'paid' && r.bill?.status === 'paid')
+      || (filter === 'unpaid' && r.bill?.status !== 'paid'))
+    .sort((a, b) => new Date(b.sort || 0) - new Date(a.sort || 0));
 
-  const rows = [
-    ...(showHC ? hcBatches.map(b => batchRow(b, 'HC')) : []),
-    ...(showWH ? whBatches.map(b => batchRow(b, 'WH')) : []),
-    ...(showBox ? closedBoxes.map(boxRow) : []),
-  ].sort((a, b) => new Date(b.sort || 0) - new Date(a.sort || 0));
-
-  const totalArchived = hcBatches.length + whBatches.length + closedBoxes.length;
+  const totalArchived = closedBoxes.length;
 
   return (
     <div className="p-5 md:p-7 max-w-3xl mx-auto">
@@ -272,14 +250,12 @@ export default function AdminArchive() {
           <span className="text-3xl">📁</span>
           <div>
             <h1 className="text-xl font-bold text-matcha-800">Arsip</h1>
-            <p className="text-sm text-gray-500">
-              {totalArchived} tersimpan · {closedBoxes.length} box ditutup
-            </p>
+            <p className="text-sm text-gray-500">{totalArchived} box ditutup</p>
           </div>
         </div>
         {/* Filter */}
         <div className="flex gap-1 bg-white border border-cream-200 rounded-xl p-1">
-          {[['all', 'Semua'], ['BOX', '📦 Box'], ['HC', '✈️ HC'], ['WH', '🏭 WH']].map(([val, label]) => (
+          {[['all', 'Semua'], ['unpaid', '🧾 Belum lunas'], ['paid', '✓ Lunas']].map(([val, label]) => (
             <button
               key={val}
               onClick={() => setFilter(val)}
@@ -299,15 +275,15 @@ export default function AdminArchive() {
       ) : rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">🗄️</div>
-          <p>Belum ada yang diarsipkan</p>
-          <p className="text-sm mt-1">Box yang ditutup dan batch yang selesai muncul di sini</p>
+          <p>Belum ada box yang diarsipkan</p>
+          <p className="text-sm mt-1">Box yang sudah ditutup muncul di sini</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
           {/* Table header */}
           <div className="px-4 py-2.5 border-b border-cream-100 bg-cream-50">
             <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_80px_120px_110px_24px] gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-              <span>Box / Batch</span>
+              <span>Box</span>
               <span className="hidden sm:block">Resi</span>
               <span className="hidden md:block">Denda / Fee</span>
               <span className="hidden sm:block">Tanggal Selesai</span>

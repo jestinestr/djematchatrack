@@ -32,36 +32,29 @@ function StatCard({ icon, label, value, sub, color = 'matcha' }) {
 
 export default function AdminOverview() {
   const [cheer] = useState(() => CHEERS[Math.floor(Math.random() * CHEERS.length)]);
-  const [hcData, setHcData] = useState([]);
   const [whData, setWhData] = useState([]);
+  const [boxes, setBoxes] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/parcels/hc/all').then(r => r.json()),
       fetch('/api/parcels/wh/all').then(r => r.json()),
-    ]).then(([hc, wh]) => {
-      setHcData(hc);
+      fetch('/api/parcels/wh/boxes').then(r => r.json()),
+    ]).then(([wh, boxData]) => {
       setWhData(wh);
+      setBoxes(boxData.boxes || []);
       setLoading(false);
     });
   }, []);
 
-  const hcActive = hcData.filter(b => b.status === 'active');
   const whActive = whData.filter(b => b.status === 'active');
-
-  const totalHCResi = hcActive.reduce((s, b) => s + (b.parcels?.length || 0), 0);
   const totalWHResi = whActive.reduce((s, b) => s + (b.parcels?.length || 0), 0);
 
-  const hcTotals = sumParcels(hcActive.flatMap(b => b.parcels || []), 'HC');
   const whTotals = sumParcels(whActive.flatMap(b => b.parcels || []), 'WH');
-  const billing = {
-    IDR: hcTotals.IDR + whTotals.IDR,
-    CNY: hcTotals.CNY + whTotals.CNY,
-  };
-  const totalFines = hcTotals.fine + whTotals.fine;
+  const billing = { IDR: whTotals.IDR, CNY: whTotals.CNY };
+  const totalFines = whTotals.fine;
 
-  const hcCurrentBatch = hcActive[0];
+  const boxTerbuka = boxes.filter(b => b.status === 'open').length;
   const whCurrentBatch = whActive[0];
 
   return (
@@ -70,7 +63,7 @@ export default function AdminOverview() {
       <div className="bg-gradient-to-r from-matcha-800 to-matcha-600 text-white rounded-2xl px-5 py-4 mb-6 shadow-md">
         <p className="font-semibold text-base">{cheer}</p>
         <p className="text-matcha-200 text-sm mt-1">
-          {totalHCResi + totalWHResi} resi aktif hari ini
+          {totalWHResi} resi aktif hari ini
         </p>
       </div>
 
@@ -83,7 +76,7 @@ export default function AdminOverview() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-            <StatCard icon="✈️" label="Resi HC Aktif" value={totalHCResi} sub={`Batch #${hcCurrentBatch?.batch_number || '-'}`} color="matcha" />
+            <StatCard icon="📦" label="Box Terbuka" value={boxTerbuka} sub={`${boxes.length} box seluruhnya`} color="matcha" />
             <StatCard icon="🏭" label="Resi WH Aktif" value={totalWHResi} sub={`Batch #${whCurrentBatch?.batch_number || '-'}`} color="blue" />
             <StatCard icon="💰" label="Total Tagihan" value={formatMulti(billing)} color="amber" />
             <StatCard icon="⚠️" label="Total Denda" value={totalFines ? rupiah(totalFines) : '—'} color="red" />
@@ -93,9 +86,8 @@ export default function AdminOverview() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Aksi Cepat</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { to: '/admin/hc', icon: '✈️', label: 'Kelola HC', desc: `${totalHCResi} resi aktif` },
               { to: '/admin/wh', icon: '🏭', label: 'Kelola WH', desc: `${totalWHResi} resi aktif` },
-              { to: '/admin/archive', icon: '📁', label: 'Lihat Arsip', desc: `${hcData.filter(b => b.status === 'completed').length + whData.filter(b => b.status === 'completed').length} batch selesai` },
+              { to: '/admin/archive', icon: '📁', label: 'Lihat Arsip', desc: `${boxes.filter(b => b.status !== 'open').length} box ditutup` },
               { to: '/admin/codes', icon: '🔑', label: 'Kode Akses', desc: 'Kelola akses user' },
             ].map(item => (
               <Link

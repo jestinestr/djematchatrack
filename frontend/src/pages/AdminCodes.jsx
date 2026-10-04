@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const PANELS = [
-  { key: 'access_hc', icon: '✈️', title: 'Hand Carry', sub: 'Paket Bawaan' },
   { key: 'access_wh', icon: '🏭', title: 'Warehouse', sub: 'Paket Gudang' },
 ];
 
 export default function AdminCodes() {
   const [codes, setCodes] = useState([]);
-  const [form, setForm] = useState({ code: '', label: '', access_hc: true, access_wh: true });
+  const [form, setForm] = useState({ code: '', label: '', access_wh: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -31,7 +30,7 @@ export default function AdminCodes() {
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
       setCodes(prev => [data, ...prev]);
-      setForm({ code: '', label: '', access_hc: true, access_wh: true });
+      setForm({ code: '', label: '', access_wh: true });
     } catch {
       setError('Koneksi gagal');
     } finally {
@@ -51,7 +50,7 @@ export default function AdminCodes() {
     setTimeout(() => setCopied(c => (c === id ? null : c)), 1500);
   }
 
-  const noAccess = !form.access_hc && !form.access_wh;
+  const noAccess = !form.access_wh;
 
   return (
     <div className="p-5 md:p-7 max-w-2xl mx-auto">
@@ -193,7 +192,6 @@ function CodeRow({ code: c, copied, onCopy, onDelete, onSaved }) {
     setForm({
       label: c.label,
       code: c.code,
-      access_hc: c.access_hc ?? true,
       access_wh: c.access_wh ?? true,
     });
     setError('');
@@ -222,7 +220,7 @@ function CodeRow({ code: c, copied, onCopy, onDelete, onSaved }) {
 
   // ── Mode edit ───────────────────────────────────────────
   if (editing) {
-    const noAccess = !form.access_hc && !form.access_wh;
+    const noAccess = !form.access_wh;
     return (
       <div className="bg-white rounded-2xl border-2 border-matcha-300 px-4 py-4 shadow-soft-lg space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -299,11 +297,6 @@ function CodeRow({ code: c, copied, onCopy, onDelete, onSaved }) {
           <span className="opacity-50 group-hover/code:opacity-100">{copied ? '✓' : '⧉'}</span>
         </button>
         <div className="flex gap-1.5 mt-1.5">
-          {(c.access_hc ?? true) ? (
-            <span className="text-[11px] font-medium bg-matcha-50 text-matcha-700 border border-matcha-200 px-2 py-0.5 rounded-full">✈️ HC</span>
-          ) : (
-            <span className="text-[11px] font-medium bg-gray-50 text-gray-400 border border-gray-200 px-2 py-0.5 rounded-full">✈️ HC nonaktif</span>
-          )}
           {(c.access_wh ?? true) ? (
             <span className="text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full">🏭 WH</span>
           ) : (

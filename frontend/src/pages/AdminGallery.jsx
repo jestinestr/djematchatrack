@@ -4,10 +4,8 @@ import { slugify, downloadImage, cardName, makePhotoCard } from '../utils/format
 
 
 export default function AdminGallery() {
-  const [hcBatches, setHcBatches] = useState([]);
   const [whBatches, setWhBatches] = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [typeFilter, setTypeFilter] = useState('all');   // 'all'|'HC'|'WH'
   const [batchFilter, setBatchFilter] = useState('active'); // 'active'|batch_id
   const [ownerFilter, setOwnerFilter] = useState('all');    // 'all'|owner id
   const [order, setOrder] = useState('new');                // 'new'|'old'
@@ -17,36 +15,24 @@ export default function AdminGallery() {
   const [preview, setPreview] = useState(null);   // { parcel, url } — pratinjau hasil unduhan
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/parcels/hc/all').then(r => r.json()),
-      fetch('/api/parcels/wh/all').then(r => r.json()),
-    ]).then(([hc, wh]) => {
-      setHcBatches(hc);
-      setWhBatches(wh);
-      setLoading(false);
-    });
+    fetch('/api/parcels/wh/all')
+      .then(r => r.json())
+      .then(wh => {
+        setWhBatches(wh);
+        setLoading(false);
+      });
   }, []);
 
-  // Flatten all parcels with type + batch info
-  const allParcels = useMemo(() => {
-    const hc = hcBatches.flatMap(b =>
-      (b.parcels || []).map(p => ({ ...p, _type: 'HC', _batch: b }))
-    );
-    const wh = whBatches.flatMap(b =>
-      (b.parcels || []).map(p => ({ ...p, _type: 'WH', _batch: b }))
-    );
-    return [...hc, ...wh];
-  }, [hcBatches, whBatches]);
+  // Semua resi beserta batchnya
+  const allParcels = useMemo(
+    () => whBatches.flatMap(b => (b.parcels || []).map(p => ({ ...p, _type: 'WH', _batch: b }))),
+    [whBatches]
+  );
 
-  // All batches for dropdown
-  const allBatches = useMemo(() => {
-    const seen = new Set();
-    const list = [];
-    [...hcBatches, ...whBatches].forEach(b => {
-      if (!seen.has(b.id)) { seen.add(b.id); list.push(b); }
-    });
-    return list.sort((a, b) => b.batch_number - a.batch_number);
-  }, [hcBatches, whBatches]);
+  const allBatches = useMemo(
+    () => [...whBatches].sort((a, b) => b.batch_number - a.batch_number),
+    [whBatches]
+  );
 
   // Filtered parcels (only with photos)
   // Pelanggan yang punya foto, untuk saringan per user
@@ -62,7 +48,6 @@ export default function AdminGallery() {
   const parcels = useMemo(() => {
     return allParcels.filter(p => {
       if (!p.photo_url) return false;
-      if (typeFilter !== 'all' && p._type !== typeFilter) return false;
       if (ownerFilter !== 'all' && String(p.owner?.id) !== ownerFilter) return false;
       if (batchFilter === 'active') return p._batch.status === 'active';
       if (batchFilter !== 'all') return String(p._batch.id) === String(batchFilter);
@@ -71,7 +56,7 @@ export default function AdminGallery() {
       const selisih = new Date(b.created_at) - new Date(a.created_at);
       return order === 'old' ? -selisih : selisih;
     });
-  }, [allParcels, typeFilter, batchFilter, ownerFilter, order]);
+  }, [allParcels, batchFilter, ownerFilter, order]);
 
   function toggleSelect(id) {
     setSelected(prev => {
@@ -141,16 +126,6 @@ export default function AdminGallery() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 mb-5">
-        {/* Type filter */}
-        <div className="flex gap-1 bg-white border border-cream-200 rounded-xl p-1">
-          {[['all','Semua'],['HC','✈️ HC'],['WH','🏭 WH']].map(([v,l]) => (
-            <button key={v} onClick={() => { setTypeFilter(v); setSelected(new Set()); }}
-              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${typeFilter === v ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'}`}>
-              {l}
-            </button>
-          ))}
-        </div>
-
         {/* Batch filter */}
         <select
           value={batchFilter}

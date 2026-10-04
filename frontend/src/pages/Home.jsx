@@ -21,21 +21,16 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Kode tidak valid'); return; }
 
-      if (modal === 'hc' && !data.access_hc) {
-        setError('Kode ini tidak memiliki akses ke Hand Carry');
-        return;
-      }
-      if (modal === 'wh' && !data.access_wh) {
+      if (!data.access_wh) {
         setError('Kode ini tidak memiliki akses ke Warehouse');
         return;
       }
-      // Simpan status akses supaya rute /hc dan /wh terlindungi
-      if (data.access_hc) sessionStorage.setItem('access_hc', '1');
-      if (data.access_wh) sessionStorage.setItem('access_wh', '1');
+      // Simpan status akses supaya rute /wh terlindungi
+      sessionStorage.setItem('access_wh', '1');
       // Kode dipakai lagi untuk memfilter resi milik pengguna ini
       sessionStorage.setItem('access_code', code.trim());
       sessionStorage.setItem('access_label', data.label || '');
-      navigate(modal === 'hc' ? '/hc' : '/wh');
+      navigate('/wh');
     } catch {
       setError('Koneksi gagal. Coba lagi.');
     } finally {
@@ -76,17 +71,7 @@ export default function Home() {
       </div>
 
       {/* Panel buttons */}
-      <div className="relative flex flex-col sm:flex-row gap-4 w-full max-w-xs sm:max-w-sm">
-        <button
-          onClick={() => openModal('hc')}
-          className="flex-1 group bg-white/90 backdrop-blur-sm hover:bg-white text-matcha-800 font-bold
-                     py-6 px-5 rounded-3xl shadow-soft-lg transition-all duration-200
-                     hover:scale-[1.03] hover:shadow-soft-lg border border-white/60"
-        >
-          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-200">✈️</div>
-          <div className="text-base">Hand Carry</div>
-          <div className="text-xs text-matcha-500 font-normal mt-0.5">Paket Bawaan</div>
-        </button>
+      <div className="relative flex flex-col gap-4 w-full max-w-xs">
         <button
           onClick={() => openModal('wh')}
           className="flex-1 group bg-white/90 backdrop-blur-sm hover:bg-white text-matcha-800 font-bold
@@ -115,10 +100,10 @@ export default function Home() {
           >
             <div className="text-center mb-6">
               <div className="w-14 h-14 rounded-2xl bg-matcha-50 flex items-center justify-center mx-auto mb-3 text-3xl border border-matcha-100">
-                {modal === 'hc' ? '✈️' : '🏭'}
+                🏭
               </div>
               <h2 className="text-xl font-bold text-matcha-800">
-                {modal === 'hc' ? 'Hand Carry' : 'Warehouse'}
+                Warehouse
               </h2>
               <p className="text-gray-400 text-sm mt-1">Masukkan kode akses</p>
             </div>

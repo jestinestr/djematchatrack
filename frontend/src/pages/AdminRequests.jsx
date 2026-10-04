@@ -22,7 +22,7 @@ export default function AdminRequests() {
   const [acting, setActing]         = useState(null);
   const [selected, setSelected]     = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'HC' | 'WH'
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'WH'
   const [codes, setCodes] = useState([]);
   const [autoAcc, setAutoAcc] = useState(null);   // null = belum kebaca
   const [autoBusy, setAutoBusy] = useState(false);
@@ -218,28 +218,6 @@ export default function AdminRequests() {
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-colors ${tab === t.key ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'}`}>
               {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Type filter pills */}
-        <div className="flex gap-1.5">
-          {[
-            { key: 'all', label: 'Semua' },
-            { key: 'HC',  label: '✈️ HC' },
-            { key: 'WH',  label: '🏭 WH' },
-          ].map(f => (
-            <button key={f.key} onClick={() => { setFilterType(f.key); setSelected(new Set()); }}
-              className={`text-xs px-3 py-1.5 rounded-full font-semibold border transition-all duration-150 ${
-                filterType === f.key
-                  ? f.key === 'HC'
-                    ? 'bg-sky-100 text-sky-700 border-sky-300 shadow-clay-sm'
-                    : f.key === 'WH'
-                    ? 'bg-amber-100 text-amber-700 border-amber-300 shadow-clay-sm'
-                    : 'bg-matcha-800 text-white border-matcha-800 shadow-clay-sm'
-                  : 'bg-white text-gray-500 border-cream-300 hover:border-matcha-300 hover:text-matcha-700'
-              }`}>
-              {f.label}
             </button>
           ))}
         </div>

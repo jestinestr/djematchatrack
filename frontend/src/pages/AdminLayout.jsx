@@ -4,7 +4,6 @@ import { clearSession } from '../utils/auth';
 
 const navItems = [
   { to: '/admin/dashboard', icon: '📊', label: 'Dashboard' },
-  { to: '/admin/hc', icon: '✈️', label: 'Hand Carry' },
   { to: '/admin/wh', icon: '🏭', label: 'Warehouse' },
   { to: '/admin/gallery',  icon: '📸', label: 'Recap Foto' },
   { to: '/foto', icon: '📷', label: 'Upload Foto' },

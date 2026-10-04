@@ -23,7 +23,8 @@ function optionLabel(b) {
 }
 
 export default function AdminInvoice() {
-  const [type, setType]       = useState('WH');
+  // Hand Carry sudah dipensiunkan — invoice sekarang selalu per box Warehouse
+  const type = 'WH';
   const [batchList, setBatchList] = useState([]);
   const [search, setSearch] = useState('');
   const [billings, setBillings] = useState({ ready: true, list: [] });
@@ -37,8 +38,7 @@ export default function AdminInvoice() {
   const [chosen, setChosen]   = useState(new Set()); // id resi yang ikut ditagih
   const [payingId, setPayingId] = useState(null);
 
-  // WH memakai box, HC masih memakai batch
-  const isBox = type === 'WH';
+  const isBox = true;
 
   // Daftar box/batch diambil lengkap dengan resinya, supaya pilihannya bisa
   // menyebut isi: berapa resi, dan berapa yang sudah siap ditagih (ada foto
@@ -388,23 +388,12 @@ export default function AdminInvoice() {
         <span className="text-3xl">🧾</span>
         <div>
           <h1 className="text-xl font-bold text-matcha-800">Invoice</h1>
-          <p className="text-sm text-gray-500">Buat invoice per pelanggan untuk satu batch</p>
+          <p className="text-sm text-gray-500">Buat invoice per pelanggan untuk satu box</p>
         </div>
       </div>
 
       {/* Pilih batch */}
       <div className="bg-white rounded-2xl border border-cream-200 shadow-soft p-3 mb-5 flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 bg-cream-50 border border-cream-200 rounded-xl p-0.5">
-          {['HC', 'WH'].map(t => (
-            <button key={t} onClick={() => setType(t)}
-              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                type === t ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'
-              }`}>
-              {t === 'HC' ? '✈️ Hand Carry' : '🏭 Warehouse'}
-            </button>
-          ))}
-        </div>
-
         <select
           value={batchId}
           onChange={e => setBatchId(e.target.value)}

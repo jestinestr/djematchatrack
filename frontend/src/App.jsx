@@ -1,11 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
-import HCPanel from './pages/HCPanel';
 import WHPanel from './pages/WHPanel';
 import AdminLogin from './pages/AdminLogin';
 import AdminLayout from './pages/AdminLayout';
 import AdminOverview from './pages/AdminOverview';
-import AdminHC from './pages/AdminHC';
 import AdminWarehouse from './pages/AdminWarehouse';
 import AdminArchive from './pages/AdminArchive';
 import AdminCodes from './pages/AdminCodes';
@@ -43,7 +41,8 @@ export default function App() {
     <Routes>
       {/* User routes */}
       <Route path="/" element={<Home />} />
-      <Route path="/hc" element={<RequireAccess panel="hc"><HCPanel /></RequireAccess>} />
+      {/* Hand Carry dipensiunkan — tautan lama diarahkan ke Warehouse */}
+      <Route path="/hc" element={<Navigate to="/wh" replace />} />
       <Route path="/wh" element={<RequireAccess panel="wh"><WHPanel /></RequireAccess>} />
 
       {/* Admin login */}
@@ -61,7 +60,7 @@ export default function App() {
         }
       >
         <Route path="/admin/dashboard" element={<AdminOverview />} />
-        <Route path="/admin/hc" element={<AdminHC />} />
+        <Route path="/admin/hc" element={<Navigate to="/admin/wh" replace />} />
         <Route path="/admin/wh" element={<AdminWarehouse />} />
         <Route path="/admin/gallery"  element={<AdminGallery />} />
         <Route path="/admin/requests" element={<AdminRequests />} />

@@ -269,18 +269,12 @@ function BatchTarifCard({ batch, type, onSaved }) {
 }
 
 export default function AdminTarif() {
-  const [hcBatches, setHcBatches] = useState([]);
   const [whBatches, setWhBatches] = useState([]);
   const [loading, setLoading]     = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [hcRes, whRes] = await Promise.all([
-      fetch('/api/parcels/hc/all'),
-      fetch('/api/parcels/wh/all'),
-    ]);
-    const [hcData, whData] = await Promise.all([hcRes.json(), whRes.json()]);
-    setHcBatches(hcData);
+    const whData = await fetch('/api/parcels/wh/all').then(r => r.json());
     setWhBatches(whData);
     setLoading(false);
   }, []);
@@ -291,8 +285,6 @@ export default function AdminTarif() {
     setter(prev => prev.map(b => (b.id === batchId ? { ...b, ...patch } : b)));
   }
 
-  const hcActive   = hcBatches.filter(b => b.status === 'active');
-  const hcArchived = hcBatches.filter(b => b.status !== 'active');
   const whActive   = whBatches.filter(b => b.status === 'active');
   const whArchived = whBatches.filter(b => b.status !== 'active');
 
@@ -303,45 +295,14 @@ export default function AdminTarif() {
         <span className="text-3xl">💰</span>
         <div>
           <h1 className="text-xl font-bold text-matcha-800">Control Tarif</h1>
-          <p className="text-sm text-gray-500">Atur tarif per gram dan denda untuk setiap batch HC & WH</p>
+          <p className="text-sm text-gray-500">Atur tarif satuan, video unboxing, dan denda tiap batch Warehouse</p>
         </div>
       </div>
 
       {loading ? (
         <LoadingSpinner text="Memuat data tarif..." />
       ) : (
-        <div className="grid md:grid-cols-2 gap-6">
-
-          {/* ── HC Column ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">✈️</span>
-              <h2 className="font-bold text-matcha-800">Hand Carry</h2>
-              <span className="text-xs text-gray-400 bg-cream-100 border border-cream-300 px-2 py-0.5 rounded-full">
-                {hcBatches.length} batch
-              </span>
-            </div>
-
-            {hcBatches.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-cream-200 p-8 text-center text-gray-400 text-sm">
-                Belum ada batch HC
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Active first */}
-                {hcActive.map(b => (
-                  <BatchTarifCard key={b.id} batch={b} type="HC"
-                    onSaved={(id, patch) => handleSaved(id, patch, setHcBatches)} />
-                ))}
-
-                {/* Archived - collapsible */}
-                {hcArchived.length > 0 && (
-                  <ArchivedSection batches={hcArchived} type="HC"
-                    onSaved={(id, patch) => handleSaved(id, patch, setHcBatches)} />
-                )}
-              </div>
-            )}
-          </div>
+        <div className="max-w-xl">
 
           {/* ── WH Column ── */}
           <div>

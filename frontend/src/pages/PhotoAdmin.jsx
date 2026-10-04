@@ -31,7 +31,7 @@ function TypeBadge({ parcel }) {
 export default function PhotoAdmin() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [kind, setKind] = useState('all');       // all | hc | wh
+  const kind = 'wh';   // Hand Carry sudah dipensiunkan
   const [missingOnly, setMissingOnly] = useState(true);
   const [unboxingOnly, setUnboxingOnly] = useState(false);
   const [parcels, setParcels] = useState([]);
@@ -140,15 +140,6 @@ export default function PhotoAdmin() {
 
           {/* Saringan */}
           <div className="flex items-center gap-2 mt-2.5 overflow-x-auto no-scrollbar">
-            {[['all', 'Semua'], ['hc', '✈️ HC'], ['wh', '🏭 WH']].map(([v, l]) => (
-              <button key={v} onClick={() => setKind(v)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition ${
-                  kind === v ? 'bg-white text-matcha-800' : 'bg-white/15 text-white/75'
-                }`}>
-                {l}
-              </button>
-            ))}
-            <span className="w-px h-5 bg-white/20 flex-shrink-0" />
             <button onClick={() => setMissingOnly(v => !v)}
               className={`text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition ${
                 missingOnly ? 'bg-berry-500 text-white' : 'bg-white/15 text-white/75'
