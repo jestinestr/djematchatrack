@@ -11,6 +11,17 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => (
 
 const hasMoney = t => t.fee > 0 || t.additional > 0 || t.fine > 0 || t.unboxing > 0;
 
+// Isi pilihan di dropdown box/batch. Angka yang ditulis cuma yang menentukan
+// keputusan: berapa yang siap ditagih, dan apakah ada yang belum ada fotonya.
+function optionLabel(b) {
+  if (!b.count) return `${b.label} · kosong`;
+  const bagian = [`${b.ready} siap`];
+  const tanpaFoto = b.pending - b.ready;
+  if (tanpaFoto > 0) bagian.push(`${tanpaFoto} tanpa foto`);
+  if (b.pending === 0) return `${b.label} · semua lunas`;
+  return `${b.label} · ${bagian.join(', ')}`;
+}
+
 export default function AdminInvoice() {
   const [type, setType]       = useState('WH');
   const [batchList, setBatchList] = useState([]);
@@ -29,14 +40,36 @@ export default function AdminInvoice() {
   // WH memakai box, HC masih memakai batch
   const isBox = type === 'WH';
 
+  // Daftar box/batch diambil lengkap dengan resinya, supaya pilihannya bisa
+  // menyebut isi: berapa resi, dan berapa yang sudah siap ditagih (ada foto
+  // arrival & belum lunas). Tanpa itu admin harus membuka satu-satu dulu
+  // baru tahu mana yang perlu dikerjakan.
   useEffect(() => {
-    const url = isBox ? '/api/boxes?status=all' : `/api/batches/all/${type}`;
+    const url = isBox ? '/api/parcels/wh/boxes' : `/api/parcels/${type.toLowerCase()}/all`;
     fetch(url)
       .then(r => r.json())
-      .then(list => {
-        const rows = (list || []).map(b => (isBox
-          ? { id: b.id, label: `${b.owner?.label || '—'} - ${b.name}`, closed: b.status !== 'open' }
-          : { id: b.id, label: `Batch #${b.batch_number}`, closed: b.status !== 'active' }));
+      .then(res => {
+        const sumber = isBox ? (res.boxes || []) : (res || []);
+        const rows = sumber.map(b => {
+          const parcels = b.parcels || [];
+          const belumLunas = parcels.filter(p => !p.paid_at);
+          return {
+            id: b.id,
+            label: isBox ? `${b.owner?.label || '—'} - ${b.name}` : `Batch #${b.batch_number}`,
+            closed: isBox ? b.status !== 'open' : b.status !== 'active',
+            count: parcels.length,
+            ready: belumLunas.filter(p => p.photo_url).length,
+            pending: belumLunas.length,
+          };
+        });
+
+        // Yang masih berjalan dulu, lalu yang paling banyak siap ditagih —
+        // itu yang biasanya mau dikerjakan duluan.
+        rows.sort((a, b) =>
+          (a.closed === b.closed ? 0 : a.closed ? 1 : -1) ||
+          b.ready - a.ready ||
+          a.label.localeCompare(b.label, 'id', { numeric: true }));
+
         setBatchList(rows);
         setBatchId(String(rows?.[0]?.id || ''));
       })
@@ -375,14 +408,22 @@ export default function AdminInvoice() {
         <select
           value={batchId}
           onChange={e => setBatchId(e.target.value)}
-          className="input-field text-sm w-auto py-1.5"
+          className="input-field text-sm w-auto max-w-[280px] py-1.5"
         >
           {shownBatches.length === 0 && (
             <option value="">{search ? 'Tidak ada yang cocok' : isBox ? 'Belum ada box' : 'Belum ada batch'}</option>
           )}
-          {shownBatches.map(b => (
-            <option key={b.id} value={b.id}>{b.label}{b.closed ? ' · ditutup' : ''}</option>
-          ))}
+          {[['Masih berjalan', false], [isBox ? 'Sudah ditutup' : 'Sudah selesai', true]].map(([judul, tutup]) => {
+            const isi = shownBatches.filter(b => b.closed === tutup);
+            if (!isi.length) return null;
+            return (
+              <optgroup key={judul} label={judul}>
+                {isi.map(b => (
+                  <option key={b.id} value={b.id}>{optionLabel(b)}</option>
+                ))}
+              </optgroup>
+            );
+          })}
         </select>
 
         {/* Cari — menyaring daftar box/batch sekaligus pelanggan di dalamnya */}
