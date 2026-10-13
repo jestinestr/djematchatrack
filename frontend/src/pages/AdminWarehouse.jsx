@@ -15,7 +15,7 @@ export default function AdminWarehouse() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('all');
-  const [showClosed, setShowClosed] = useState(false);
+  const [photoFilter, setPhotoFilter] = useState('all');   // all | yes | no
   const [form, setForm] = useState({ owner_code_id: '', name: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -190,7 +190,7 @@ export default function AdminWarehouse() {
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return boxes.filter(b => {
-      if (!showClosed && b.status !== 'open') return false;
+      if (b.status !== 'open') return false;
       if (ownerFilter !== 'all' && String(b.owner?.id) !== ownerFilter) return false;
       if (q) {
         const hay = [b.name, b.owner?.label, b.owner?.code,
@@ -200,7 +200,7 @@ export default function AdminWarehouse() {
       }
       return true;
     });
-  }, [boxes, search, ownerFilter, showClosed]);
+  }, [boxes, search, ownerFilter]);
 
   // Semua resi WH jadi satu daftar; box asalnya ikut menempel
   const flat = useMemo(() => {
@@ -212,7 +212,10 @@ export default function AdminWarehouse() {
     return rows
       .filter(p => {
         if (ownerFilter !== 'all' && String(p.owner?.id) !== ownerFilter) return false;
-        if (!showClosed && p.box && p.box.status !== 'open') return false;
+        // Box yang sudah ditutup pindah ke Arsip — di sini yang aktif saja
+        if (p.box && p.box.status !== 'open') return false;
+        if (photoFilter === 'yes' && !p.photo_url) return false;
+        if (photoFilter === 'no' && p.photo_url) return false;
         if (extraFilter === 'unboxing' && !p.need_unboxing) return false;
         if (extraFilter === 'freebies' && !p.freebies_stay) return false;
         if (extraFilter === 'manual' && !p.is_manual_input) return false;
@@ -234,7 +237,7 @@ export default function AdminWarehouse() {
         const selisih = new Date(b.created_at) - new Date(a.created_at);
         return order === 'old' ? -selisih : selisih;
       });
-  }, [boxes, unassigned, search, ownerFilter, showClosed, extraFilter, order]);
+  }, [boxes, unassigned, search, ownerFilter, photoFilter, extraFilter, order]);
 
   const listPaged = usePaged(flat, pageSize);
 
@@ -387,12 +390,17 @@ export default function AdminWarehouse() {
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap"
-               title="Box yang sudah ditutup tersimpan di halaman Arsip">
-          <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}
-            className="accent-matcha-700" />
-          Tampilkan box arsip
-        </label>
+        <div className="flex gap-1 bg-cream-100 rounded-xl p-0.5">
+          {[['all', 'Semua'], ['yes', '📷 Ada foto'], ['no', '⏳ Belum']].map(([v, l]) => (
+            <button key={v} onClick={() => setPhotoFilter(v)}
+              title="Saring menurut foto arrival"
+              className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold transition-colors ${
+                photoFilter === v ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'
+              }`}>
+              {l}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-1 bg-cream-100 rounded-xl p-0.5">
           {[['box', 'Per Box'], ['list', 'Semua Resi']].map(([v, l]) => (
             <button key={v} onClick={() => setView(v)}
@@ -536,7 +544,7 @@ export default function AdminWarehouse() {
               {marked.length} resi ditandai dibuka · berikutnya nomor {nextOpenNumber}
             </p>
             <p className="text-[11px] text-amber-700/80">
-              Nomor hilang sendiri setelah label dicetak dan foto arrival masuk
+              Nomor lepas sendiri kalau semua yang ditandai sudah dicetak & difoto
             </p>
           </div>
           <div className="flex-1" />

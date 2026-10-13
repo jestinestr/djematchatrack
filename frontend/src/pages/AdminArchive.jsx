@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import AddParcelModal from '../components/AddParcelModal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { money, rupiah, baseFee, sumParcels, formatMulti } from '../utils/format';
+import { money, rupiah, baseFee, sumParcels, formatMulti, storageDays } from '../utils/format';
 
 const formatDate = str => (str
   ? new Date(str).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -9,6 +9,9 @@ const formatDate = str => (str
 
 /* ── Detail Drawer ──────────────────────────────────────── */
 function BatchDetailDrawer({ batch, type, title, subtitle, onClose, onParcelEdited, onParcelDeleted }) {
+  // Durasi simpan dihitung sampai box ditutup, bukan sampai hari ini —
+  // isinya sudah keluar gudang, jadi angkanya tidak boleh ikut jalan terus.
+  const tutupPada = batch.closed_at || batch.completed_at || null;
   const [editingParcel, setEditingParcel] = useState(null);
   const parcels = batch.parcels || [];
   const totals = sumParcels(parcels, type);
@@ -47,6 +50,7 @@ function BatchDetailDrawer({ batch, type, title, subtitle, onClose, onParcelEdit
         {/* Stats bar */}
         <div className="flex gap-4 px-5 py-2.5 bg-white border-b border-cream-200 text-xs text-gray-500 flex-shrink-0">
           <span>📦 {parcels.length} resi</span>
+          <span>📷 {parcels.filter(p => p.photo_url).length} ada foto</span>
           {totalFines > 0 && <span className="text-red-500">⚠️ Denda {rupiah(totalFines)}</span>}
           {hasFee && <span className="text-amber-600">💰 {formatMulti(totals)}</span>}
         </div>
@@ -97,6 +101,19 @@ function BatchDetailDrawer({ batch, type, title, subtitle, onClose, onParcelEdit
                     )}
                     {p.fine_amount > 0 && (
                       <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded-full border border-red-100">⚠️ Denda {rupiah(p.fine_amount)}</span>
+                    )}
+                    {p.need_unboxing && (
+                      <span className="text-xs bg-violet-100 text-violet-800 px-1.5 py-0.5 rounded-full">🎥 Unboxing</span>
+                    )}
+                    {storageDays(p, tutupPada) ? (
+                      <span className="text-xs bg-cream-100 text-gray-500 px-1.5 py-0.5 rounded-full border border-cream-200">
+                        ⏳ {storageDays(p, tutupPada)} hari saat ditutup
+                      </span>
+                    ) : null}
+                    {!p.photo_url && (
+                      <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
+                        tanpa foto
+                      </span>
                     )}
                   </div>
                 </div>

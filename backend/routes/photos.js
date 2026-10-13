@@ -218,14 +218,24 @@ async function nextOpenNumber() {
 }
 
 // Nomor dilepas begitu label tercetak DAN foto arrival sudah masuk
-async function clearIfDone(table, id) {
-  if (!(await hasColumn(table, 'open_order'))) return;
+// Nomor urut baru dilepas kalau SATU PUTARAN bongkar sudah beres semua —
+// bukan satu per satu. Kalau dilepas begitu satu resi selesai, nomor 1-7
+// hilang sementara 8-10 masih dikerjakan, dan urutan di meja jadi kacau.
+async function clearIfDone(table) {
+  if (!(await hasColumn(table, 'open_order'))) return { cleared: 0 };
+
   const { data } = await supabase
-    .from(table).select('open_order, open_printed, photo_url').eq('id', id).single();
-  if (!data || data.open_order === null) return;
-  if (data.open_printed && data.photo_url) {
-    await supabase.from(table).update({ open_order: null, open_printed: false }).eq('id', id);
-  }
+    .from(table).select('id, open_printed, photo_url').not('open_order', 'is', null);
+  const marked = data || [];
+  if (!marked.length) return { cleared: 0 };
+
+  const belum = marked.filter(p => !(p.open_printed && p.photo_url));
+  if (belum.length) return { cleared: 0, remaining: belum.length };
+
+  await supabase.from(table)
+    .update({ open_order: null, open_printed: false })
+    .in('id', marked.map(p => p.id));
+  return { cleared: marked.length };
 }
 
 //  body { kind, id }                  → dapat nomor berikutnya
@@ -261,8 +271,8 @@ router.post('/mark/printed', async (req, res) => {
     .in('id', ids).not('open_order', 'is', null);
   if (error) return res.status(500).json({ error: error.message });
 
-  await Promise.all(ids.map(id => clearIfDone(TABLE[kind], id)));
-  res.json({ success: true });
+  const beres = await clearIfDone(TABLE[kind]);
+  res.json({ success: true, ...beres });
 });
 
 router.delete('/mark/:kind/:id', async (req, res) => {
@@ -315,7 +325,7 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
       ref_id: data.id,
     });
 
-    if (column === 'photo_url') await clearIfDone(TABLE[kind], data.id);
+    if (column === 'photo_url') await clearIfDone(TABLE[kind]);
 
     res.json(data);
   } catch (e) {
