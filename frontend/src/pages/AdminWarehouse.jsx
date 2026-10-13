@@ -5,6 +5,7 @@ import ParcelDetailModal from '../components/ParcelDetailModal';
 import LabelPrintModal from '../components/LabelPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
+import ActionButton, { IconEye, IconPencil, IconPrinter, IconTrash } from '../components/ActionButton';
 import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone } from '../utils/format';
 
 export default function AdminWarehouse() {
@@ -582,7 +583,7 @@ export default function AdminWarehouse() {
                   <th className="px-3 py-2 text-right">Fee WH</th>
                   <th className="px-3 py-2 text-right">Durasi</th>
                   <th className="px-3 py-2 text-left w-40">Box</th>
-                  <th className="px-3 py-2 text-right w-20">Aksi</th>
+                  <th className="px-3 py-2 text-right w-36">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -671,14 +672,20 @@ export default function AdminWarehouse() {
                         </select>
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button onClick={() => setLabelTargets([p])} title="Cetak label resi ini"
-                          className="text-gray-400 hover:text-matcha-700 px-1">🏷</button>
-                        <button onClick={() => setDetail(p)} title="Lihat detail"
-                          className="text-gray-400 hover:text-matcha-700 px-1">👁</button>
-                        <button onClick={() => setEditing(p)} title="Edit resi"
-                          className="text-gray-400 hover:text-matcha-700 px-1">✏️</button>
-                        <button onClick={() => removeParcel(p.id)} title="Hapus resi"
-                          className="text-gray-400 hover:text-red-600 px-1">🗑</button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <ActionButton title="Lihat detail" onClick={() => setDetail(p)}>
+                            <IconEye />
+                          </ActionButton>
+                          <ActionButton title="Edit resi" onClick={() => setEditing(p)}>
+                            <IconPencil />
+                          </ActionButton>
+                          <ActionButton title="Cetak label resi ini" onClick={() => setLabelTargets([p])}>
+                            <IconPrinter />
+                          </ActionButton>
+                          <ActionButton title="Hapus resi" tone="danger" onClick={() => removeParcel(p.id)}>
+                            <IconTrash />
+                          </ActionButton>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AddParcelModal from '../components/AddParcelModal';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ActionButton, { IconPencil, IconTrash } from '../components/ActionButton';
 import { money, rupiah, baseFee, sumParcels, formatMulti, storageDays } from '../utils/format';
 
 const formatDate = str => (str
@@ -118,9 +119,13 @@ function BatchDetailDrawer({ batch, type, title, subtitle, onClose, onParcelEdit
                   </div>
                 </div>
                 {/* Actions */}
-                <div className="flex gap-1 flex-shrink-0">
-                  <button onClick={() => setEditingParcel(p)} className="text-gray-300 hover:text-matcha-600 transition-colors p-1.5 rounded-lg hover:bg-matcha-50" title="Edit">✏️</button>
-                  <button onClick={() => handleDelete(p.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50" title="Hapus">🗑</button>
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <ActionButton title="Edit resi" onClick={() => setEditingParcel(p)}>
+                    <IconPencil />
+                  </ActionButton>
+                  <ActionButton title="Hapus resi" tone="danger" onClick={() => handleDelete(p.id)}>
+                    <IconTrash />
+                  </ActionButton>
                 </div>
               </div>
             ))
