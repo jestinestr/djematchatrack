@@ -1,10 +1,12 @@
-// Tombol aksi kecil di baris tabel — kotak membulat bergaris merah muda
-// dengan ikon garis di dalamnya. Dipakai di tabel Warehouse dan laci Arsip
+// Tombol aksi kecil di baris tabel — kotak membulat bergaris dengan ikon
+// garis di dalamnya. Dipakai di tabel Warehouse dan laci Arsip
 // supaya aksinya kelihatan sebagai tombol, bukan emoji yang menempel di teks.
 
+// Warnanya ikut tema panel: matcha untuk aksi biasa, strawberry khusus
+// yang merusak — supaya tombol hapus tidak tenggelam di antara yang lain.
 const TONE = {
-  berry: 'border-berry-200 text-berry-400 hover:bg-berry-50 hover:text-berry-600 hover:border-berry-300',
-  danger: 'border-berry-200 text-berry-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300',
+  berry: 'border-matcha-200 text-matcha-600 hover:bg-matcha-50 hover:text-matcha-800 hover:border-matcha-400',
+  danger: 'border-cream-300 text-gray-400 hover:bg-berry-50 hover:text-berry-600 hover:border-berry-300',
 };
 
 export default function ActionButton({ title, onClick, tone = 'berry', disabled, children }) {
