@@ -278,6 +278,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
   const [busy, setBusy] = useState('');     // slot yang sedang diunggah
   const [error, setError] = useState('');
   const [zoom, setZoom] = useState(null);
+  const [preview, setPreview] = useState({}); // slot → blob URL foto yang sedang naik
   const [editorSlot, setEditorSlot] = useState(null); // slot foto yang sedang dirapikan
   const [editing, setEditing] = useState(false);
   const [codes, setCodes] = useState([]);
@@ -308,16 +309,27 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
     if (!file) return;
     setError('');
     setBusy(slot);
+    let previewUrl = null;
     try {
       // Hasil dari editor sudah pas ukurannya, tidak perlu dikecilkan lagi
       const small = rapi ? file : await compressImage(file);
-      const fd = new FormData();
-      fd.append('photo', small);
-      fd.append('kind', parcel.kind);
-      fd.append('id', parcel.id);
-      fd.append('slot', slot);
 
-      const res = await fetch('/api/photos/upload', { method: 'POST', body: fd });
+      // Tampilkan fotonya langsung, tidak menunggu upload selesai
+      previewUrl = URL.createObjectURL(small);
+      setPreview(p => ({ ...p, [slot]: previewUrl }));
+
+      const send = () => {
+        const fd = new FormData();
+        fd.append('photo', small);
+        fd.append('kind', parcel.kind);
+        fd.append('id', parcel.id);
+        fd.append('slot', slot);
+        return fetch('/api/photos/upload', { method: 'POST', body: fd });
+      };
+
+      // VPN sering putus di tengah jalan — coba lagi sekali sebelum menyerah
+      let res;
+      try { res = await send(); } catch { res = await send(); }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload gagal');
 
@@ -328,9 +340,11 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
       });
       onToast(rapi ? '✅ Foto dirapikan' : slot === 'photo' ? '✅ Foto arrival tersimpan' : '✅ Foto CO tersimpan');
     } catch (e) {
-      setError(e.message);
+      setError(e.message === 'Failed to fetch' ? 'Koneksi terputus — cek VPN lalu coba lagi' : e.message);
     } finally {
       setBusy('');
+      setPreview(p => { const { [slot]: _, ...rest } = p; return rest; });
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     }
   }
 
@@ -459,8 +473,8 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
 
           {/* Kotak foto */}
           {SLOTS.map(slot => {
-            const url = parcel[slot.field];
             const uploading = busy === slot.key;
+            const url = (uploading && preview[slot.key]) || parcel[slot.field];
             const pick = e => { handleFile(slot.key, e.target.files?.[0]); e.target.value = ''; };
 
             // Dua jalan masuk yang jelas: foto lama dari galeri, atau jepret

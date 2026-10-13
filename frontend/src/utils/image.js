@@ -20,10 +20,12 @@ function readAsImage(file) {
 const toBlob = (canvas, quality) =>
   new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
 
-export async function compressImage(file, { maxSize = 1600, quality = 0.82 } = {}) {
+// 1280px / mutu 0.72 → biasanya 120–300 KB. Sengaja lebih kecil dari dulu
+// (1600px / 0.82) karena upload sering lewat VPN yang lambat.
+export async function compressImage(file, { maxSize = 1280, quality = 0.72 } = {}) {
   if (!file || !file.type.startsWith('image/')) return file;
   // Sudah kecil dan bukan format aneh — kirim apa adanya
-  if (file.size <= 900 * 1024 && file.type === 'image/jpeg') return file;
+  if (file.size <= 250 * 1024 && file.type === 'image/jpeg') return file;
 
   try {
     const img = await readAsImage(file);
