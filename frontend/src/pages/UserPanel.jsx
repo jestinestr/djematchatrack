@@ -6,7 +6,7 @@ import RequestForm from '../components/RequestForm';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
-import { ManualMineNotice, UnclaimedNotice } from '../components/ManualNotices';
+import { ManualMineNotice, UnclaimedNotice, AlbumNotice } from '../components/ManualNotices';
 import TodayNotice from '../components/TodayNotice';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
 import { fetchAsUser, downloadMany, slugify, cardName, money, formatDate } from '../utils/format';
@@ -444,6 +444,9 @@ export default function UserPanel({ type }) {
                   onOpenParcel={p => setDetail(p)}
                 />
                 <UnclaimedNotice parcels={unclaimedShown} onDismiss={hideUnclaimed} />
+
+                {/* Resi yang fotonya lebih dari satu */}
+                <AlbumNotice parcels={mine} onOpenParcel={p => setDetail(p)} />
 
                 {/* Box yang sudah ditutup — barangnya sudah jalan ke pelanggan */}
                 {batch.status === 'closed' && (

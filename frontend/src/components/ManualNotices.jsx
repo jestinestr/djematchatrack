@@ -97,3 +97,43 @@ export function UnclaimedNotice({ parcels, onDismiss }) {
     </div>
   );
 }
+
+// ── Resi yang fotonya lebih dari satu (album) ───────────────────────
+//  Pesannya dari admin: foto dipecah karena satu foto tidak cukup memuat
+//  semua isinya. parcels: resi milik pelanggan dengan extra_photos terisi.
+export function AlbumNotice({ parcels, onOpenParcel }) {
+  const list = (parcels || []).filter(p => (p.extra_photos || []).length > 0);
+  if (!list.length) return null;
+
+  return (
+    <div className="rounded-3xl border-2 border-sky-200 bg-sky-50 p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl leading-none">📷</span>
+        <p className="text-sm font-bold text-sky-900 leading-snug">Hi ka!</p>
+      </div>
+
+      <div className="space-y-1.5 mt-3">
+        {list.slice(0, 5).map(p => (
+          <button key={`${p.kind || ''}-${p.id}`} onClick={() => onOpenParcel?.(p)}
+            className="w-full text-left px-3 py-2 rounded-xl bg-white/70 border border-white/60
+                       hover:opacity-80 transition-opacity">
+            <p className="text-xs text-sky-900 leading-snug">
+              Resi <span className="font-mono font-bold">{p.tracking_number}</span>
+              {p.recipient_name ? <span className="text-sky-700/80"> ({p.recipient_name})</span> : null}
+              {' '}ada <span className="font-bold">{1 + p.extra_photos.length} foto</span> ya
+            </p>
+          </button>
+        ))}
+      </div>
+      {list.length > 5 && (
+        <p className="text-[11px] text-sky-700/80 text-center mt-2">
+          dan {list.length - 5} resi lagi di daftar bawah
+        </p>
+      )}
+
+      <p className="text-xs text-sky-800/90 mt-3 leading-snug">
+        Maaf karena ga cukup space nya 🙏
+      </p>
+    </div>
+  );
+}
