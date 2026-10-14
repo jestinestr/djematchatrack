@@ -56,7 +56,7 @@ export default function ParcelCard({
             <img src={parcel.photo_url} alt="foto" className="w-16 h-16 object-cover rounded-lg border border-cream-200" />
             {(parcel.extra_photos || []).length > 0 && (
               <span className="absolute -bottom-1 -right-1 text-[10px] font-bold bg-matcha-800 text-white px-1.5 py-0.5 rounded-full">
-                +{parcel.extra_photos.length}
+                📷 {1 + parcel.extra_photos.length}
               </span>
             )}
           </div>

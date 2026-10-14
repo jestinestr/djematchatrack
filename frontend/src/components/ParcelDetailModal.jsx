@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MyParcelEdit from './MyParcelEdit';
 import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, downloadMany, slugify, storageDays } from '../utils/format';
 
@@ -16,8 +16,20 @@ export default function ParcelDetailModal({
   onEdited,
 }) {
   const [zoomUrl, setZoomUrl] = useState(null);
+  const [idx, setIdx] = useState(0);          // foto ke-n di album
+  const swipeX = useRef(null);
+
+  // Pindah resi (mis. lewat daftar resi lain) → mulai lagi dari foto pertama
+  useEffect(() => { setIdx(0); }, [parcel?.id]);
 
   if (!parcel) return null;
+  const photos = [parcel.photo_url, ...(parcel.extra_photos || [])].filter(Boolean);
+  const cur = Math.min(idx, Math.max(0, photos.length - 1));
+  const step = dir => setIdx((cur + dir + photos.length) % photos.length);
+  const fileFor = i =>
+    `${slugify(cardName(parcel))}_${slugify(parcel.tracking_number)}${i ? `_${i + 1}` : ''}`;
+  const cardFor = i =>
+    ({ name: cardName(parcel), tracking: parcel.tracking_number, part: i ? i + 1 : null });
   const isHC = (type || '').toUpperCase() === 'HC';
   const fee = baseFee(parcel, type);
   const extra = Number(parcel.additional_fee) || 0;
@@ -32,20 +44,46 @@ export default function ParcelDetailModal({
         >
           {/* Foto */}
           <div className={`grid ${isAdmin && parcel.co_photo_url ? 'grid-cols-2' : 'grid-cols-1'} gap-0 flex-shrink-0`}>
-            <div className="relative bg-cream-100">
-              {parcel.photo_url ? (
+            <div className="relative bg-cream-100"
+                 onTouchStart={e => { swipeX.current = e.touches[0].clientX; }}
+                 onTouchEnd={e => {
+                   if (swipeX.current == null || photos.length < 2) return;
+                   const dx = e.changedTouches[0].clientX - swipeX.current;
+                   swipeX.current = null;
+                   if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+                 }}>
+              {photos.length ? (
                 <img
-                  src={parcel.photo_url}
-                  alt="arrival"
-                  onClick={() => setZoomUrl(parcel.photo_url)}
+                  src={photos[cur]}
+                  alt={cur ? `foto ${cur + 1}` : 'arrival'}
+                  onClick={() => setZoomUrl(photos[cur])}
                   className="w-full aspect-square object-cover cursor-zoom-in"
                 />
               ) : (
                 <div className="w-full h-52 flex items-center justify-center text-5xl text-gray-200">📦</div>
               )}
               <span className="absolute bottom-2 left-2 text-[10px] font-bold bg-white/80 text-gray-600 px-2 py-0.5 rounded-full">
-                📷 Arrival
+                {cur ? `📷 Foto ${cur + 1}` : '📷 Arrival'}
               </span>
+
+              {photos.length > 1 && (
+                <>
+                  <button onClick={() => step(-1)} aria-label="Foto sebelumnya"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90
+                               shadow-soft text-gray-700 text-lg flex items-center justify-center">‹</button>
+                  <button onClick={() => step(1)} aria-label="Foto berikutnya"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90
+                               shadow-soft text-gray-700 text-lg flex items-center justify-center">›</button>
+                  <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/80 px-2 py-1 rounded-full">
+                    {photos.map((_, i) => (
+                      <button key={i} onClick={() => setIdx(i)} aria-label={`Foto ${i + 1}`}
+                        className={`h-1.5 rounded-full transition-all ${
+                          i === cur ? 'w-4 bg-matcha-700' : 'w-1.5 bg-gray-400'
+                        }`} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Foto CO — admin only */}
@@ -64,37 +102,29 @@ export default function ParcelDetailModal({
             )}
           </div>
 
-          {/* Album: foto tambahan di bawah foto utama */}
-          {parcel.photo_url && (parcel.extra_photos || []).length > 0 && (
-            <div className="px-5 pt-3">
-              <div className="flex gap-2 overflow-x-auto">
-                {parcel.extra_photos.map((u, i) => (
-                  <img key={u + i} src={u} alt={`Foto ${i + 2}`} onClick={() => setZoomUrl(u)}
-                       className="w-20 h-20 rounded-xl object-cover border border-cream-200 cursor-zoom-in flex-shrink-0" />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Keterangan ala kartu foto: nama kiri, 4 digit resi kanan */}
           {parcel.photo_url && (
             <div className="flex items-end justify-between gap-3 px-5 pt-3 pb-1">
               <div className="min-w-0">
                 <p className="text-lg font-bold text-gray-900 truncate leading-tight">{cardName(parcel)}</p>
-                <button
-                  onClick={() => downloadMany(
-                    [parcel.photo_url, ...(parcel.extra_photos || [])].map((url, i) => ({
-                      url,
-                      filename: `${slugify(cardName(parcel))}_${slugify(parcel.tracking_number)}${i ? `_${i + 1}` : ''}`,
-                      card: { name: cardName(parcel), tracking: parcel.tracking_number },
-                    })),
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+                  <button
+                    onClick={() => downloadImage(photos[cur], fileFor(cur), cardFor(cur))}
+                    className="text-xs font-semibold text-matcha-600 hover:underline"
+                  >
+                    ⬇️ Download foto{photos.length > 1 ? ` ${cur + 1}` : ''}
+                  </button>
+                  {photos.length > 1 && (
+                    <button
+                      onClick={() => downloadMany(photos.map((url, i) => ({
+                        url, filename: fileFor(i), card: cardFor(i),
+                      })))}
+                      className="text-xs font-semibold text-matcha-600 hover:underline"
+                    >
+                      ⬇️ Download semua ({photos.length})
+                    </button>
                   )}
-                  className="text-xs font-semibold text-matcha-600 hover:underline mt-0.5"
-                >
-                  ⬇️ Download {(parcel.extra_photos || []).length > 0
-                    ? `semua (${1 + parcel.extra_photos.length} foto)`
-                    : 'foto'}
-                </button>
+                </div>
               </div>
               <p className="text-4xl font-black text-gray-900 leading-none tracking-tight">
                 {tail4(parcel.tracking_number)}

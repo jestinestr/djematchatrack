@@ -274,6 +274,110 @@ export default function PhotoAdmin() {
 }
 
 // ── Layar detail: unggah foto + ubah data seperlunya ────────────────
+// Satu kotak foto: dipakai untuk foto arrival, foto tambahan, dan foto CO,
+// supaya semuanya punya fitur yang sama (lihat, atur posisi, ganti, hapus).
+function PhotoCard({ label, hint, url, uploading, onPick, onZoom, onEdit, onRemove }) {
+  const pick = e => { onPick(e.target.files?.[0]); e.target.value = ''; };
+
+  // Dua jalan masuk yang jelas: foto lama dari galeri, atau jepret
+  // sekarang. Tombol galeri sengaja tanpa `capture`, karena atribut
+  // itu memaksa kamera dan justru menutup akses galeri di ponsel.
+  const PickButton = ({ camera, className, children }) => (
+    <label className={`cursor-pointer text-center ${className}`}>
+      <input
+        type="file"
+        accept="image/*"
+        {...(camera ? { capture: 'environment' } : {})}
+        className="hidden"
+        disabled={uploading}
+        onChange={pick}
+      />
+      {children}
+    </label>
+  );
+
+  return (
+    <div className="bg-white rounded-3xl border-2 border-cream-200 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="font-bold text-sm text-gray-700">{label}</p>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          url ? 'bg-matcha-50 text-matcha-600' : 'bg-cream-100 text-gray-400'
+        }`}>
+          {url ? '✓ Ada' : hint}
+        </span>
+      </div>
+
+      {url ? (
+        <div className="relative rounded-2xl overflow-hidden bg-cream-100">
+          <img src={url} alt={label} onClick={() => onZoom(url)}
+               className="w-full max-h-64 object-contain cursor-zoom-in" />
+          {uploading && (
+            <div className="absolute inset-0 bg-white/75 flex items-center justify-center">
+              <span className="text-sm font-bold text-matcha-700 animate-pulse">Mengunggah…</span>
+            </div>
+          )}
+        </div>
+      ) : uploading ? (
+        <div className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
+                        border-2 border-dashed border-matcha-300 bg-matcha-50">
+          <span className="text-3xl">⏳</span>
+          <span className="text-xs font-bold text-gray-500">Mengunggah…</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <PickButton camera
+            className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
+                       border-2 border-dashed border-cream-300 hover:border-matcha-400
+                       active:bg-cream-100 transition">
+            <span className="text-3xl">📷</span>
+            <span className="text-xs font-bold text-gray-500">Jepret sekarang</span>
+          </PickButton>
+          <PickButton
+            className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
+                       border-2 border-dashed border-cream-300 hover:border-matcha-400
+                       active:bg-cream-100 transition">
+            <span className="text-3xl">🖼️</span>
+            <span className="text-xs font-bold text-gray-500">Dari galeri</span>
+          </PickButton>
+        </div>
+      )}
+
+      {url && (
+        <div className="space-y-2 mt-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => onZoom(url)}
+              className="text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                         border-2 border-cream-300 active:translate-y-[1px]">
+              👁 Lihat
+            </button>
+            <button onClick={onEdit} disabled={uploading}
+              className="text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                         border-2 border-cream-300 active:translate-y-[1px] disabled:opacity-50">
+              ✂️ Atur posisi
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <PickButton camera
+              className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-matcha-800 text-white
+                         active:translate-y-[1px]">
+              📷 Jepret ulang
+            </PickButton>
+            <PickButton
+              className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
+                         border-2 border-cream-300 active:translate-y-[1px]">
+              🖼️ Galeri
+            </PickButton>
+            <button onClick={onRemove} disabled={uploading}
+              className="px-3.5 text-xs font-bold rounded-2xl bg-berry-50 text-berry-600 disabled:opacity-50">
+              Hapus
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
   const [busy, setBusy] = useState('');     // slot yang sedang diunggah
   const [error, setError] = useState('');
@@ -305,10 +409,11 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
       .catch(() => {});
   }, [editing, codes.length]);
 
-  async function handleFile(slot, file, { rapi = false } = {}) {
+  async function handleFile(slot, file, { rapi = false, index = null } = {}) {
     if (!file) return;
     setError('');
-    setBusy(slot);
+    const bk = index != null ? `extra:${index}` : slot; // kunci status sibuk/pratinjau
+    setBusy(bk);
     let previewUrl = null;
     try {
       // Hasil dari editor sudah pas ukurannya, tidak perlu dikecilkan lagi
@@ -316,7 +421,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
 
       // Tampilkan fotonya langsung, tidak menunggu upload selesai
       previewUrl = URL.createObjectURL(small);
-      setPreview(p => ({ ...p, [slot]: previewUrl }));
+      setPreview(p => ({ ...p, [bk]: previewUrl }));
 
       const send = () => {
         const fd = new FormData();
@@ -324,6 +429,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
         fd.append('kind', parcel.kind);
         fd.append('id', parcel.id);
         fd.append('slot', slot);
+        if (index != null) fd.append('index', index);
         return fetch('/api/photos/upload', { method: 'POST', body: fd });
       };
 
@@ -344,7 +450,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
       setError(e.message === 'Failed to fetch' ? 'Koneksi terputus — cek VPN lalu coba lagi' : e.message);
     } finally {
       setBusy('');
-      setPreview(p => { const { [slot]: _, ...rest } = p; return rest; });
+      setPreview(p => { const { [bk]: _, ...rest } = p; return rest; });
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     }
   }
@@ -371,8 +477,8 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
   }
 
   async function removeExtra(index) {
-    if (!confirm('Hapus foto ini dari album?')) return;
-    setBusy('extra');
+    if (!confirm('Hapus foto ini?')) return;
+    setBusy(`extra:${index}`);
     try {
       const res = await fetch(`/api/photos/${parcel.kind}/${parcel.id}/extra/${index}`, { method: 'DELETE' });
       const data = await res.json();
@@ -489,154 +595,70 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
             <p className="bg-red-50 text-red-600 text-xs font-semibold px-3 py-2.5 rounded-2xl">{error}</p>
           )}
 
-          {/* Kotak foto */}
-          {SLOTS.map(slot => {
-            const uploading = busy === slot.key;
-            const url = (uploading && preview[slot.key]) || parcel[slot.field];
-            const pick = e => { handleFile(slot.key, e.target.files?.[0]); e.target.value = ''; };
-
-            // Dua jalan masuk yang jelas: foto lama dari galeri, atau jepret
-            // sekarang. Tombol galeri sengaja tanpa `capture`, karena atribut
-            // itu memaksa kamera dan justru menutup akses galeri di ponsel.
-            const PickButton = ({ camera, className, children }) => (
-              <label className={`cursor-pointer text-center ${className}`}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  {...(camera ? { capture: 'environment' } : {})}
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={pick}
-                />
-                {children}
-              </label>
+          {/* Kotak foto: arrival → foto tambahan (fitur sama) → CO */}
+          {(() => {
+            const slotCard = slot => (
+              <PhotoCard
+                key={slot.key}
+                label={slot.label}
+                hint={slot.hint}
+                url={(busy === slot.key && preview[slot.key]) || parcel[slot.field]}
+                uploading={busy === slot.key}
+                onPick={f => handleFile(slot.key, f)}
+                onZoom={setZoom}
+                onEdit={() => setEditorSlot(slot)}
+                onRemove={() => removePhoto(slot.key)}
+              />
             );
-
+            const extras = parcel.photo_url ? (parcel.extra_photos || []) : [];
             return (
-              <div key={slot.key} className="bg-white rounded-3xl border-2 border-cream-200 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-bold text-sm text-gray-700">{slot.label}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    url ? 'bg-matcha-50 text-matcha-600' : 'bg-cream-100 text-gray-400'
-                  }`}>
-                    {url ? '✓ Ada' : slot.hint}
-                  </span>
-                </div>
+              <>
+                {slotCard(SLOTS[0])}
 
-                {url ? (
-                  <div className="relative rounded-2xl overflow-hidden bg-cream-100">
-                    <img src={url} alt={slot.label} onClick={() => setZoom(url)}
-                         className="w-full max-h-64 object-contain cursor-zoom-in" />
-                    {uploading && (
-                      <div className="absolute inset-0 bg-white/75 flex items-center justify-center">
-                        <span className="text-sm font-bold text-matcha-700 animate-pulse">Mengunggah…</span>
+                {extras.map((u, i) => (
+                  <PhotoCard
+                    key={u + i}
+                    label={`Foto Tambahan ${i + 1}`}
+                    hint=""
+                    url={(busy === `extra:${i}` && preview[`extra:${i}`]) || u}
+                    uploading={busy === `extra:${i}`}
+                    onPick={f => handleFile('extra', f, { index: i })}
+                    onZoom={setZoom}
+                    onEdit={() => setEditorSlot({ key: 'extra', index: i, url: u, label: `Foto Tambahan ${i + 1}` })}
+                    onRemove={() => removeExtra(i)}
+                  />
+                ))}
+
+                {/* Tambah foto lagi ke album resi ini (setelah foto arrival ada) */}
+                {parcel.photo_url && extras.length < 8 && (
+                  <div className="bg-white rounded-3xl border-2 border-dashed border-cream-300 p-3">
+                    <p className="font-bold text-sm text-gray-700 mb-2">
+                      ➕ Tambah foto {extras.length ? 'lagi' : 'tambahan'}
+                      <span className="ml-1.5 text-[10px] font-semibold text-gray-400">satu album dengan foto arrival</span>
+                    </p>
+                    {busy === 'extra' ? (
+                      <p className="text-xs font-bold text-gray-500 text-center py-3 animate-pulse">Mengunggah…</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[true, false].map(camera => (
+                          <label key={String(camera)}
+                            className="cursor-pointer text-center text-xs font-bold py-3 rounded-2xl
+                                       bg-cream-100 text-matcha-800 border-2 border-cream-300 active:translate-y-[1px]">
+                            <input type="file" accept="image/*" className="hidden"
+                              {...(camera ? { capture: 'environment' } : {})}
+                              onChange={e => { handleFile('extra', e.target.files?.[0]); e.target.value = ''; }} />
+                            {camera ? '📷 Jepret' : '🖼️ Dari galeri'}
+                          </label>
+                        ))}
                       </div>
                     )}
                   </div>
-                ) : uploading ? (
-                  <div className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
-                                  border-2 border-dashed border-matcha-300 bg-matcha-50">
-                    <span className="text-3xl">⏳</span>
-                    <span className="text-xs font-bold text-gray-500">Mengunggah…</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <PickButton camera
-                      className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
-                                 border-2 border-dashed border-cream-300 hover:border-matcha-400
-                                 active:bg-cream-100 transition">
-                      <span className="text-3xl">📷</span>
-                      <span className="text-xs font-bold text-gray-500">Jepret sekarang</span>
-                    </PickButton>
-                    <PickButton
-                      className="flex flex-col items-center justify-center gap-1 h-32 rounded-2xl
-                                 border-2 border-dashed border-cream-300 hover:border-matcha-400
-                                 active:bg-cream-100 transition">
-                      <span className="text-3xl">🖼️</span>
-                      <span className="text-xs font-bold text-gray-500">Dari galeri</span>
-                    </PickButton>
-                  </div>
                 )}
 
-                {url && (
-                  <div className="space-y-2 mt-2">
-                    {/* Lihat besar & rapikan posisinya */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => setZoom(url)}
-                        className="text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
-                                   border-2 border-cream-300 active:translate-y-[1px]">
-                        👁 Lihat
-                      </button>
-                      <button onClick={() => setEditorSlot(slot)} disabled={uploading}
-                        className="text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
-                                   border-2 border-cream-300 active:translate-y-[1px] disabled:opacity-50">
-                        ✂️ Atur posisi
-                      </button>
-                    </div>
-                    {/* Ganti fotonya sama sekali */}
-                    <div className="flex gap-2">
-                      <PickButton camera
-                        className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-matcha-800 text-white
-                                   active:translate-y-[1px]">
-                        📷 Jepret ulang
-                      </PickButton>
-                      <PickButton
-                        className="flex-1 text-xs font-bold py-2.5 rounded-2xl bg-cream-100 text-matcha-800
-                                   border-2 border-cream-300 active:translate-y-[1px]">
-                        🖼️ Galeri
-                      </PickButton>
-                      <button onClick={() => removePhoto(slot.key)} disabled={uploading}
-                        className="px-3.5 text-xs font-bold rounded-2xl bg-berry-50 text-berry-600 disabled:opacity-50">
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                {slotCard(SLOTS[1])}
+              </>
             );
-          })}
-
-          {/* Album: foto tambahan untuk resi yang fotonya lebih dari satu.
-              Pelanggan melihatnya sebagai satu resi dan bisa mengunduh semuanya. */}
-          {parcel.photo_url && (
-            <div className="bg-white rounded-3xl border-2 border-cream-200 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-bold text-sm text-gray-700">Foto tambahan (album)</p>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cream-100 text-gray-400">
-                  {(parcel.extra_photos || []).length} foto
-                </span>
-              </div>
-              {(parcel.extra_photos || []).length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {(parcel.extra_photos || []).map((u, i) => (
-                    <div key={u + i} className="relative rounded-2xl overflow-hidden bg-cream-100 aspect-square">
-                      <img src={u} alt={`Album ${i + 2}`} onClick={() => setZoom(u)}
-                           className="w-full h-full object-cover cursor-zoom-in" />
-                      <button onClick={() => removeExtra(i)} disabled={busy === 'extra'}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 text-berry-600
-                                   text-xs font-bold disabled:opacity-50">×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {busy === 'extra' ? (
-                <p className="text-xs font-bold text-gray-500 text-center py-3 animate-pulse">Mengunggah…</p>
-              ) : (
-                <div className="flex gap-2">
-                  {[true, false].map(camera => (
-                    <label key={String(camera)}
-                      className="flex-1 cursor-pointer text-center text-xs font-bold py-2.5 rounded-2xl
-                                 bg-cream-100 text-matcha-800 border-2 border-cream-300 active:translate-y-[1px]">
-                      <input type="file" accept="image/*" className="hidden"
-                        {...(camera ? { capture: 'environment' } : {})}
-                        onChange={e => { handleFile('extra', e.target.files?.[0]); e.target.value = ''; }} />
-                      {camera ? '📷 Jepret tambahan' : '🖼️ Galeri'}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          })()}
 
           {/* Ubah data seperlunya */}
           <div className="bg-white rounded-3xl border-2 border-cream-200 overflow-hidden">
@@ -703,11 +725,11 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
 
       {editorSlot && (
         <PhotoEditor
-          url={parcel[editorSlot.field]}
+          url={editorSlot.field ? parcel[editorSlot.field] : editorSlot.url}
           title={editorSlot.label}
           onClose={() => setEditorSlot(null)}
           onSave={async file => {
-            await handleFile(editorSlot.key, file, { rapi: true });
+            await handleFile(editorSlot.key, file, { rapi: true, index: editorSlot.index ?? null });
             setEditorSlot(null);
           }}
         />

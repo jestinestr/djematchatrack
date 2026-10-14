@@ -116,7 +116,9 @@ export function weightTierLabel(grams) {
   return w > WEIGHT_TIERS[WEIGHT_TIERS.length - 1].max ? 'di atas 10 kg' : '';
 }
 
-export async function makePhotoCard(url, name, tracking) {
+// part: nomor foto dalam album (2, 3, …). Foto pertama tidak diberi nomor;
+// foto kedua dst. dapat angka kecil di sebelah nama supaya mudah dibedakan.
+export async function makePhotoCard(url, name, tracking, part = null) {
   const res = await fetch(url);
   if (!res.ok) throw new Error('Foto gagal dimuat');
   const src = URL.createObjectURL(await res.blob());
@@ -157,9 +159,25 @@ export async function makePhotoCard(url, name, tracking) {
     ctx.font = 'bold 64px Arial, Helvetica, sans-serif';
     const full = String(name || '').trim();
     let label = full;
-    const maxW = W - PAD * 2 - tailW - 40;
+    const BADGE_W = part ? 96 : 0; // ruang untuk angka foto ke-n
+    const maxW = W - PAD * 2 - tailW - 40 - BADGE_W;
     while (label.length > 1 && ctx.measureText(label + '…').width > maxW) label = label.slice(0, -1);
-    ctx.fillText(label === full ? full : label + '…', PAD + 20, baseY);
+    const shown = label === full ? full : label + '…';
+    ctx.fillText(shown, PAD + 20, baseY);
+
+    if (part) {
+      const nameW = ctx.measureText(shown).width;
+      const bx = PAD + 20 + nameW + 18, bh = 54, bw = 54, by = baseY - 50;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 14); else ctx.rect(bx, by, bw, bh);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 36px Arial, Helvetica, sans-serif';
+      ctx.fillText(String(part), bx + bw / 2, by + 39);
+      ctx.textAlign = 'left';
+    }
 
     return await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.92));
   } finally {
@@ -171,7 +189,7 @@ export async function makePhotoCard(url, name, tracking) {
 export async function downloadImage(url, filename, card) {
   try {
     const blob = card
-      ? await makePhotoCard(url, card.name, card.tracking)
+      ? await makePhotoCard(url, card.name, card.tracking, card.part)
       : await (await fetch(url)).blob();
     const ext = blob.type.includes('png') ? '.png' : '.jpg';
     const a = document.createElement('a');

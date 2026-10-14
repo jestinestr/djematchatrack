@@ -185,7 +185,7 @@ export default function UserPanel({ type }) {
       [p.photo_url, ...(p.extra_photos || [])].map((url, i) => ({
         url,
         filename: `${slugify(cardName(p))}_${slugify(p.tracking_number)}${i ? `_${i + 1}` : ''}`,
-        card: { name: cardName(p), tracking: p.tracking_number },
+        card: { name: cardName(p), tracking: p.tracking_number, part: i ? i + 1 : null },
       })));
     setProgress({ done: 0, total: files.length });
     await downloadMany(files, (done, total) => setProgress({ done, total }));

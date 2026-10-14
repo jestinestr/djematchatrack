@@ -1,7 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { slugify, downloadImage, cardName, makePhotoCard } from '../utils/format';
 
+
+// Foto utama + foto tambahan (album) satu resi
+const photosOf = p => [p.photo_url, ...(p.extra_photos || [])].filter(Boolean);
+const fileName = (p, i) =>
+  `${slugify(cardName(p))}_${slugify(p.tracking_number)}${i ? `_${i + 1}` : ''}`;
 
 export default function AdminGallery() {
   const [whBatches, setWhBatches] = useState([]);
@@ -12,7 +17,9 @@ export default function AdminGallery() {
   const [selected, setSelected]   = useState(new Set());
   const [downloading, setDownloading] = useState(false);
   const [downloadedIds, setDownloadedIds] = useState(new Set());
-  const [preview, setPreview] = useState(null);   // { parcel, url } — pratinjau hasil unduhan
+  const [preview, setPreview] = useState(null);   // { parcel, index, url, error } — pratinjau hasil unduhan
+  const previewSeq = useRef(0);                 // hanya hasil terbaru yang dipakai
+  const swipeX = useRef(null);
 
   useEffect(() => {
     fetch('/api/parcels/wh/all')
@@ -80,8 +87,12 @@ export default function AdminGallery() {
     setDownloading(true);
     for (let i = 0; i < targets.length; i++) {
       const p = targets[i];
-      const filename = `${slugify(cardName(p))}_${slugify(p.tracking_number)}`;
-      await downloadImage(p.photo_url, filename, { name: cardName(p), tracking: p.tracking_number });
+      const fotos = photosOf(p);
+      for (let k = 0; k < fotos.length; k++) {
+        await downloadImage(fotos[k], fileName(p, k),
+          { name: cardName(p), tracking: p.tracking_number, part: k ? k + 1 : null });
+        if (k < fotos.length - 1) await new Promise(r => setTimeout(r, 400));
+      }
       // Catat supaya tidak terunduh dua kali tanpa sengaja
       fetch('/api/photos/downloaded', {
         method: 'POST',
@@ -95,20 +106,48 @@ export default function AdminGallery() {
 
   // Pratinjau memakai penyusun gambar yang sama dengan tombol Download,
   // jadi yang dilihat admin persis file yang nanti terunduh.
-  async function showPreview(p) {
-    setPreview({ parcel: p, url: null, error: '' });
+  async function showPreview(p, index = 0) {
+    const seq = ++previewSeq.current;
+    setPreview(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { parcel: p, index, url: null, error: '' };
+    });
     try {
-      const blob = await makePhotoCard(p.photo_url, cardName(p), p.tracking_number);
-      setPreview({ parcel: p, url: URL.createObjectURL(blob), error: '' });
+      const blob = await makePhotoCard(
+        photosOf(p)[index], cardName(p), p.tracking_number, index ? index + 1 : null);
+      if (seq !== previewSeq.current) return; // sudah pindah foto lagi
+      setPreview({ parcel: p, index, url: URL.createObjectURL(blob), error: '' });
     } catch {
-      setPreview({ parcel: p, url: null, error: 'Pratinjau gagal dibuat' });
+      if (seq !== previewSeq.current) return;
+      setPreview({ parcel: p, index, url: null, error: 'Pratinjau gagal dibuat' });
     }
   }
 
+  // Geser antar foto album (kiri/kanan, berputar)
+  function stepPreview(dir) {
+    if (!preview) return;
+    const total = photosOf(preview.parcel).length;
+    if (total < 2) return;
+    showPreview(preview.parcel, (preview.index + dir + total) % total);
+  }
+
   function closePreview() {
+    previewSeq.current++;
     if (preview?.url) URL.revokeObjectURL(preview.url);
     setPreview(null);
   }
+
+  // Panah kiri/kanan di keyboard, Esc menutup
+  useEffect(() => {
+    if (!preview) return;
+    const onKey = e => {
+      if (e.key === 'ArrowLeft') stepPreview(-1);
+      else if (e.key === 'ArrowRight') stepPreview(1);
+      else if (e.key === 'Escape') closePreview();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const allSelected = parcels.length > 0 && selected.size === parcels.length;
   const someSelected = selected.size > 0;
@@ -252,6 +291,13 @@ export default function AdminGallery() {
                       👁
                     </button>
 
+                    {/* Jumlah foto dalam album */}
+                    {photosOf(p).length > 1 && (
+                      <span className="absolute top-8 left-2 text-[10px] font-bold bg-matcha-800 text-white px-1.5 py-0.5 rounded-full">
+                        📷 {photosOf(p).length}
+                      </span>
+                    )}
+
                     {/* Type badge */}
                     <span className={`absolute top-2 left-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                       p._type === 'HC' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
@@ -287,7 +333,14 @@ export default function AdminGallery() {
                 className="w-8 h-8 rounded-full bg-cream-200 text-gray-500 flex items-center justify-center">✕</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 bg-cream-100">
+            <div className="flex-1 overflow-y-auto p-4 bg-cream-100 relative"
+                 onTouchStart={e => { swipeX.current = e.touches[0].clientX; }}
+                 onTouchEnd={e => {
+                   if (swipeX.current == null) return;
+                   const dx = e.changedTouches[0].clientX - swipeX.current;
+                   swipeX.current = null;
+                   if (Math.abs(dx) > 50) stepPreview(dx < 0 ? 1 : -1);
+                 }}>
               {preview.error ? (
                 <p className="text-sm text-red-600 text-center py-10">{preview.error}</p>
               ) : preview.url ? (
@@ -295,20 +348,63 @@ export default function AdminGallery() {
               ) : (
                 <p className="text-sm text-gray-400 text-center py-10 animate-pulse">Menyiapkan pratinjau…</p>
               )}
+
+              {photosOf(preview.parcel).length > 1 && (
+                <>
+                  <button onClick={() => stepPreview(-1)} aria-label="Foto sebelumnya"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90
+                               shadow-soft text-gray-700 text-lg flex items-center justify-center">‹</button>
+                  <button onClick={() => stepPreview(1)} aria-label="Foto berikutnya"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90
+                               shadow-soft text-gray-700 text-lg flex items-center justify-center">›</button>
+                </>
+              )}
             </div>
 
-            <div className="p-4 border-t border-cream-200">
+            {photosOf(preview.parcel).length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 py-2 border-t border-cream-200">
+                {photosOf(preview.parcel).map((_, i) => (
+                  <button key={i} onClick={() => showPreview(preview.parcel, i)}
+                    aria-label={`Foto ${i + 1}`}
+                    className={`h-2 rounded-full transition-all ${
+                      i === preview.index ? 'w-5 bg-matcha-700' : 'w-2 bg-cream-300'
+                    }`} />
+                ))}
+                <span className="ml-2 text-[11px] font-semibold text-gray-500">
+                  {preview.index + 1} / {photosOf(preview.parcel).length}
+                </span>
+              </div>
+            )}
+
+            <div className="p-4 border-t border-cream-200 space-y-2">
               <button
                 onClick={() => {
-                  const p = preview.parcel;
-                  downloadImage(p.photo_url, `${slugify(cardName(p))}_${slugify(p.tracking_number)}`,
-                    { name: cardName(p), tracking: p.tracking_number });
+                  const p = preview.parcel, i = preview.index;
+                  downloadImage(photosOf(p)[i], fileName(p, i),
+                    { name: cardName(p), tracking: p.tracking_number, part: i ? i + 1 : null });
                 }}
                 disabled={!preview.url}
                 className="btn-primary w-full py-2.5 disabled:opacity-50"
               >
                 ⬇️ Download foto ini
               </button>
+              {photosOf(preview.parcel).length > 1 && (
+                <button
+                  onClick={async () => {
+                    const p = preview.parcel;
+                    const fotos = photosOf(p);
+                    for (let k = 0; k < fotos.length; k++) {
+                      await downloadImage(fotos[k], fileName(p, k),
+                        { name: cardName(p), tracking: p.tracking_number, part: k ? k + 1 : null });
+                      if (k < fotos.length - 1) await new Promise(r => setTimeout(r, 400));
+                    }
+                  }}
+                  className="w-full py-2.5 text-sm font-semibold rounded-xl border border-cream-300
+                             bg-white text-matcha-800 hover:bg-cream-50"
+                >
+                  ⬇️ Download semua ({photosOf(preview.parcel).length} foto)
+                </button>
+              )}
             </div>
           </div>
         </div>

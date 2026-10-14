@@ -318,13 +318,19 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
         .from(TABLE[kind]).select('extra_photos').eq('id', id).single();
       if (curErr) return res.status(500).json({ error: curErr.message });
       const list = Array.isArray(cur?.extra_photos) ? cur.extra_photos : [];
-      if (list.length >= MAX_EXTRA) {
+      const isReplace = req.body.index !== undefined && req.body.index !== '';
+      if (!isReplace && list.length >= MAX_EXTRA) {
         return res.status(400).json({ error: `Maksimal ${MAX_EXTRA} foto tambahan per resi` });
       }
 
+      const at = isReplace ? parseInt(req.body.index) : null;
+      const replacing = Number.isInteger(at) && at >= 0 && at < list.length;
+
       const url = await uploadPhoto(req.file);
+      // index terkirim = ganti/rapikan foto tambahan itu di tempatnya
+      const next = replacing ? list.map((u, i) => (i === at ? url : u)) : [...list, url];
       const { data, error } = await supabase
-        .from(TABLE[kind]).update({ extra_photos: [...list, url] }).eq('id', id)
+        .from(TABLE[kind]).update({ extra_photos: next }).eq('id', id)
         .select('*').single();
       if (error) return res.status(500).json({ error: error.message });
 
