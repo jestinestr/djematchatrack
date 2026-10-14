@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../utils/image';
 import { clearSession, isUploader } from '../utils/auth';
 import PhotoEditor from '../components/PhotoEditor';
+import BulkPhotoUpload from '../components/BulkPhotoUpload';
 
 // Panel khusus untuk pegang ponsel: cari resi, jepret/unggah foto, selesai.
 // Sengaja tidak menampilkan biaya, denda, invoice, atau kode akses.
@@ -39,6 +40,8 @@ export default function PhotoAdmin() {
   const [error, setError] = useState('');
   const [active, setActive] = useState(null);    // resi yang sedang dibuka
   const [toast, setToast] = useState('');
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);   // naik → daftar resi dimuat ulang
 
   const toastTimer = useRef(null);
   const showToast = useCallback(msg => {
@@ -73,7 +76,7 @@ export default function PhotoAdmin() {
     }, query ? 350 : 0);
 
     return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
-  }, [query, kind, missingOnly, unboxingOnly]);
+  }, [query, kind, missingOnly, unboxingOnly, reloadTick]);
 
   // Perbarui satu baris di daftar tanpa memuat ulang semuanya
   const patchRow = useCallback((target, changes) => {
@@ -151,6 +154,10 @@ export default function PhotoAdmin() {
                 unboxingOnly ? 'bg-violet-500 text-white' : 'bg-white/15 text-white/75'
               }`}>
               🎥 Unboxing
+            </button>
+            <button onClick={() => setBulkOpen(true)}
+              className="text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap bg-white text-matcha-800 transition">
+              📚 Upload banyak
             </button>
           </div>
         </div>
@@ -258,6 +265,14 @@ export default function PhotoAdmin() {
           onClose={() => setActive(null)}
           onChanged={patchRow}
           onToast={showToast}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkPhotoUpload
+          onClose={() => setBulkOpen(false)}
+          onToast={showToast}
+          onFinished={() => setReloadTick(t => t + 1)}
         />
       )}
 
