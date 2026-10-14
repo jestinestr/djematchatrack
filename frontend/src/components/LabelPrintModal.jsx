@@ -89,8 +89,16 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
       alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
       return;
     }
-    // Penanda urutan bongkar ikut tahu label mana yang sudah keluar
-    onPrinted?.(rows.map(r => r.id));
+    // Setiap jalur cetak harus mencatat sendiri — dulu hanya tombol di tabel
+    // yang melapor, jadi label yang dicetak dari kartu box atau form edit
+    // keluar fisiknya tapi tidak tercatat, dan penanda urutan tidak pernah
+    // bisa lepas. Kolom open_printed hanya ada di resi WH, jadi dikirim ke sana.
+    const ids = rows.map(r => r.id).filter(Boolean);
+    fetch('/api/photos/mark/printed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'wh', ids }),
+    }).catch(() => {}).finally(() => onPrinted?.(ids));
     w.document.write(html);
     w.document.close();
     w.focus();

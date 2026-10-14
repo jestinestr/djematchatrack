@@ -54,6 +54,15 @@ export default function AdminWarehouse() {
   );
   const nextOpenNumber = Math.max(0, ...marked.map(p => p.open_order)) + 1;
 
+  // Yang masih menahan nomor agar tidak lepas: belum difoto atau label belum
+  // tercatat dicetak. Disebut satu per satu supaya tidak perlu mencarinya
+  // halaman demi halaman.
+  const blockers = useMemo(
+    () => marked.filter(p => !(p.photo_url && p.open_printed))
+                .sort((a, b) => a.open_order - b.open_order),
+    [marked]
+  );
+
   // Tekan "/" di mana saja untuk langsung mengetik di kolom cari
   useEffect(() => {
     function onKey(e) {
@@ -96,6 +105,13 @@ export default function AdminWarehouse() {
     return true;
   }, [load]);
 
+  // Label yang sudah terlanjur dicetak lewat jalur lain bisa ditandai manual.
+  const markPrintedManually = useCallback(id => callMark('/api/photos/mark/printed', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'wh', ids: [id] }),
+  }), [callMark]);
+
   const markOpen = useCallback(id => callMark('/api/photos/mark', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -132,16 +148,9 @@ export default function AdminWarehouse() {
     }
   }
 
-  // Label yang benar-benar tercetak dicatat; nomornya lepas sendiri di server
-  // begitu foto arrival-nya juga sudah masuk.
-  const markPrinted = useCallback(async ids => {
-    await fetch('/api/photos/mark/printed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'wh', ids }),
-    });
-    load();
-  }, [load]);
+  // Pencatatan "sudah dicetak" dilakukan modal label sendiri; di sini cukup
+  // memuat ulang supaya titik hijau di kolom Buka ikut berubah.
+  const markPrinted = useCallback(() => load(), [load]);
 
   // Resi yang diketik admin tapi pemiliknya belum ditentukan — ini yang
   // muncul sebagai "resi nyasar" di panel pelanggan
@@ -544,9 +553,30 @@ export default function AdminWarehouse() {
             <p className="text-xs font-semibold text-amber-900">
               {marked.length} resi ditandai dibuka · berikutnya nomor {nextOpenNumber}
             </p>
-            <p className="text-[11px] text-amber-700/80">
-              Nomor lepas sendiri kalau semua yang ditandai sudah dicetak & difoto
-            </p>
+            {blockers.length === 0 ? (
+              <p className="text-[11px] text-amber-700/80">
+                Semua sudah dicetak & difoto — nomor lepas sendiri
+              </p>
+            ) : (
+              <p className="text-[11px] text-amber-700/80 leading-snug">
+                Menunggu {blockers.length} lagi:{' '}
+                {blockers.slice(0, 4).map((p, i) => (
+                  <span key={p.id}>
+                    {i > 0 && ', '}
+                    <b className="text-amber-900">#{p.open_order}</b>{' '}
+                    {!p.photo_url && !p.open_printed ? 'belum difoto & dicetak'
+                      : !p.photo_url ? 'belum difoto' : 'label belum dicetak'}
+                    {p.photo_url && !p.open_printed && (
+                      <button onClick={() => markPrintedManually(p.id)}
+                        className="ml-1 underline font-semibold hover:text-amber-950">
+                        sudah, tandai
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {blockers.length > 4 && ` dan ${blockers.length - 4} lainnya`}
+              </p>
+            )}
           </div>
           <div className="flex-1" />
           <button onClick={clearOpenMarks}
