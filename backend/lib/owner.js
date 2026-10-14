@@ -54,6 +54,7 @@ function maskParcel(p) {
     has_photo: !!p.photo_url,
     photo_url: null,
     co_photo_url: null,
+    extra_photos: [],
     owner: p.owner ? { label: p.owner.label } : null,
   };
 }

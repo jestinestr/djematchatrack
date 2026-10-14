@@ -337,8 +337,9 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
         photo_url: data.photo_url,
         co_photo_url: data.co_photo_url,
         photo_uploaded_at: data.photo_uploaded_at,
+        ...(data.extra_photos !== undefined && { extra_photos: data.extra_photos }),
       });
-      onToast(rapi ? '✅ Foto dirapikan' : slot === 'photo' ? '✅ Foto arrival tersimpan' : '✅ Foto CO tersimpan');
+      onToast(rapi ? '✅ Foto dirapikan' : slot === 'photo' ? '✅ Foto arrival tersimpan' : slot === 'extra' ? '✅ Foto ditambahkan ke album' : '✅ Foto CO tersimpan');
     } catch (e) {
       setError(e.message === 'Failed to fetch' ? 'Koneksi terputus — cek VPN lalu coba lagi' : e.message);
     } finally {
@@ -359,8 +360,25 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
         photo_url: data.photo_url,
         co_photo_url: data.co_photo_url,
         photo_uploaded_at: data.photo_uploaded_at,
+        ...(data.extra_photos !== undefined && { extra_photos: data.extra_photos }),
       });
       onToast('🗑️ Foto dihapus');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function removeExtra(index) {
+    if (!confirm('Hapus foto ini dari album?')) return;
+    setBusy('extra');
+    try {
+      const res = await fetch(`/api/photos/${parcel.kind}/${parcel.id}/extra/${index}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menghapus');
+      onChanged(parcel, { extra_photos: data.extra_photos });
+      onToast('🗑️ Foto album dihapus');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -577,6 +595,48 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
               </div>
             );
           })}
+
+          {/* Album: foto tambahan untuk resi yang fotonya lebih dari satu.
+              Pelanggan melihatnya sebagai satu resi dan bisa mengunduh semuanya. */}
+          {parcel.photo_url && (
+            <div className="bg-white rounded-3xl border-2 border-cream-200 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-bold text-sm text-gray-700">Foto tambahan (album)</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cream-100 text-gray-400">
+                  {(parcel.extra_photos || []).length} foto
+                </span>
+              </div>
+              {(parcel.extra_photos || []).length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {(parcel.extra_photos || []).map((u, i) => (
+                    <div key={u + i} className="relative rounded-2xl overflow-hidden bg-cream-100 aspect-square">
+                      <img src={u} alt={`Album ${i + 2}`} onClick={() => setZoom(u)}
+                           className="w-full h-full object-cover cursor-zoom-in" />
+                      <button onClick={() => removeExtra(i)} disabled={busy === 'extra'}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 text-berry-600
+                                   text-xs font-bold disabled:opacity-50">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {busy === 'extra' ? (
+                <p className="text-xs font-bold text-gray-500 text-center py-3 animate-pulse">Mengunggah…</p>
+              ) : (
+                <div className="flex gap-2">
+                  {[true, false].map(camera => (
+                    <label key={String(camera)}
+                      className="flex-1 cursor-pointer text-center text-xs font-bold py-2.5 rounded-2xl
+                                 bg-cream-100 text-matcha-800 border-2 border-cream-300 active:translate-y-[1px]">
+                      <input type="file" accept="image/*" className="hidden"
+                        {...(camera ? { capture: 'environment' } : {})}
+                        onChange={e => { handleFile('extra', e.target.files?.[0]); e.target.value = ''; }} />
+                      {camera ? '📷 Jepret tambahan' : '🖼️ Galeri'}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Ubah data seperlunya */}
           <div className="bg-white rounded-3xl border-2 border-cream-200 overflow-hidden">

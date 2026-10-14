@@ -68,6 +68,7 @@ router.post('/downloaded/mine', async (req, res) => {
 //  aman dipanggil dari layar ponsel yang tidak menampilkan kolom biaya.
 
 const SLOT = { photo: 'photo_url', co: 'co_photo_url' };
+const MAX_EXTRA = 8; // foto tambahan per resi (album)
 const SLOT_LABEL = { photo_url: 'foto arrival', co_photo_url: 'foto CO' };
 
 // Kolom yang boleh diubah dari panel foto
@@ -90,6 +91,7 @@ async function columnsFor(kind) {
   const cols = [BASE_COLUMNS];
   if (kind === 'wh') cols.push('box_id', 'need_unboxing');
   if (await hasColumn(TABLE[kind], 'open_order')) cols.push('open_order', 'open_printed');
+  if (await hasColumn(TABLE[kind], 'extra_photos')) cols.push('extra_photos');
   return cols.join(', ');
 }
 
@@ -301,6 +303,43 @@ router.delete('/mark', async (req, res) => {
 router.post('/upload', upload.single('photo'), async (req, res) => {
   const kind = kindOf(req.body.kind);
   const id = req.body.id;
+
+  // Foto tambahan: ditambahkan ke album resi, tidak mengganti foto utama
+  if (String(req.body.slot || '').toLowerCase() === 'extra') {
+    if (!kind || !id) return res.status(400).json({ error: 'Data tidak valid' });
+    if (!req.file) return res.status(400).json({ error: 'Foto tidak terkirim' });
+    if (!(await hasColumn(TABLE[kind], 'extra_photos'))) {
+      return res.status(503).json({
+        error: 'Foto tambahan belum aktif — jalankan supabase/migrations/018_extra_photos.sql di Supabase',
+      });
+    }
+    try {
+      const { data: cur, error: curErr } = await supabase
+        .from(TABLE[kind]).select('extra_photos').eq('id', id).single();
+      if (curErr) return res.status(500).json({ error: curErr.message });
+      const list = Array.isArray(cur?.extra_photos) ? cur.extra_photos : [];
+      if (list.length >= MAX_EXTRA) {
+        return res.status(400).json({ error: `Maksimal ${MAX_EXTRA} foto tambahan per resi` });
+      }
+
+      const url = await uploadPhoto(req.file);
+      const { data, error } = await supabase
+        .from(TABLE[kind]).update({ extra_photos: [...list, url] }).eq('id', id)
+        .select('*').single();
+      if (error) return res.status(500).json({ error: error.message });
+
+      logActivity({
+        action: 'parcel_photo',
+        summary: `Tambah foto album ${parcelLabel(data, data.recipient_name)}`,
+        ref_type: `${kind}_parcel`,
+        ref_id: data.id,
+      });
+      return res.json(data);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   const column = SLOT[String(req.body.slot || 'photo').toLowerCase()];
 
   if (!kind || !id || !column) return res.status(400).json({ error: 'Data tidak valid' });
@@ -371,6 +410,37 @@ router.patch('/:kind/:id', async (req, res) => {
     kind,
     owner: owner ? { id: owner.id, label: owner.label, code: owner.code } : null,
   });
+});
+
+// Hapus satu foto tambahan berdasarkan urutannya di album (0 = pertama)
+router.delete('/:kind/:id/extra/:index', async (req, res) => {
+  const kind = kindOf(req.params.kind);
+  const index = parseInt(req.params.index);
+  if (!kind || !Number.isInteger(index) || index < 0) {
+    return res.status(400).json({ error: 'Data tidak valid' });
+  }
+  if (!(await hasColumn(TABLE[kind], 'extra_photos'))) {
+    return res.status(503).json({ error: 'Foto tambahan belum aktif' });
+  }
+
+  const { data: cur } = await supabase
+    .from(TABLE[kind]).select('extra_photos').eq('id', req.params.id).single();
+  const list = Array.isArray(cur?.extra_photos) ? cur.extra_photos : [];
+  if (index >= list.length) return res.status(404).json({ error: 'Foto tidak ditemukan' });
+
+  const { data, error } = await supabase
+    .from(TABLE[kind])
+    .update({ extra_photos: list.filter((_, i) => i !== index) })
+    .eq('id', req.params.id).select('*').single();
+  if (error) return res.status(500).json({ error: error.message });
+
+  logActivity({
+    action: 'parcel_photo',
+    summary: `Hapus foto album ${parcelLabel(data, data.recipient_name)}`,
+    ref_type: `${kind}_parcel`,
+    ref_id: data.id,
+  });
+  res.json(data);
 });
 
 // Hapus satu foto (mis. salah ambil gambar)

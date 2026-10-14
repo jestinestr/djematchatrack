@@ -180,15 +180,15 @@ export default function UserPanel({ type }) {
   async function handleDownload() {
     const targets = downloadable.filter(p => picked.has(p.id));
     if (!targets.length) return;
-    setProgress({ done: 0, total: targets.length });
-    await downloadMany(
-      targets.map(p => ({
-        url: p.photo_url,
-        filename: `${slugify(cardName(p))}_${slugify(p.tracking_number)}`,
+    // Satu resi bisa punya album: foto utama + foto tambahan, semuanya diunduh
+    const files = targets.flatMap(p =>
+      [p.photo_url, ...(p.extra_photos || [])].map((url, i) => ({
+        url,
+        filename: `${slugify(cardName(p))}_${slugify(p.tracking_number)}${i ? `_${i + 1}` : ''}`,
         card: { name: cardName(p), tracking: p.tracking_number },
-      })),
-      (done, total) => setProgress({ done, total })
-    );
+      })));
+    setProgress({ done: 0, total: files.length });
+    await downloadMany(files, (done, total) => setProgress({ done, total }));
     // Catat status unduhan supaya pelanggan tahu mana yang sudah diambil
     fetchAsUser('/api/photos/downloaded/mine', {
       method: 'POST',

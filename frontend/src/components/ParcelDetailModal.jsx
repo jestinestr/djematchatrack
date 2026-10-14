@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import MyParcelEdit from './MyParcelEdit';
-import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, slugify, storageDays } from '../utils/format';
+import { money, rupiah, baseFee, formatWeight, formatDate, cardName, tail4, downloadImage, downloadMany, slugify, storageDays } from '../utils/format';
 
 // isAdmin: kalau true, foto CO ikut ditampilkan
 // siblings: resi lain milik pengguna di batch yang sama
@@ -64,20 +64,36 @@ export default function ParcelDetailModal({
             )}
           </div>
 
+          {/* Album: foto tambahan di bawah foto utama */}
+          {parcel.photo_url && (parcel.extra_photos || []).length > 0 && (
+            <div className="px-5 pt-3">
+              <div className="flex gap-2 overflow-x-auto">
+                {parcel.extra_photos.map((u, i) => (
+                  <img key={u + i} src={u} alt={`Foto ${i + 2}`} onClick={() => setZoomUrl(u)}
+                       className="w-20 h-20 rounded-xl object-cover border border-cream-200 cursor-zoom-in flex-shrink-0" />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Keterangan ala kartu foto: nama kiri, 4 digit resi kanan */}
           {parcel.photo_url && (
             <div className="flex items-end justify-between gap-3 px-5 pt-3 pb-1">
               <div className="min-w-0">
                 <p className="text-lg font-bold text-gray-900 truncate leading-tight">{cardName(parcel)}</p>
                 <button
-                  onClick={() => downloadImage(
-                    parcel.photo_url,
-                    `${slugify(cardName(parcel))}_${slugify(parcel.tracking_number)}`,
-                    { name: cardName(parcel), tracking: parcel.tracking_number },
+                  onClick={() => downloadMany(
+                    [parcel.photo_url, ...(parcel.extra_photos || [])].map((url, i) => ({
+                      url,
+                      filename: `${slugify(cardName(parcel))}_${slugify(parcel.tracking_number)}${i ? `_${i + 1}` : ''}`,
+                      card: { name: cardName(parcel), tracking: parcel.tracking_number },
+                    })),
                   )}
                   className="text-xs font-semibold text-matcha-600 hover:underline mt-0.5"
                 >
-                  ⬇️ Download foto
+                  ⬇️ Download {(parcel.extra_photos || []).length > 0
+                    ? `semua (${1 + parcel.extra_photos.length} foto)`
+                    : 'foto'}
                 </button>
               </div>
               <p className="text-4xl font-black text-gray-900 leading-none tracking-tight">

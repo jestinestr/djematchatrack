@@ -755,7 +755,7 @@ export default function AdminInvoice() {
                       </div>
                     )}
                     <div className="divide-y divide-cream-100 border-t border-cream-100">
-                      {c.allParcels.map(p => (
+                      {urutChecklist(c.allParcels).map(p => (
                         <div key={p.id} className={`flex items-center gap-3 px-4 py-2 ${p.paid_at ? 'bg-green-50/40' : ''}`}>
                           {p.paid_at ? (
                             <button
@@ -773,6 +773,12 @@ export default function AdminInvoice() {
                               className="w-4 h-4 accent-matcha-700 flex-shrink-0 cursor-pointer"
                               title="Ikut ditagih di invoice ini"
                             />
+                          )}
+                          {p.photo_url ? (
+                            <img src={p.photo_url} alt="" loading="lazy"
+                              className="w-10 h-10 rounded-lg object-cover border border-cream-200 flex-shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg border border-dashed border-cream-300 flex-shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-gray-700 truncate">
@@ -795,6 +801,12 @@ export default function AdminInvoice() {
                                   · belum ada foto
                                 </span>
                               )}
+                            </p>
+                            {/* Bantuan buat mencentang — tidak ikut tercetak di invoice */}
+                            <p className="text-[10px] text-gray-400 truncate">
+                              {p.type === 'paperbased' ? 'Paperbased' : 'Barang'} · {p.estimated_quantity || 1} pcs
+                              {p.photo_url && (p.photo_uploaded_at || p.created_at) && ` · foto ${tglPendek(p.photo_uploaded_at || p.created_at)}`}
+                              {p.created_at && ` · masuk ${tglPendek(p.created_at)}`}
                             </p>
                           </div>
                           <div className="text-right text-[11px] flex-shrink-0">
@@ -831,6 +843,18 @@ function unpaidIds(d) {
     (d?.customers || []).flatMap(c =>
       c.parcels.filter(p => !p.paid_at && p.photo_url).map(p => p.id))
   );
+}
+
+const tglPendek = v =>
+  new Date(v).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+
+// Urutan daftar centang saja (invoice cetak tidak berubah): yang belum lunas
+// dan sudah ada foto dulu — foto terbaru di atas — lalu yang belum ada foto,
+// terakhir yang sudah lunas.
+function urutChecklist(parcels) {
+  const grup = p => (p.paid_at ? 2 : p.photo_url ? 0 : 1);
+  const waktu = p => new Date(p.photo_uploaded_at || p.created_at || 0).getTime();
+  return [...parcels].sort((a, b) => grup(a) - grup(b) || waktu(b) - waktu(a));
 }
 
 const tanpaFoto = c => (c.allParcels || []).filter(p => !p.paid_at && !p.photo_url);
