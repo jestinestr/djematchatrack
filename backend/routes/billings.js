@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
 const { logActivity } = require('../lib/log');
+const { closeBoxAfterPaid } = require('../lib/box');
 
 // Penagihan yang sedang berlangsung.
 //
@@ -108,15 +109,22 @@ router.patch('/:id', async (req, res) => {
     .eq('id', req.params.id).select().single();
   if (error) return res.status(500).json({ error: error.message });
 
+  // Invoice box lunas → box ditutup otomatis; resi yang belum ditagih
+  // pindah ke box baru supaya pelanggan tidak nyangkut di box lama.
+  let boxResult = { closed: false, moved: 0 };
+  if (paid && bill.scope === 'box' && String(bill.type).toUpperCase() === 'WH') {
+    boxResult = await closeBoxAfterPaid(bill.ref_id, ids);
+  }
+
   logActivity({
     action: paid ? 'billing_paid' : 'billing_unpaid',
     summary: `${paid ? 'Lunas' : 'Batal lunas'}: ${bill.title || 'penagihan'}`,
-    detail: `${ids.length} resi`,
+    detail: `${ids.length} resi${boxResult.closed ? ` · box otomatis ditutup${boxResult.moved ? `, ${boxResult.moved} resi belum ditagih pindah ke ${boxResult.newBoxName}` : ''}` : ''}`,
     ref_type: 'billing',
     ref_id: bill.id,
   });
 
-  res.json(data);
+  res.json({ ...data, box_closed: boxResult.closed, box_moved: boxResult.moved });
 });
 
 router.delete('/:id', async (req, res) => {

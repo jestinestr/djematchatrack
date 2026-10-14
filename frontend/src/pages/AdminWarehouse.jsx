@@ -306,7 +306,7 @@ export default function AdminWarehouse() {
   const totals = sumParcels(openBoxes.flatMap(b => b.parcels || []), 'WH');
 
   return (
-    <div className="p-5 md:p-7 max-w-5xl mx-auto">
+    <div className="p-5 md:p-7 max-w-[1600px] mx-auto">
       {/* Judul */}
       <div className="flex items-center gap-3 mb-4">
         <span className="text-2xl">🏭</span>
@@ -590,7 +590,7 @@ export default function AdminWarehouse() {
       {view === 'list' && (
         <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-gray-400 bg-cream-50 border-b border-cream-200">
                   <th className="px-2 py-2 w-8">
@@ -637,8 +637,8 @@ export default function AdminWarehouse() {
                       </td>
                       <td className="px-3 py-2 text-gray-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
                       <td className="px-3 py-2">
-                        <div className="text-gray-700 truncate max-w-[140px]">{p.recipient_name}</div>
-                        <div className="text-[11px] font-mono text-gray-400 truncate max-w-[140px]">{p.tracking_number}</div>
+                        <div className="text-gray-700 truncate max-w-[240px]">{p.recipient_name}</div>
+                        <div className="text-[11px] font-mono text-gray-400 truncate max-w-[240px]">{p.tracking_number}</div>
                       </td>
                       <td className="px-3 py-2">
                         {p.photo_url ? (
@@ -690,7 +690,7 @@ export default function AdminWarehouse() {
                           onChange={e => moveOne(p.id, e.target.value)}
                           disabled={!p.owner}
                           title={p.owner ? 'Pindahkan resi ini ke box lain' : 'Resi tanpa pemilik belum bisa dimasukkan ke box'}
-                          className="w-full text-xs border border-cream-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-cream-400 disabled:bg-cream-50 disabled:text-gray-400"
+                          className="w-full min-w-[130px] text-xs border border-cream-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-cream-400 disabled:bg-cream-50 disabled:text-gray-400"
                         >
                           <option value="">— tanpa box —</option>
                           {openBoxes

@@ -8,6 +8,7 @@ const { logActivity } = require('../lib/log');
 const { activePackageId, packageHasRoom } = require('../lib/packages');
 const { getSetting } = require('../lib/settings');
 const { hasColumn } = require('../lib/columns');
+const { ensureOpenBox } = require('../lib/box');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
 
@@ -353,11 +354,8 @@ async function approveRequest(id) {
     insertData.estimated_quantity = reqData.quantity || 1;
     insertData.unboxing_fee = reqData.need_unboxing ? Number(batch.unboxing_fee ?? 0.75) : 0;
     if (reqData.owner_code_id) {
-      const { data: openBox } = await supabase
-        .from('boxes').select('id')
-        .eq('owner_code_id', reqData.owner_code_id).eq('status', 'open')
-        .order('created_at', { ascending: false }).limit(1);
-      if (openBox?.[0]) insertData.box_id = openBox[0].id;
+      const boxId = await ensureOpenBox(reqData.owner_code_id);
+      if (boxId) insertData.box_id = boxId;
     }
     const pkgId = await activePackageId(reqData.owner_code_id);
     if (pkgId) insertData.package_id = pkgId; // masuk paket aktif pelanggan
