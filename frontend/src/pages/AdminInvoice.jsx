@@ -18,8 +18,23 @@ function optionLabel(b) {
   const bagian = [`${b.ready} siap`];
   const tanpaFoto = b.pending - b.ready;
   if (tanpaFoto > 0) bagian.push(`${tanpaFoto} tanpa foto`);
-  if (b.pending === 0) return `${b.label} · semua lunas`;
-  return `${b.label} · ${bagian.join(', ')}`;
+  const terakhir = b.lastUpdate
+    ? ` · update ${new Date(b.lastUpdate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`
+    : '';
+  if (b.pending === 0) return `${b.label} · semua lunas${terakhir}`;
+  return `${b.label} · ${bagian.join(', ')}${terakhir}`;
+}
+
+// Waktu terakhir ada aktivitas di box: upload foto atau resi diubah/masuk
+function lastActivity(parcels) {
+  let best = 0;
+  for (const p of parcels) {
+    for (const v of [p.photo_uploaded_at, p.updated_at, p.created_at]) {
+      const t = v ? new Date(v).getTime() : 0;
+      if (t > best) best = t;
+    }
+  }
+  return best || null;
 }
 
 export default function AdminInvoice() {
@@ -60,13 +75,15 @@ export default function AdminInvoice() {
             count: parcels.length,
             ready: belumLunas.filter(p => p.photo_url).length,
             pending: belumLunas.length,
+            lastUpdate: lastActivity(parcels),
           };
         });
 
-        // Yang masih berjalan dulu, lalu yang paling banyak siap ditagih —
-        // itu yang biasanya mau dikerjakan duluan.
+        // Yang masih berjalan dulu, lalu yang paling baru diupdate / diupload
+        // fotonya, baru yang paling banyak siap ditagih.
         rows.sort((a, b) =>
           (a.closed === b.closed ? 0 : a.closed ? 1 : -1) ||
+          (b.lastUpdate || 0) - (a.lastUpdate || 0) ||
           b.ready - a.ready ||
           a.label.localeCompare(b.label, 'id', { numeric: true }));
 
