@@ -88,7 +88,6 @@ export default function AdminInvoice() {
           a.label.localeCompare(b.label, 'id', { numeric: true }));
 
         setBatchList(rows);
-        setBatchId(String(rows?.[0]?.id || ''));
       })
       .catch(() => setBatchList([]));
   }, [type, isBox]);
@@ -409,71 +408,43 @@ export default function AdminInvoice() {
         </div>
       </div>
 
-      {/* Pilih batch */}
-      <div className="bg-white rounded-2xl border border-cream-200 shadow-soft p-3 mb-5 flex flex-wrap items-center gap-2">
-        <select
-          value={batchId}
-          onChange={e => setBatchId(e.target.value)}
-          className="input-field text-sm w-auto max-w-[280px] py-1.5"
-        >
-          {shownBatches.length === 0 && (
-            <option value="">{search ? 'Tidak ada yang cocok' : isBox ? 'Belum ada box' : 'Belum ada batch'}</option>
-          )}
-          {[['Masih berjalan', false], [isBox ? 'Sudah ditutup' : 'Sudah selesai', true]].map(([judul, tutup]) => {
-            const isi = shownBatches.filter(b => b.closed === tutup);
-            if (!isi.length) return null;
-            return (
-              <optgroup key={judul} label={judul}>
-                {isi.map(b => (
-                  <option key={b.id} value={b.id}>{optionLabel(b)}</option>
-                ))}
-              </optgroup>
-            );
-          })}
-        </select>
-
-        {/* Cari — menyaring daftar box/batch sekaligus pelanggan di dalamnya */}
-        <div className="relative flex-1 min-w-[180px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') setSearch(''); }}
-            placeholder={isBox ? 'Cari pelanggan, box, atau nomor resi...' : 'Cari pelanggan atau nomor resi...'}
-            className="input-field text-sm py-1.5 pl-9 pr-8"
-          />
-          {search && (
-            <button onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
-          )}
-        </div>
-
-        <button
-          onClick={exportCSV}
-          disabled={!customers.length}
-          title="Satu baris per pelanggan — total tagihannya"
-          className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40"
-        >
-          ⬇️ Rekap CSV
-        </button>
-        <button
-          onClick={exportDetailCSV}
-          disabled={!customers.length}
-          title="Satu baris per resi, lengkap dengan kolom penanda Input Manual"
-          className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40"
-        >
-          ⬇️ Rincian Resi
-        </button>
-        <button
-          onClick={printInvoices}
-          disabled={!selected.size}
-          className="text-xs px-4 py-1.5 rounded-xl font-semibold bg-matcha-800 hover:bg-matcha-700 text-white shadow-soft transition-colors disabled:opacity-40 disabled:shadow-none"
-        >
-          🖨 Cetak Invoice {selected.size ? `(${selected.size})` : ''}
-        </button>
+      {/* Cari — menyaring daftar box sekaligus pelanggan di dalamnya */}
+      <div className="relative mb-4">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') setSearch(''); }}
+          placeholder="Cari pelanggan, box, atau nomor resi..."
+          className="input-field text-sm py-2.5 pl-10 pr-9"
+        />
+        {search && (
+          <button onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+        )}
       </div>
 
-      {loading ? (
+      {/* Daftar box — dibuka satu per satu seperti berkas */}
+      {!batchId && (
+        <>
+          <BoxList rows={shownBatches} billings={billings.list} onOpen={setBatchId} search={search} />
+          <BillingList
+            list={billings.list}
+            onPaid={setBillingPaid}
+            onRemove={removeBilling}
+            onOpen={b => setBatchId(String(b.ref_id))}
+          />
+        </>
+      )}
+
+      {batchId && (
+        <button onClick={() => setBatchId('')}
+          className="text-xs font-semibold text-gray-500 hover:text-matcha-700 mb-3">
+          ← Semua box
+        </button>
+      )}
+
+      {batchId && (loading ? (
         <LoadingSpinner text="Memuat rekap..." />
       ) : !customers.length ? (
         <div className="bg-white rounded-2xl border border-cream-200 p-14 text-center text-gray-400">
@@ -500,52 +471,6 @@ export default function AdminInvoice() {
             ))}
           </div>
 
-          {/* Penagihan yang sedang berjalan */}
-          {billings.list.length > 0 && (
-            <div className="mb-4 rounded-2xl border-2 border-amber-200 bg-amber-50 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200">
-                <span className="text-base leading-none">🧾</span>
-                <p className="text-xs font-bold text-amber-900 flex-1">
-                  Penagihan berjalan ({billings.list.length})
-                </p>
-                <span className="text-[11px] text-amber-700/80">
-                  Invoice yang sudah dicetak, menunggu dibayar
-                </span>
-              </div>
-
-              <div className="divide-y divide-amber-100">
-                {billings.list.map(b => (
-                  <div key={b.id} className="flex items-center gap-2 px-4 py-2.5 bg-white/60">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{b.title}</p>
-                      <p className="text-[11px] text-gray-500">
-                        {b.parcel_count} resi · dicetak {formatDate(b.issued_at, false)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-bold text-amber-800 whitespace-nowrap">
-                      {[b.total_idr ? money(b.total_idr, 'IDR') : null,
-                        b.total_cny ? money(b.total_cny, 'CNY') : null]
-                        .filter(Boolean).join(' + ') || '—'}
-                    </span>
-                    <button onClick={() => setBillingPaid(b, true)}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white whitespace-nowrap">
-                      ✓ Lunas
-                    </button>
-                    <button onClick={() => removeBilling(b)} title="Buang dari daftar"
-                      className="text-gray-300 hover:text-red-500 px-1">✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pilih semua */}
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <button onClick={toggleAll} className="text-xs font-semibold text-matcha-700 hover:underline">
-              {selected.size === invoiceable.length ? 'Batal pilih semua' : `Pilih semua (${invoiceable.length})`}
-            </button>
-            {selected.size > 0 && <span className="text-xs text-gray-400">{selected.size} dipilih</span>}
-          </div>
 
           {/* Daftar pelanggan */}
           <div className="space-y-3">
@@ -826,8 +751,36 @@ export default function AdminInvoice() {
               );
             })}
           </div>
+
+          {/* Aksi — satu bingkai di bawah, sesudah semua isinya terlihat */}
+          <div className="mt-4 bg-white rounded-2xl border border-cream-200 shadow-soft p-3
+                          flex flex-wrap items-center gap-2 sticky bottom-3">
+            <button onClick={toggleAll} className="text-xs font-semibold text-matcha-700 hover:underline">
+              {selected.size === invoiceable.length ? 'Batal pilih semua' : `Pilih semua (${invoiceable.length})`}
+            </button>
+            {selected.size > 0 && (
+              <span className="text-xs text-gray-400">{selected.size} pelanggan dipilih</span>
+            )}
+
+            <div className="flex-1" />
+
+            <button onClick={exportCSV} disabled={!customers.length}
+              title="Satu baris per pelanggan — total tagihannya"
+              className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40">
+              ⬇️ Rekap CSV
+            </button>
+            <button onClick={exportDetailCSV} disabled={!customers.length}
+              title="Satu baris per resi, lengkap dengan kolom penanda Input Manual"
+              className="text-xs px-3 py-1.5 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 font-semibold transition-colors disabled:opacity-40">
+              ⬇️ Rincian Resi
+            </button>
+            <button onClick={printInvoices} disabled={!selected.size}
+              className="text-xs px-4 py-2 rounded-xl font-semibold bg-matcha-800 hover:bg-matcha-700 text-white shadow-soft transition-colors disabled:opacity-40 disabled:shadow-none">
+              🖨 Cetak Invoice {selected.size ? `(${selected.size})` : ''}
+            </button>
+          </div>
         </>
-      )}
+      ))}
     </div>
   );
 }
@@ -1093,4 +1046,127 @@ function buildInvoicesHTML(batch, customers, type) {
 </script>
 </body>
 </html>`;
+}
+
+// ── Daftar box, dibuka satu per satu seperti berkas di folder ───────
+//  Semua yang menentukan keputusan ada di barisnya: isi box, kapan
+//  terakhir ada kegiatan, dan apakah tagihannya sudah jalan.
+function BoxList({ rows, billings, onOpen, search }) {
+  if (!rows.length) {
+    return (
+      <div className="bg-white rounded-2xl border border-cream-200 p-14 text-center text-gray-400">
+        <div className="text-4xl mb-3">📂</div>
+        <p className="font-medium">
+          {search ? `Tidak ada box yang cocok dengan "${search}"` : 'Belum ada box'}
+        </p>
+      </div>
+    );
+  }
+
+  const tagihan = id => billings.find(b => b.scope === 'box' && String(b.ref_id) === String(id));
+
+  return (
+    <div className="bg-white rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+      <div className="hidden sm:grid grid-cols-[1fr_130px_120px_110px_24px] gap-2 px-4 py-2.5
+                      bg-cream-50 border-b border-cream-100 text-[10px] font-semibold
+                      text-gray-400 uppercase tracking-wide">
+        <span>Box</span>
+        <span>Isi</span>
+        <span>Terakhir diubah</span>
+        <span>Tagihan</span>
+        <span />
+      </div>
+
+      <div className="divide-y divide-cream-100">
+        {rows.map(b => {
+          const bill = tagihan(b.id);
+          const tanpaFoto = b.pending - b.ready;
+          return (
+            <button key={b.id} onClick={() => onOpen(String(b.id))}
+              className="w-full text-left px-4 py-3 hover:bg-cream-50 transition-colors group
+                         sm:grid sm:grid-cols-[1fr_130px_120px_110px_24px] sm:gap-2 sm:items-center">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-lg flex-shrink-0">{b.closed ? '🗂' : '📂'}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-matcha-700">
+                    {b.label}
+                  </p>
+                  {b.closed && <p className="text-[11px] text-gray-400">sudah ditutup</p>}
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-600 mt-1 sm:mt-0">
+                {!b.count ? <span className="text-gray-300">kosong</span>
+                  : b.pending === 0 ? <span className="text-green-600 font-semibold">semua lunas</span>
+                  : (
+                    <>
+                      <span className="font-semibold text-matcha-700">{b.ready} siap</span>
+                      {tanpaFoto > 0 && <span className="text-amber-600"> · {tanpaFoto} tanpa foto</span>}
+                    </>
+                  )}
+              </p>
+
+              <p className="text-[11px] text-gray-400 mt-0.5 sm:mt-0">
+                {b.lastUpdate ? tglPendek(b.lastUpdate) : '—'}
+              </p>
+
+              <p className="text-[11px] mt-0.5 sm:mt-0">
+                {!bill ? <span className="text-gray-300">belum ditagih</span>
+                  : bill.status === 'paid'
+                    ? <span className="text-green-600 font-semibold">✓ lunas</span>
+                    : <span className="text-amber-600 font-semibold">🧾 menunggu bayar</span>}
+              </p>
+
+              <span className="hidden sm:block text-gray-300 group-hover:text-matcha-500 text-right">›</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Penagihan yang sedang berjalan ──────────────────────────────────
+function BillingList({ list, onPaid, onRemove, onOpen }) {
+  if (!list.length) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border-2 border-amber-200 bg-amber-50 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200">
+        <span className="text-base leading-none">🧾</span>
+        <p className="text-xs font-bold text-amber-900 flex-1">
+          Penagihan berjalan ({list.length})
+        </p>
+        <span className="text-[11px] text-amber-700/80">
+          Invoice yang sudah dicetak, menunggu dibayar
+        </span>
+      </div>
+
+      <div className="divide-y divide-amber-100">
+        {list.map(b => (
+          <div key={b.id} className="flex items-center gap-2 px-4 py-2.5 bg-white/60">
+            <button onClick={() => onOpen(b)} className="min-w-0 flex-1 text-left group">
+              <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-matcha-700">
+                {b.title}
+              </p>
+              <p className="text-[11px] text-gray-500">
+                {b.parcel_count} resi · dicetak {formatDate(b.issued_at, false)}
+              </p>
+            </button>
+            <span className="text-sm font-bold text-amber-800 whitespace-nowrap">
+              {[b.total_idr ? money(b.total_idr, 'IDR') : null,
+                b.total_cny ? money(b.total_cny, 'CNY') : null]
+                .filter(Boolean).join(' + ') || '—'}
+            </span>
+            <button onClick={() => onPaid(b, true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white whitespace-nowrap">
+              ✓ Lunas
+            </button>
+            <button onClick={() => onRemove(b)} title="Buang dari daftar"
+              className="text-gray-300 hover:text-red-500 px-1">✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

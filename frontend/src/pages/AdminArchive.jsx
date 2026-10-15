@@ -246,12 +246,16 @@ export default function AdminArchive() {
         key: `BOX-${b.id}`,
         batch: b,
         type: 'WH',
-        icon: '📦',
-        iconBg: 'bg-matcha-100',
-        title: `${b.owner?.label || 'Tanpa pemilik'} — ${b.name}`,
+        // Dinamai seperti berkas invoicenya, supaya sama dengan nama file
+        // PDF yang tersimpan waktu dicetak
+        icon: bill ? (bill.status === 'paid' ? '✅' : '🧾') : '📦',
+        iconBg: bill ? (bill.status === 'paid' ? 'bg-green-100' : 'bg-amber-100') : 'bg-cream-200',
+        title: `Invoice Warehouse ${b.name} - ${b.owner?.label || 'Tanpa pemilik'}`,
         subtitle: bill
-          ? (bill.status === 'paid' ? '✓ Sudah lunas' : '🧾 Sudah ditagih, belum lunas')
-          : 'Belum ditagih',
+          ? (bill.status === 'paid'
+              ? `Lunas · ${formatDate(bill.paid_at || bill.issued_at)}`
+              : `Menunggu bayar · dicetak ${formatDate(bill.issued_at)}`)
+          : 'Belum pernah ditagih',
         bill,
         date: b.closed_at,
         sort: b.closed_at,
@@ -305,10 +309,10 @@ export default function AdminArchive() {
           {/* Table header */}
           <div className="px-4 py-2.5 border-b border-cream-100 bg-cream-50">
             <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_80px_120px_110px_24px] gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-              <span>Box</span>
-              <span className="hidden sm:block">Resi</span>
-              <span className="hidden md:block">Denda / Fee</span>
-              <span className="hidden sm:block">Tanggal Selesai</span>
+              <span>Nama</span>
+              <span className="hidden sm:block">Isi</span>
+              <span className="hidden md:block">Nilai</span>
+              <span className="hidden sm:block">Tanggal ditutup</span>
               <span />
             </div>
           </div>
