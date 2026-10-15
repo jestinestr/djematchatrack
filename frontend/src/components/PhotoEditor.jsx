@@ -161,13 +161,13 @@ export default function PhotoEditor({ url, title = 'Atur Foto', saveLabel = 'Sim
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center sm:justify-center"
-         onClick={onClose}>
+         onClick={e => { e.stopPropagation(); onClose(); }}>
       <div onClick={e => e.stopPropagation()}
            className="w-full sm:max-w-md bg-cream-50 rounded-t-3xl sm:rounded-3xl overflow-hidden">
 
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-cream-200">
           <p className="font-bold text-sm text-gray-800">✂️ {title}</p>
-          <button onClick={onClose}
+          <button onClick={e => { e.stopPropagation(); onClose(); }}
             className="w-8 h-8 rounded-full bg-cream-200 text-gray-500 flex items-center justify-center">✕</button>
         </div>
 
