@@ -1055,7 +1055,6 @@ function BoxList({ rows, billings, onOpen, search }) {
   if (!rows.length) {
     return (
       <div className="bg-white rounded-2xl border border-cream-200 p-14 text-center text-gray-400">
-        <div className="text-4xl mb-3">📂</div>
         <p className="font-medium">
           {search ? `Tidak ada box yang cocok dengan "${search}"` : 'Belum ada box'}
         </p>
@@ -1085,14 +1084,11 @@ function BoxList({ rows, billings, onOpen, search }) {
             <button key={b.id} onClick={() => onOpen(String(b.id))}
               className="w-full text-left px-4 py-3 hover:bg-cream-50 transition-colors group
                          sm:grid sm:grid-cols-[1fr_130px_120px_110px_24px] sm:gap-2 sm:items-center">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="text-lg flex-shrink-0">{b.closed ? '🗂' : '📂'}</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-matcha-700">
-                    {b.label}
-                  </p>
-                  {b.closed && <p className="text-[11px] text-gray-400">sudah ditutup</p>}
-                </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-matcha-700">
+                  {b.label}
+                </p>
+                {b.closed && <p className="text-[11px] text-gray-400">sudah ditutup</p>}
               </div>
 
               <p className="text-xs text-gray-600 mt-1 sm:mt-0">
