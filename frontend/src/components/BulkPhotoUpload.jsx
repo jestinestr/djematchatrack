@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { compressImage } from '../utils/image';
 import { readCaptureTime } from '../utils/exif';
+import PhotoEditor from './PhotoEditor';
 
 // Upload banyak foto sekaligus, dicocokkan ke resi menurut URUTAN BUKA.
 //
@@ -47,6 +48,7 @@ export default function BulkPhotoUpload({ onClose, onToast, onFinished }) {
   const [reading, setReading] = useState(false);
   const [status, setStatus] = useState({});       // id foto → 'wait'|'up'|'ok'|'err'
   const [running, setRunning] = useState(false);
+  const [editingId, setEditingId] = useState(null); // foto yang sedang dirapikan
   const urls = useRef([]);
 
   // Resi sasaran: bernomor Buka, urut nomor, foto arrival masih kosong
@@ -91,6 +93,20 @@ export default function BulkPhotoUpload({ onClose, onToast, onFinished }) {
     setFiles(read);
     arrange(read, mode);
     setReading(false);
+  }
+
+  // Hasil editor (putar / ubah rasio) menggantikan file fotonya. Jam jepret
+  // dan posisi di urutan tetap dari foto aslinya, karena hasil editor sudah
+  // tidak membawa EXIF.
+  async function applyEdit(file) {
+    const old = byId.get(editingId);
+    if (!old) return;
+    const url = URL.createObjectURL(file);
+    urls.current.push(url);
+    URL.revokeObjectURL(old.url);
+    urls.current = urls.current.filter(u => u !== old.url);
+    setFiles(list => list.map(f => (f.id === editingId ? { ...f, file, url, edited: true } : f)));
+    setEditingId(null);
   }
 
   function changeMode(m) {
@@ -159,7 +175,17 @@ export default function BulkPhotoUpload({ onClose, onToast, onFinished }) {
 
   const doneCount = Object.values(status).filter(v => v === 'ok').length;
 
+  const editor = editingId && byId.get(editingId) ? (
+    <PhotoEditor
+      url={byId.get(editingId).url}
+      title="Atur foto sebelum disimpan"
+      onClose={() => setEditingId(null)}
+      onSave={applyEdit}
+    />
+  ) : null;
+
   return (
+    <>
     <div className="fixed inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center"
          onClick={() => !running && onClose()}>
       <div className="bg-cream-100 w-full max-w-2xl max-h-[94vh] rounded-t-[2rem] sm:rounded-3xl
@@ -301,14 +327,26 @@ export default function BulkPhotoUpload({ onClose, onToast, onFinished }) {
                           <div className="flex-1 min-w-0 flex items-center gap-2">
                             {photo ? (
                               <>
-                                <img src={photo.url} alt="" className="w-12 h-12 rounded-xl object-cover
-                                                                      border border-cream-200 flex-shrink-0" />
+                                <button onClick={() => setEditingId(photo.id)}
+                                  disabled={running || st === 'ok'}
+                                  title="Putar / ubah rasio foto ini"
+                                  className="relative flex-shrink-0 disabled:cursor-default">
+                                  <img src={photo.url} alt="" className="w-12 h-12 rounded-xl object-cover
+                                                                        border border-cream-200" />
+                                  {st !== 'ok' && (
+                                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-matcha-800
+                                                     text-white text-[10px] flex items-center justify-center">✂️</span>
+                                  )}
+                                </button>
                                 <div className="min-w-0">
                                   <p className="text-xs font-bold text-gray-700 truncate">
                                     {photo.time != null ? `${tgl(photo.time)} · ${hhmmss(photo.time)}` : 'jam —'}
                                   </p>
                                   <p className={`text-[10px] font-semibold truncate ${src.cls}`}>{src.text}</p>
-                                  <p className="text-[10px] text-gray-300 truncate">{photo.name}</p>
+                                  <p className="text-[10px] text-gray-300 truncate">
+                                    {photo.edited && <span className="text-matcha-700 font-bold">✂️ diedit · </span>}
+                                    {photo.name}
+                                  </p>
                                 </div>
                               </>
                             ) : (
@@ -360,5 +398,7 @@ export default function BulkPhotoUpload({ onClose, onToast, onFinished }) {
         )}
       </div>
     </div>
+    {editor}
+    </>
   );
 }

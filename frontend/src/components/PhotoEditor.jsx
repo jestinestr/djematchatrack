@@ -48,7 +48,7 @@ function clampOffset(img, deg, zoom, ratio, dx, dy) {
   };
 }
 
-export default function PhotoEditor({ url, title = 'Atur Foto', onSave, onClose }) {
+export default function PhotoEditor({ url, title = 'Atur Foto', saveLabel = 'Simpan foto', onSave, onClose }) {
   const [img, setImg] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -250,7 +250,7 @@ export default function PhotoEditor({ url, title = 'Atur Foto', onSave, onClose 
 
           <button onClick={save} disabled={!img || saving}
             className="btn-primary w-full py-3 disabled:opacity-50">
-            {saving ? 'Menyimpan…' : 'Simpan foto'}
+            {saving ? 'Menyimpan…' : saveLabel}
           </button>
         </div>
       </div>

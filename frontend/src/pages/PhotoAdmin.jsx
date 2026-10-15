@@ -399,6 +399,10 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
   const [zoom, setZoom] = useState(null);
   const [preview, setPreview] = useState({}); // slot → blob URL foto yang sedang naik
   const [editorSlot, setEditorSlot] = useState(null); // slot foto yang sedang dirapikan
+  // Foto yang baru dipilih ditahan dulu di editor — belum terkirim ke server
+  // sampai admin menekan tombol konfirmasi. Beberapa foto memang perlu
+  // diatur bingkai/posisinya dulu sebelum dilihat pelanggan.
+  const [pending, setPending] = useState(null);
   const [editing, setEditing] = useState(false);
   const [codes, setCodes] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -423,6 +427,21 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
       .then(d => setCodes(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, [editing, codes.length]);
+
+  function pickFile(slot, file, { index = null, label = 'Foto' } = {}) {
+    if (!file) return;
+    setPending(p => {
+      if (p?.url) URL.revokeObjectURL(p.url);
+      return { slot, index, label, url: URL.createObjectURL(file) };
+    });
+  }
+
+  function cancelPending() {
+    setPending(p => {
+      if (p?.url) URL.revokeObjectURL(p.url);
+      return null;
+    });
+  }
 
   async function handleFile(slot, file, { rapi = false, index = null } = {}) {
     if (!file) return;
@@ -619,7 +638,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
                 hint={slot.hint}
                 url={(busy === slot.key && preview[slot.key]) || parcel[slot.field]}
                 uploading={busy === slot.key}
-                onPick={f => handleFile(slot.key, f)}
+                onPick={f => pickFile(slot.key, f, { label: slot.label })}
                 onZoom={setZoom}
                 onEdit={() => setEditorSlot(slot)}
                 onRemove={() => removePhoto(slot.key)}
@@ -637,7 +656,7 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
                     hint=""
                     url={(busy === `extra:${i}` && preview[`extra:${i}`]) || u}
                     uploading={busy === `extra:${i}`}
-                    onPick={f => handleFile('extra', f, { index: i })}
+                    onPick={f => pickFile('extra', f, { index: i, label: `Foto Tambahan ${i + 1}` })}
                     onZoom={setZoom}
                     onEdit={() => setEditorSlot({ key: 'extra', index: i, url: u, label: `Foto Tambahan ${i + 1}` })}
                     onRemove={() => removeExtra(i)}
@@ -736,6 +755,19 @@ function ParcelSheet({ parcel, onClose, onChanged, onToast }) {
         <div className="photo-zoom-overlay" onClick={e => { e.stopPropagation(); setZoom(null); }}>
           <img src={zoom} alt="" className="max-w-full max-h-full object-contain" />
         </div>
+      )}
+
+      {pending && (
+        <PhotoEditor
+          url={pending.url}
+          title={`${pending.label} — atur dulu`}
+          saveLabel="✓ Konfirmasi & simpan"
+          onClose={cancelPending}
+          onSave={async file => {
+            await handleFile(pending.slot, file, { rapi: true, index: pending.index });
+            cancelPending();
+          }}
+        />
       )}
 
       {editorSlot && (
