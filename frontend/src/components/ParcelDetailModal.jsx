@@ -43,7 +43,7 @@ export default function ParcelDetailModal({
           onClick={e => e.stopPropagation()}
         >
           {/* Foto */}
-          <div className={`grid ${isAdmin && parcel.co_photo_url ? 'grid-cols-2' : 'grid-cols-1'} gap-0 flex-shrink-0`}>
+          <div className={`grid ${parcel.co_photo_url ? 'grid-cols-2' : 'grid-cols-1'} gap-0 flex-shrink-0`}>
             <div className="relative bg-cream-100"
                  onTouchStart={e => { swipeX.current = e.touches[0].clientX; }}
                  onTouchEnd={e => {
@@ -87,7 +87,7 @@ export default function ParcelDetailModal({
             </div>
 
             {/* Foto CO — admin only */}
-            {isAdmin && parcel.co_photo_url && (
+            {parcel.co_photo_url && (
               <div className="relative bg-amber-50">
                 <img
                   src={parcel.co_photo_url}

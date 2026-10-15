@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import BillingList from '../components/BillingList';
 import {
   CURRENCIES, money, rupiah, baseFee, normCurrency,
   formatWeight, formatDate,
@@ -43,6 +44,8 @@ export default function AdminInvoice() {
   const [batchList, setBatchList] = useState([]);
   const [search, setSearch] = useState('');
   const [billings, setBillings] = useState({ ready: true, list: [] });
+  const [carry, setCarry] = useState({});     // ownerId -> { idr, cny }
+  const [billCarry, setBillCarry] = useState(true);  // ikut ditagih (bawaan: ya)
   const [batchId, setBatchId] = useState('');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
@@ -119,6 +122,25 @@ export default function AdminInvoice() {
       .catch(() => setLoading(false));
   }, [batchId, isBox]);
 
+  // Sisa kurang/lebih bayar dari invoice sebelumnya yang belum ditutup.
+  // Yang kurang ikut ditagih lagi, yang lebih jadi potongan.
+  useEffect(() => {
+    const ids = (data?.customers || []).map(c => c.owner?.id).filter(Boolean);
+    if (!ids.length) { setCarry({}); return; }
+    let alive = true;
+    Promise.all(ids.map(id =>
+      fetch(`/api/billings/outstanding/${id}`).then(r => r.json()).then(d => [id, d]).catch(() => [id, null])
+    )).then(pairs => {
+      if (!alive) return;
+      const next = {};
+      for (const [id, d] of pairs) {
+        if (d && (Math.abs(d.idr) > 0.009 || Math.abs(d.cny) > 0.009)) next[id] = d;
+      }
+      setCarry(next);
+    });
+    return () => { alive = false; };
+  }, [data]);
+
   const rawCustomers = data?.customers || [];
   const customers = useMemo(() => rawCustomers.map(c => {
     const picked = c.parcels.filter(p => chosen.has(p.id));
@@ -127,9 +149,10 @@ export default function AdminInvoice() {
       allParcels: c.parcels,
       parcels: picked,
       parcel_count: picked.length,
-      totals: calcTotals(c, picked, type, billPkg),
+      carry: carry[c.owner?.id] || null,
+      totals: calcTotals({ ...c, carry: billCarry ? carry[c.owner?.id] : null }, picked, type, billPkg),
     };
-  }), [rawCustomers, chosen, type, billPkg]);
+  }), [rawCustomers, chosen, type, billPkg, carry, billCarry]);
 
   // Pencarian menyaring dua hal sekaligus: pilihan box/batch di dropdown,
   // dan kartu pelanggan di bawahnya. Nomor resi ikut dicari supaya admin
@@ -433,6 +456,7 @@ export default function AdminInvoice() {
             onPaid={setBillingPaid}
             onRemove={removeBilling}
             onOpen={b => setBatchId(String(b.ref_id))}
+            onChanged={loadBillings}
           />
         </>
       )}
@@ -554,6 +578,33 @@ export default function AdminInvoice() {
                             className="text-gray-300 hover:text-red-500 px-1">✕</button>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Sisa / kelebihan bayar invoice sebelumnya */}
+                  {c.carry && (
+                    <div className="px-4 pt-3">
+                      <label className={`flex items-center gap-2 text-sm rounded-xl px-3 py-2 cursor-pointer border ${
+                        (c.carry.idr > 0 || c.carry.cny > 0)
+                          ? 'bg-berry-50 border-berry-200'
+                          : 'bg-matcha-50 border-matcha-200'
+                      }`}>
+                        <input type="checkbox" checked={billCarry}
+                          onChange={e => setBillCarry(e.target.checked)}
+                          className="accent-matcha-700" />
+                        <span className="flex-1 text-gray-700">
+                          {(c.carry.idr > 0 || c.carry.cny > 0)
+                            ? 'Kurang bayar invoice sebelumnya — ikut ditagih'
+                            : 'Kelebihan bayar invoice sebelumnya — jadi potongan'}
+                        </span>
+                        <span className={`font-bold whitespace-nowrap ${
+                          (c.carry.idr > 0 || c.carry.cny > 0) ? 'text-berry-600' : 'text-matcha-700'
+                        }`}>
+                          {[c.carry.idr ? money(Math.abs(c.carry.idr), 'IDR') : null,
+                            c.carry.cny ? money(Math.abs(c.carry.cny), 'CNY') : null]
+                            .filter(Boolean).join(' + ')}
+                        </span>
+                      </label>
                     </div>
                   )}
 
@@ -839,6 +890,12 @@ function calcTotals(c, picked, type, billPkg = true) {
     t.CNY.additional += c.package_payment.due;
   }
 
+  // Kurang/lebih bayar invoice sebelumnya ikut diperhitungkan di sini
+  if (picked.length && c.carry) {
+    t.IDR.additional += c.carry.idr || 0;
+    t.CNY.additional += c.carry.cny || 0;
+  }
+
   for (const k of ['IDR', 'CNY']) {
     const x = t[k];
     x.total = x.fee + x.additional + x.fine + x.unboxing;
@@ -851,6 +908,12 @@ function calcTotals(c, picked, type, billPkg = true) {
 // dijumlahkan jadi satu baris.
 function feeLines(c, cur) {
   const rows = [];
+  // Sisa/kelebihan bayar invoice sebelumnya ditulis terpisah supaya
+  // pelanggan paham kenapa angkanya bertambah atau berkurang
+  const bawaan = cur === 'IDR' ? c.carry?.idr : c.carry?.cny;
+  if (bawaan && Math.abs(bawaan) > 0.009) {
+    rows.push([bawaan > 0 ? 'Kurang bayar invoice sebelumnya' : 'Kelebihan bayar invoice sebelumnya', bawaan]);
+  }
   // Sisa fee paket ditulis sebagai barisnya sendiri supaya jelas ditagih apa
   if (cur === 'CNY' && c.package_payment?.due > 0 && c.totals.CNY.additional >= c.package_payment.due) {
     rows.push([`Sisa fee warehouse ${c.package_payment.name}`, c.package_payment.due]);
@@ -1117,51 +1180,6 @@ function BoxList({ rows, billings, onOpen, search }) {
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-// ── Penagihan yang sedang berjalan ──────────────────────────────────
-function BillingList({ list, onPaid, onRemove, onOpen }) {
-  if (!list.length) return null;
-
-  return (
-    <div className="mt-4 rounded-2xl border-2 border-amber-200 bg-amber-50 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200">
-        <span className="text-base leading-none">🧾</span>
-        <p className="text-xs font-bold text-amber-900 flex-1">
-          Penagihan berjalan ({list.length})
-        </p>
-        <span className="text-[11px] text-amber-700/80">
-          Invoice yang sudah dicetak, menunggu dibayar
-        </span>
-      </div>
-
-      <div className="divide-y divide-amber-100">
-        {list.map(b => (
-          <div key={b.id} className="flex items-center gap-2 px-4 py-2.5 bg-white/60">
-            <button onClick={() => onOpen(b)} className="min-w-0 flex-1 text-left group">
-              <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-matcha-700">
-                {b.title}
-              </p>
-              <p className="text-[11px] text-gray-500">
-                {b.parcel_count} resi · dicetak {formatDate(b.issued_at, false)}
-              </p>
-            </button>
-            <span className="text-sm font-bold text-amber-800 whitespace-nowrap">
-              {[b.total_idr ? money(b.total_idr, 'IDR') : null,
-                b.total_cny ? money(b.total_cny, 'CNY') : null]
-                .filter(Boolean).join(' + ') || '—'}
-            </span>
-            <button onClick={() => onPaid(b, true)}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white whitespace-nowrap">
-              ✓ Lunas
-            </button>
-            <button onClick={() => onRemove(b)} title="Buang dari daftar"
-              className="text-gray-300 hover:text-red-500 px-1">✕</button>
-          </div>
-        ))}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ const { closeBoxAfterPaid } = require('../lib/box');
 //
 // Selama migrasi 017 belum dijalankan, semua route di sini menjawab dengan
 // pesan yang menyebut file SQL-nya, dan halaman invoice tetap bisa dipakai.
+const BAYAR_BELUM_AKTIF = 'Pembayaran invoice belum aktif — jalankan supabase/migrations/018_billing_payments.sql';
 const BELUM_AKTIF = 'Daftar penagihan belum aktif — jalankan supabase/migrations/017_billings.sql';
 
 const PARCEL_TABLE = { HC: 'hc_parcels', WH: 'wh_parcels' };
@@ -27,7 +28,10 @@ router.get('/', async (req, res) => {
   const { data, error } = await query;
   if (error) return res.json({ billings: [], ready: false, error: BELUM_AKTIF });
 
-  const codes = await supabase.from('access_codes').select('id, label, code');
+  const [codes, pays] = await Promise.all([
+    supabase.from('access_codes').select('id, label, code'),
+    supabase.from('billing_payments').select('billing_id, amount, currency'),
+  ]);
   const byId = new Map((codes.data || []).map(c => [String(c.id), c]));
 
   res.json({
@@ -35,7 +39,89 @@ router.get('/', async (req, res) => {
     billings: (data || []).map(b => ({
       ...b,
       owner: byId.get(String(b.owner_code_id)) || null,
+      ...paymentSummary(b, pays.data || []),
     })),
+  });
+});
+
+// Berapa yang sudah dibayar dan berapa sisanya, per mata uang.
+//  due  > 0 → masih kurang bayar
+//  due  < 0 → pelanggan kelebihan bayar, jadi titipan untuk invoice berikut
+function paymentSummary(bill, payments) {
+  const mine = payments.filter(p => String(p.billing_id) === String(bill.id));
+  const paid_idr = mine.filter(p => p.currency === 'IDR').reduce((s, p) => s + num(p.amount), 0);
+  const paid_cny = mine.filter(p => p.currency !== 'IDR').reduce((s, p) => s + num(p.amount), 0);
+  return {
+    paid_idr,
+    paid_cny,
+    due_idr: num(bill.total_idr) - paid_idr,
+    due_cny: num(bill.total_cny) - paid_cny,
+    payment_count: mine.length,
+  };
+}
+
+// ── Pembayaran atas satu penagihan ──────────────────────────────────
+router.get('/:id/payments', async (req, res) => {
+  const { data, error } = await supabase
+    .from('billing_payments').select('*')
+    .eq('billing_id', req.params.id)
+    .order('paid_at', { ascending: true });
+  if (error) return res.status(503).json({ error: BAYAR_BELUM_AKTIF });
+  res.json(data || []);
+});
+
+router.post('/:id/payments', async (req, res) => {
+  const amount = Number(req.body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.status(400).json({ error: 'Nominal pembayaran tidak valid' });
+  }
+
+  const { data, error } = await supabase.from('billing_payments').insert({
+    billing_id: parseInt(req.params.id),
+    amount,
+    currency: String(req.body.currency).toUpperCase() === 'IDR' ? 'IDR' : 'CNY',
+    note: req.body.note?.trim() || null,
+  }).select().single();
+  if (error) return res.status(503).json({ error: BAYAR_BELUM_AKTIF });
+
+  const { data: bill } = await supabase.from('billings').select('title').eq('id', req.params.id).single();
+  logActivity({
+    action: 'billing_payment',
+    summary: `Pembayaran ${data.currency} ${Math.round(amount).toLocaleString('id-ID')} untuk ${bill?.title || 'penagihan'}`,
+    detail: data.note || null,
+    ref_type: 'billing',
+    ref_id: req.params.id,
+  });
+
+  res.json(data);
+});
+
+router.delete('/payments/:paymentId', async (req, res) => {
+  const { error } = await supabase.from('billing_payments').delete().eq('id', req.params.paymentId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
+// ── Sisa tagihan pelanggan yang belum tutup buku ────────────────────
+//  Dipakai invoice berikutnya: yang kurang bayar ikut ditagih lagi, yang
+//  kelebihan bayar jadi potongan. Hanya penagihan yang belum ditandai
+//  lunas yang dihitung — menandai lunas berarti admin menganggap selesai.
+router.get('/outstanding/:ownerId', async (req, res) => {
+  const { data, error } = await supabase
+    .from('billings').select('id, title, total_idr, total_cny, issued_at')
+    .eq('owner_code_id', req.params.ownerId).eq('status', 'unpaid');
+  if (error) return res.json({ idr: 0, cny: 0, items: [] });
+
+  const ids = (data || []).map(b => b.id);
+  const pays = ids.length
+    ? (await supabase.from('billing_payments').select('billing_id, amount, currency').in('billing_id', ids)).data || []
+    : [];
+
+  const items = (data || []).map(b => ({ ...b, ...paymentSummary(b, pays) }));
+  res.json({
+    idr: items.reduce((s, b) => s + b.due_idr, 0),
+    cny: items.reduce((s, b) => s + b.due_cny, 0),
+    items,
   });
 });
 
