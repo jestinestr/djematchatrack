@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../supabase');
 const { logActivity } = require('../lib/log');
+const { hasColumn } = require('../lib/columns');
 const { closeBoxAfterPaid } = require('../lib/box');
 
 // Penagihan yang sedang berlangsung.
@@ -107,9 +108,13 @@ router.delete('/payments/:paymentId', async (req, res) => {
 //  kelebihan bayar jadi potongan. Hanya penagihan yang belum ditandai
 //  lunas yang dihitung — menandai lunas berarti admin menganggap selesai.
 router.get('/outstanding/:ownerId', async (req, res) => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('billings').select('id, title, total_idr, total_cny, issued_at')
     .eq('owner_code_id', req.params.ownerId).eq('status', 'unpaid');
+  // Yang saldonya sudah digulung ke invoice berikutnya tidak dihitung lagi
+  if (await hasColumn('billings', 'rolled_into')) query = query.is('rolled_into', null);
+
+  const { data, error } = await query;
   if (error) return res.json({ idr: 0, cny: 0, items: [] });
 
   const ids = (data || []).map(b => b.id);
@@ -164,6 +169,15 @@ router.post('/', async (req, res) => {
       ? await supabase.from('billings').update(payload).eq('id', existing.id).select().single()
       : await supabase.from('billings').insert(payload).select().single();
     if (error) throw new Error(error.message);
+
+    // Kurang/lebih bayar yang ikut dihitung di invoice ini berarti sudah
+    // pindah ke sini — penagihan lamanya ditandai supaya saldonya tidak
+    // terbawa lagi ke invoice berikutnya.
+    const rolled = Array.isArray(req.body.rolled_from) ? req.body.rolled_from : [];
+    const lain = rolled.filter(id => String(id) !== String(data.id));
+    if (lain.length && await hasColumn('billings', 'rolled_into')) {
+      await supabase.from('billings').update({ rolled_into: data.id }).in('id', lain);
+    }
 
     res.json(data);
   } catch {

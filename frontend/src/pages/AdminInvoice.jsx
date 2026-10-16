@@ -373,6 +373,7 @@ export default function AdminInvoice() {
         parcel_ids: c.parcels.map(p => p.id),
         total_idr: c.totals.IDR.total,
         total_cny: c.totals.CNY.total,
+        rolled_from: billCarry ? (c.carry?.items || []).map(x => x.id) : [],
       }),
     }))).then(loadBillings).catch(() => {});
     // Dialog cetak dipanggil dari halamannya sendiri setelah logo termuat
@@ -633,7 +634,7 @@ export default function AdminInvoice() {
                         <span className="flex-1 text-gray-700">
                           {(c.carry.idr > 0 || c.carry.cny > 0)
                             ? 'Kurang bayar invoice sebelumnya — ikut ditagih'
-                            : 'Kelebihan bayar invoice sebelumnya — jadi potongan'}
+                            : 'Kelebihan bayar invoice sebelumnya — dipotong, sisanya jalan ke invoice berikutnya'}
                         </span>
                         <span className={`font-bold whitespace-nowrap ${
                           (c.carry.idr > 0 || c.carry.cny > 0) ? 'text-berry-600' : 'text-matcha-700'
@@ -942,10 +943,16 @@ function calcTotals(c, picked, type, billPkg = true) {
     t.CNY.additional += c.package_payment.due;
   }
 
-  // Kurang/lebih bayar invoice sebelumnya ikut diperhitungkan di sini
+  // Kurang/lebih bayar invoice sebelumnya ikut diperhitungkan di sini.
+  // Potongan dibatasi sampai tagihannya nol — invoice tidak pernah minus;
+  // kelebihan yang belum terpakai tetap jalan ke invoice berikutnya.
   if (picked.length && c.carry) {
-    t.IDR.additional += c.carry.idr || 0;
-    t.CNY.additional += c.carry.cny || 0;
+    for (const cur of ['IDR', 'CNY']) {
+      const bawaan = (cur === 'IDR' ? c.carry.idr : c.carry.cny) || 0;
+      if (bawaan >= 0) { t[cur].additional += bawaan; continue; }
+      const sebelum = t[cur].fee + t[cur].additional + t[cur].fine + t[cur].unboxing;
+      t[cur].additional -= Math.min(sebelum, -bawaan);   // potong, jangan sampai minus
+    }
   }
 
   for (const k of ['IDR', 'CNY']) {
@@ -964,7 +971,12 @@ function feeLines(c, cur) {
   // pelanggan paham kenapa angkanya bertambah atau berkurang
   const bawaan = cur === 'IDR' ? c.carry?.idr : c.carry?.cny;
   if (bawaan && Math.abs(bawaan) > 0.009) {
-    rows.push([bawaan > 0 ? 'Kurang bayar invoice sebelumnya' : 'Kelebihan bayar invoice sebelumnya', bawaan]);
+    // Potongan yang ditulis hanya sebesar yang benar-benar terpakai
+    const dasar = c.totals[cur].fee + c.totals[cur].fine + c.totals[cur].unboxing;
+    const nilai = bawaan > 0 ? bawaan : -Math.min(dasar + Math.max(0, c.totals[cur].additional), -bawaan);
+    if (Math.abs(nilai) > 0.009) {
+      rows.push([bawaan > 0 ? 'Kurang bayar invoice sebelumnya' : 'Potongan kelebihan bayar', nilai]);
+    }
   }
   // Sisa fee paket ditulis sebagai barisnya sendiri supaya jelas ditagih apa
   if (cur === 'CNY' && c.package_payment?.due > 0 && c.totals.CNY.additional >= c.package_payment.due) {
