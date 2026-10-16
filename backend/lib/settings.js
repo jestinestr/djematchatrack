@@ -5,6 +5,7 @@ const supabase = require('../supabase');
 // semua setelan dianggap memakai nilai bawaan — aplikasi tetap jalan.
 const DEFAULTS = {
   auto_approve_requests: false,   // setoran resi langsung disetujui
+  cny_rate: 0,                    // 1 Yuan = berapa Rupiah; 0 = belum diisi
 };
 
 async function getSetting(key) {

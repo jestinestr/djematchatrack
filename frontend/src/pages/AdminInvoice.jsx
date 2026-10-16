@@ -46,6 +46,10 @@ export default function AdminInvoice() {
   const [billings, setBillings] = useState({ ready: true, list: [] });
   const [carry, setCarry] = useState({});     // ownerId -> { idr, cny }
   const [billCarry, setBillCarry] = useState(true);  // ikut ditagih (bawaan: ya)
+  // Usahanya berbasis Yuan; kurs dipakai supaya invoice ikut menyebut
+  // Rupiahnya. Disimpan di setelan server, jadi sama di semua alat.
+  const [rate, setRate] = useState(0);
+  const [rateDraft, setRateDraft] = useState('');
   const [batchId, setBatchId] = useState('');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
@@ -298,6 +302,27 @@ export default function AdminInvoice() {
 
   useEffect(() => { loadBillings(); }, [loadBillings]);
 
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(d => {
+        const v = Number(d.cny_rate) || 0;
+        setRate(v);
+        setRateDraft(v ? String(v) : '');
+      })
+      .catch(() => {});
+  }, []);
+
+  async function simpanKurs() {
+    const v = Math.max(0, Number(rateDraft) || 0);
+    setRate(v);
+    await fetch('/api/settings/cny_rate', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: v }),
+    }).catch(() => {});
+  }
+
   async function setBillingPaid(bill, paid) {
     if (paid && !window.confirm(`Tandai "${bill.title}" sudah lunas? ${bill.parcel_count} resi di dalamnya ikut ditandai lunas.`)) return;
     await fetch(`/api/billings/${bill.id}`, {
@@ -318,8 +343,13 @@ export default function AdminInvoice() {
   // ── Cetak ─────────────────────────────────────────────────────────
   function printInvoices() {
     const picked = customers.filter(c => c.owner && selected.has(c.owner.id) && c.parcels.length);
-    if (!picked.length) return;
-    const html = buildInvoicesHTML(batch, picked, type);
+    // Pelanggan tercentang tapi tidak ada resinya yang ikut ditagih — dulu
+    // tombolnya diam saja dan admin tidak tahu kenapa.
+    if (!picked.length) {
+      alert('Belum ada resi yang dicentang untuk ditagih. Buka "Pilih resi yang ditagih" lalu centang resinya dulu.');
+      return;
+    }
+    const html = buildInvoicesHTML(batch, picked, type, rate);
     const w = window.open('', '_blank');
     if (!w) {
       alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
@@ -482,7 +512,9 @@ export default function AdminInvoice() {
             {[
               { icon: '👤', label: 'Pelanggan', value: invoiceable.length },
               { icon: '📦', label: 'Total Resi', value: grand.parcels },
-              { icon: '💰', label: 'Total Tagihan', value: [grand.IDR ? money(grand.IDR, 'IDR') : null, grand.CNY ? money(grand.CNY, 'CNY') : null].filter(Boolean).join(' + ') || '—' },
+              { icon: '💰', label: 'Total Tagihan',
+                value: [grand.IDR ? money(grand.IDR, 'IDR') : null, grand.CNY ? money(grand.CNY, 'CNY') : null].filter(Boolean).join(' + ') || '—',
+                sub: rate > 0 && grand.CNY ? `≈ ${rupiah(grand.CNY * rate + (grand.IDR || 0))}` : null },
               { icon: '⚠️', label: 'Total Denda', value: grand.fine ? rupiah(grand.fine) : '—' },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-2xl border border-cream-200 shadow-soft px-3 py-2.5 flex items-center gap-2.5">
@@ -490,6 +522,7 @@ export default function AdminInvoice() {
                 <div className="min-w-0">
                   <p className="text-[10px] text-gray-400 font-medium leading-none mb-0.5">{s.label}</p>
                   <p className="text-sm font-bold text-matcha-800 truncate">{s.value}</p>
+                  {s.sub && <p className="text-[10px] text-gray-400 truncate">{s.sub}</p>}
                 </div>
               </div>
             ))}
@@ -548,6 +581,11 @@ export default function AdminInvoice() {
                           c.totals.CNY.total ? money(c.totals.CNY.total, 'CNY') : null,
                         ].filter(Boolean).join(' + ') || '—'}
                       </p>
+                      {rate > 0 && c.totals.CNY.total > 0 && (
+                        <p className="text-[11px] text-gray-400">
+                          ≈ {rupiah(c.totals.CNY.total * rate + (c.totals.IDR.total || 0))}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -806,6 +844,20 @@ export default function AdminInvoice() {
           {/* Aksi — satu bingkai di bawah, sesudah semua isinya terlihat */}
           <div className="mt-4 bg-white rounded-2xl border border-cream-200 shadow-soft p-3
                           flex flex-wrap items-center gap-2 sticky bottom-3">
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap">
+              Kurs ¥1 =
+              <span className="text-gray-400">Rp</span>
+              <input
+                type="number" min="0" step="1" value={rateDraft}
+                onChange={e => setRateDraft(e.target.value)}
+                onBlur={simpanKurs}
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                placeholder="0"
+                title="Dipakai untuk menuliskan setaraan Rupiah di invoice"
+                className="input-field text-xs py-1 w-24"
+              />
+            </label>
+
             <button onClick={toggleAll} className="text-xs font-semibold text-matcha-700 hover:underline">
               {selected.size === invoiceable.length ? 'Batal pilih semua' : `Pilih semua (${invoiceable.length})`}
             </button>
@@ -956,7 +1008,7 @@ function invoiceTitle(batch, customers, typeLabel) {
 }
 
 /* ── Dokumen invoice untuk dicetak ───────────────────────── */
-function buildInvoicesHTML(batch, customers, type) {
+function buildInvoicesHTML(batch, customers, type, rate = 0) {
   const today = formatDate(new Date().toISOString(), false);
   const typeLabel = type === 'HC' ? 'Hand Carry' : 'Warehouse';
 
@@ -1002,7 +1054,11 @@ function buildInvoicesHTML(batch, customers, type) {
         <tr class="grand">
           <td>TOTAL ${CURRENCIES[cur].label}</td>
           <td class="right">${esc(money(c.totals[cur].total, cur))}</td>
-        </tr>`).join('');
+        </tr>
+        ${cur === 'CNY' && rate > 0 ? `<tr class="rate">
+          <td>Setara Rupiah &middot; kurs ¥1 = ${esc(rupiah(rate))}</td>
+          <td class="right">${esc(rupiah(c.totals.CNY.total * rate))}</td>
+        </tr>` : ''}`).join('');
 
     return `
     <section class="invoice">
@@ -1100,6 +1156,8 @@ function buildInvoicesHTML(batch, customers, type) {
   }
   .note { margin: 6px 0 0; font-size: 11px; color: #44403c; background: #f5f5f4;
           border-left: 3px solid #a8a29e; padding: 6px 10px; }
+  .summary tr.rate td { font-size: 11px; color: #57534e; font-weight: 600;
+                        border-top: none; padding-top: 0; }
 </style>
 </head>
 <body>${pages}
