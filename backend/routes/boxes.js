@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require('../supabase');
 const { fetchCodes } = require('../lib/owner');
 const { logActivity } = require('../lib/log');
+const { ensureOpenBox } = require('../lib/box');
 
 // Label yang dipakai di mana-mana: "BosBesar - Box 1"
 const boxLabel = (box, ownerLabel) => `${ownerLabel || '—'} - ${box.name}`;
@@ -112,15 +113,25 @@ router.post('/:id/close', async (req, res) => {
   // Resi di dalamnya ikut ditandai arsip, namanya tetap sama
   await supabase.from('wh_parcels').update({ status: 'archived' }).eq('box_id', data.id);
 
+  // Box yang ditutup berarti barangnya sudah dikirim, jadi tidak boleh
+  // kemasukan resi baru. Box berikutnya langsung disiapkan di sini supaya
+  // admin melihatnya sekarang, bukan baru muncul waktu resi berikut datang.
+  const nextId = await ensureOpenBox(data.owner_code_id);
+  const { data: nextBox } = nextId
+    ? await supabase.from('boxes').select('id, name').eq('id', nextId).single()
+    : { data: null };
+
   const [withOwner] = await withOwners([data]);
   logActivity({
     action: 'box_close',
     summary: `Tutup box ${boxLabel(data, withOwner.owner?.label)}`,
-    detail: 'Box beserta resinya pindah ke arsip pelanggan',
+    detail: nextBox
+      ? `Resinya pindah ke arsip; resi berikutnya masuk ${nextBox.name}`
+      : 'Box beserta resinya pindah ke arsip pelanggan',
     ref_type: 'box',
     ref_id: data.id,
   });
-  res.json(withOwner);
+  res.json({ ...withOwner, next_box: nextBox });
 });
 
 // ── Buka lagi box yang tertutup ─────────────────────────────────────

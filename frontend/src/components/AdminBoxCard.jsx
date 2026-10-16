@@ -19,6 +19,18 @@ export default function AdminBoxCard({ box, tarif, onChanged, onParcelsChanged }
   const [showLabels, setShowLabels] = useState(false);
 
   const parcels = box.parcels || [];
+
+  // Menutup box = barangnya sudah dikirim. Box berikutnya disiapkan server,
+  // namanya diberitahukan supaya admin tahu resi baru nanti masuk ke mana.
+  async function tutupBox() {
+    if (!window.confirm(`Tutup ${label}? Box beserta resinya pindah ke arsip pelanggan, dan resi berikutnya masuk ke box baru.`)) return;
+    const res = await fetch(`/api/boxes/${box.id}/close`, { method: 'POST' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { alert(data?.error || 'Gagal menutup box'); return; }
+    if (data?.next_box?.name) alert(`${label} ditutup. Resi berikutnya otomatis masuk ${data.next_box.name}.`);
+    onChanged?.();
+    onParcelsChanged?.();
+  }
   const isOpen = box.status === 'open';
   const totals = sumParcels(parcels, 'WH');
   const paged = usePaged(parcels, 10);
@@ -104,7 +116,7 @@ export default function AdminBoxCard({ box, tarif, onChanged, onParcelsChanged }
             </button>
             {isOpen ? (
               <button
-                onClick={() => window.confirm(`Tutup ${label}? Box beserta resinya pindah ke arsip pelanggan.`) && call(`/api/boxes/${box.id}/close`)}
+                onClick={tutupBox}
                 disabled={busy}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50">
                 Tutup
