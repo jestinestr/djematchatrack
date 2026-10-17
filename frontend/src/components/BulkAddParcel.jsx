@@ -22,6 +22,7 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const [hasil, setHasil]   = useState(null); // { ok: [...], gagal: [...] }
+  const [kembar, setKembar] = useState({});   // nomor resi yang sudah terdaftar
 
   useEffect(() => {
     fetch('/api/codes').then(r => r.json()).then(d => setCodes(Array.isArray(d) ? d : [])).catch(() => {});
@@ -34,7 +35,37 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
   const owner = codes.find(c => String(c.id) === String(ownerId));
   const pkg   = pkgs.find(p => String(p.owner_code_id) === String(ownerId));
   const isi   = rows.filter(r => r.tracking_number.trim());
+  const siap  = isi.filter(r => !kembar[r.tracking_number.trim()]);
   const dendaNyala = manual && fine.manual_fine_on && fine.manual_fine_amount > 0;
+
+  // Nomor yang sudah terdaftar ditandai silang dan tidak ikut dikirim.
+  // Dicek begitu nomornya selesai diketik atau ditempel, jadi ketahuan
+  // sebelum tombol simpan ditekan.
+  async function cekKembar(nomor) {
+    const list = (Array.isArray(nomor) ? nomor : [nomor])
+      .map(t => String(t).trim()).filter(Boolean);
+    if (!list.length) return {};
+    try {
+      const res = await fetch('/api/parcels/check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tracking_numbers: list }),
+      });
+      if (!res.ok) return {};
+      const ada = await res.json();
+      setKembar(k => {
+        const next = { ...k };
+        for (const t of list) {
+          if (ada[t]) next[t] = ada[t];
+          else delete next[t];
+        }
+        return next;
+      });
+      return ada;
+    } catch {
+      return {};
+    }
+  }
 
   function setRow(i, patch) {
     setRows(rs => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -55,6 +86,7 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
       });
       return next.slice(0, MAKS);
     });
+    cekKembar(potong.slice(0, MAKS));
   }
 
   async function simpan(e) {
@@ -63,11 +95,35 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
     if (!isi.length) return setError('Isi minimal satu nomor resi');
 
     setError(''); setSaving(true);
-    const ok = [], gagal = [];
+
+    // Dicek sekali lagi tepat sebelum kirim — bisa saja nomornya baru
+    // dipakai sejak terakhir diketik.
+    const adaDuluan = await cekKembar(isi.map(r => r.tracking_number));
+    const lolos = isi.filter(r => !adaDuluan[r.tracking_number.trim()]);
+    const ditolak = isi
+      .filter(r => adaDuluan[r.tracking_number.trim()])
+      .map(r => {
+        const info = adaDuluan[r.tracking_number.trim()];
+        return {
+          nomor: r.tracking_number.trim(),
+          pesan: info.pemilik
+            ? 'sudah terdaftar atas ' + info.pemilik
+            : 'nomor resi sudah terdaftar',
+        };
+      });
+
+    if (!lolos.length) {
+      setSaving(false);
+      setHasil({ ok: [], gagal: ditolak });
+      setError('Semua nomor sudah terdaftar — tidak ada yang disimpan');
+      return;
+    }
+
+    const ok = [], gagal = [...ditolak];
 
     // Dikirim satu per satu supaya resi yang gagal tidak menjatuhkan yang
     // lain — nomor ganda di satu kiriman pun ketahuan per barisnya.
-    for (const r of isi) {
+    for (const r of lolos) {
       const fd = new FormData();
       fd.append('batch_id', batchId);
       fd.append('tracking_number', r.tracking_number.trim());
@@ -78,6 +134,7 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
       fd.append('is_manual_input', manual ? 'true' : 'false');
       fd.append('wh_fee', pkg && pkg.remaining > 0 ? '0' : String(unitFee));
       fd.append('estimated_quantity', '1');
+      fd.append('reject_duplicate', 'true');   // nomor kembar ditolak, bukan ditimpa
       try {
         const res = await fetch('/api/parcels/wh', { method: 'POST', body: fd });
         const data = await res.json();
@@ -91,8 +148,11 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
     setSaving(false);
     setHasil({ ok, gagal });
     if (ok.length) onAdded?.(ok);
-    if (!gagal.length) onClose();            // semua masuk, tidak perlu ditahan
-    else setRows(gagal.map(g => ({ tracking_number: g.nomor, parcel_type: 'barang' })));
+    if (!gagal.length) { onClose(); return; }   // semua masuk, tidak perlu ditahan
+
+    // Yang lolos sudah tersimpan; yang bermasalah ditinggal di layar supaya
+    // nomornya bisa dibetulkan atau dibuang.
+    setRows(gagal.map(g => ({ tracking_number: g.nomor, parcel_type: 'barang' })));
   }
 
   return (
@@ -139,7 +199,14 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-gray-600 flex-1">Nomor resi</span>
-              <span className="text-[11px] text-gray-400">{isi.length}/{MAKS} terisi</span>
+              <span className="text-[11px] text-gray-400">
+                {isi.length}/{MAKS} terisi
+                {isi.length > siap.length && (
+                  <span className="text-red-500 font-semibold">
+                    {' '}· {isi.length - siap.length} kembar
+                  </span>
+                )}
+              </span>
             </div>
             <p className="text-[11px] text-gray-400 mt-0.5 mb-1.5">
               Bisa tempel banyak nomor sekaligus — satu nomor per baris.
@@ -147,16 +214,33 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
             </p>
 
             <div className="space-y-1.5">
-              {rows.map((r, i) => (
+              {rows.map((r, i) => {
+                const sudahAda = kembar[r.tracking_number.trim()];
+                return (
                 <div key={i} className="flex gap-1.5">
-                  <span className="text-[11px] font-black text-gray-300 w-3 self-center text-center">{i + 1}</span>
-                  <input
-                    value={r.tracking_number}
-                    onChange={e => setRow(i, { tracking_number: e.target.value })}
-                    onPaste={e => tempel(i, e)}
-                    placeholder="nomor resi"
-                    className="flex-1 min-w-0 border border-cream-300 rounded-xl px-3 py-2 text-sm font-mono"
-                  />
+                  <span className={`text-[11px] font-black w-3 self-center text-center ${
+                    sudahAda ? 'text-red-500' : 'text-gray-300'
+                  }`}>
+                    {sudahAda ? '✕' : i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <input
+                      value={r.tracking_number}
+                      onChange={e => setRow(i, { tracking_number: e.target.value })}
+                      onBlur={e => cekKembar(e.target.value)}
+                      onPaste={e => tempel(i, e)}
+                      placeholder="nomor resi"
+                      className={`w-full border rounded-xl px-3 py-2 text-sm font-mono ${
+                        sudahAda ? 'border-red-300 bg-red-50 text-red-700' : 'border-cream-300'
+                      }`}
+                    />
+                    {sudahAda && (
+                      <p className="text-[11px] text-red-600 mt-0.5 pl-1 leading-snug">
+                        Sudah terdaftar{sudahAda.pemilik ? ` atas ${sudahAda.pemilik}` : ''}
+                        {sudahAda.asal === 'setoran' ? ' (setoran menunggu ACC)' : ''} — tidak ikut disimpan
+                      </p>
+                    )}
+                  </div>
                   <select
                     value={r.parcel_type}
                     onChange={e => setRow(i, { parcel_type: e.target.value })}
@@ -173,7 +257,8 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {rows.length < MAKS && (
@@ -192,7 +277,7 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
               {dendaNyala && (
                 <span className="block text-amber-700 font-semibold mt-0.5">
                   Kena denda {rupiah(fine.manual_fine_amount)}/resi
-                  {isi.length > 0 && ` · total ${rupiah(fine.manual_fine_amount * isi.length)}`}
+                  {siap.length > 0 && ` · total ${rupiah(fine.manual_fine_amount * siap.length)}`}
                 </span>
               )}
             </span>
@@ -202,9 +287,11 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
           {hasil?.gagal?.length > 0 && (
             <div className="text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2 space-y-1">
               {hasil.ok.length > 0 && (
-                <p className="text-green-700 font-semibold">{hasil.ok.length} resi tersimpan</p>
+                <p className="text-green-700 font-semibold">
+                  ✓ {hasil.ok.length} resi lolos dan sudah tersimpan
+                </p>
               )}
-              <p className="text-red-700 font-semibold">{hasil.gagal.length} resi gagal:</p>
+              <p className="text-red-700 font-semibold">{hasil.gagal.length} resi tidak lolos:</p>
               {hasil.gagal.map(g => (
                 <p key={g.nomor} className="text-red-600">
                   <span className="font-mono">{g.nomor}</span> — {g.pesan}
@@ -214,9 +301,9 @@ export default function BulkAddParcel({ batchId, unitFee = 1.5, onClose, onAdded
           )}
 
           <div className="flex gap-2 pt-1">
-            <button type="submit" disabled={saving || !isi.length}
+            <button type="submit" disabled={saving || !siap.length}
               className="btn-primary text-sm px-4 py-2 flex-1 disabled:opacity-50">
-              {saving ? 'Menyimpan…' : `Simpan ${isi.length || ''} resi`}
+              {saving ? 'Menyimpan…' : `Simpan ${siap.length || ''} resi`}
             </button>
             <button type="button" onClick={onClose} className="btn-secondary text-sm px-4 py-2">
               Tutup

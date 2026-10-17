@@ -311,6 +311,21 @@ function registerCrud(kind) {
     }
 
     try {
+      // Input massal minta nomor kembar ditolak, bukan ditimpa. Form biasa
+      // tidak mengirim tanda ini, jadi kebiasaan lamanya tidak berubah.
+      if (req.body.reject_duplicate === 'true' || req.body.reject_duplicate === true) {
+        const kembar = await cariKembar([tracking_number]);
+        const ada = kembar[String(tracking_number).trim()];
+        if (ada) {
+          return res.status(409).json({
+            error: ada.pemilik
+              ? `Sudah terdaftar atas ${ada.pemilik}`
+              : 'Nomor resi ini sudah terdaftar',
+            duplicate: true,
+          });
+        }
+      }
+
       const batch = await getBatch(parseInt(batch_id));
       const payload = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
       payload.batch_id = parseInt(batch_id);
@@ -428,6 +443,50 @@ function jakartaStartOfDay() {
   const midnight = Date.UTC(here.getUTCFullYear(), here.getUTCMonth(), here.getUTCDate());
   return new Date(midnight - OFFSET).toISOString();
 }
+
+// Nomor resi mana saja yang sudah ada — dipakai input massal supaya resi
+// kembar ketahuan sebelum disimpan. Setoran yang masih menunggu ACC ikut
+// dihitung, karena nomornya memang sudah dipegang orang.
+async function cariKembar(list) {
+  const bersih = [...new Set(list.map(t => String(t || '').trim()).filter(Boolean))];
+  if (!bersih.length) return {};
+
+  const kolom = 'tracking_number, recipient_name, owner_code_id';
+  const [hc, wh, pend] = await Promise.all([
+    supabase.from('hc_parcels').select(kolom).in('tracking_number', bersih),
+    supabase.from('wh_parcels').select(kolom).in('tracking_number', bersih),
+    supabase.from('parcel_requests').select(kolom + ', status')
+      .in('tracking_number', bersih).eq('status', 'pending'),
+  ]);
+
+  const codes = await fetchCodes();
+  const label = id => codes.find(c => String(c.id) === String(id))?.label || null;
+
+  const out = {};
+  for (const row of [...(hc.data || []), ...(wh.data || [])]) {
+    out[row.tracking_number] = {
+      asal: 'resi',
+      pemilik: label(row.owner_code_id) || row.recipient_name || null,
+    };
+  }
+  for (const row of pend.data || []) {
+    if (out[row.tracking_number]) continue;
+    out[row.tracking_number] = {
+      asal: 'setoran',
+      pemilik: label(row.owner_code_id) || row.recipient_name || null,
+    };
+  }
+  return out;
+}
+
+router.post('/check-duplicate', async (req, res) => {
+  const list = Array.isArray(req.body.tracking_numbers) ? req.body.tracking_numbers : [];
+  try {
+    res.json(await cariKembar(list));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 router.get('/today', async (req, res) => {
   const rawCode = (req.get('X-Access-Code') || '').trim();
