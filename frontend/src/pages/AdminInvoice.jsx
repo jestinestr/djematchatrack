@@ -43,6 +43,7 @@ export default function AdminInvoice() {
   const type = 'WH';
   const [batchList, setBatchList] = useState([]);
   const [search, setSearch] = useState('');
+  const [bukaResi, setBukaResi] = useState(() => new Set()); // daftar resi yang dibentang
   const [billings, setBillings] = useState({ ready: true, list: [] });
   const [carry, setCarry] = useState({});     // ownerId -> { idr, cny }
   const [billCarry, setBillCarry] = useState(true);  // ikut ditagih (bawaan: ya)
@@ -162,6 +163,10 @@ export default function AdminInvoice() {
   // dan kartu pelanggan di bawahnya. Nomor resi ikut dicari supaya admin
   // bisa langsung menemukan invoice tempat sebuah resi ditagih.
   const cocok = (teks, q) => String(teks || '').toLowerCase().includes(q);
+
+  // Di tampilan satu box, kotak cari dipakai untuk menyaring resi milik
+  // pelanggan yang sedang dibuka — bukan cuma menyaring daftar box.
+  const cariResi = batchId ? search.trim() : '';
 
   const shownBatches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -726,8 +731,21 @@ export default function AdminInvoice() {
                     </div>
                   )}
 
-                  {/* Rincian resi */}
-                  <details className="group">
+                  {/* Rincian resi — ikut tersaring kalau sedang mencari */}
+                  <details
+                    className="group"
+                    open={bukaResi.has(key) || !!cariResi}
+                    onToggle={e => {
+                      // dibaca sekarang: isi event sudah kosong waktu
+                      // pembaru state dijalankan React
+                      const terbuka = e.currentTarget.open;
+                      setBukaResi(prev => {
+                        const next = new Set(prev);
+                        terbuka ? next.add(key) : next.delete(key);
+                        return next;
+                      });
+                    }}
+                  >
                     <summary className="px-4 py-2 text-xs text-gray-500 cursor-pointer hover:bg-cream-50 transition-colors list-none flex items-center gap-1.5">
                       <span className="group-open:rotate-90 transition-transform">›</span>
                       Pilih resi yang ditagih ({c.parcel_count}/{c.allParcels.length})
@@ -735,17 +753,32 @@ export default function AdminInvoice() {
                         <span className="ml-1 text-green-600 font-semibold">· {c.allParcels.filter(p => p.paid_at).length} lunas</span>
                       )}
                     </summary>
+                    {cariResi && (
+                      <div className="px-4 py-2 border-t border-cream-100 bg-sky-50 flex items-center gap-2">
+                        <span className="text-xs text-sky-800 flex-1">
+                          {saringResi(c.allParcels, cariResi).length} resi cocok dengan “{cariResi}”
+                          {' '}— yang lain disembunyikan, centangnya tidak berubah
+                        </span>
+                        <button onClick={() => setSearch('')}
+                          className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-sky-300 bg-white text-sky-700 hover:bg-sky-100 flex-shrink-0">
+                          Hapus pencarian
+                        </button>
+                      </div>
+                    )}
+
                     {/* Centang otomatis cuma titik awal — di sini bisa
                         dikosongkan dulu lalu dipilih sendiri satu-satu */}
                     <div className="px-4 py-2 border-t border-cream-100 bg-cream-50/70 flex items-center gap-2">
                       <span className="text-xs text-gray-500 flex-1">
                         {c.parcel_count} dari {c.allParcels.filter(p => !p.paid_at).length} resi dicentang
-                        {c.parcel_count > 0 && ' · boleh dikosongkan lalu pilih sendiri'}
+                        {cariResi
+                          ? ' · tombol di kanan berlaku untuk hasil pencarian saja'
+                          : c.parcel_count > 0 ? ' · boleh dikosongkan lalu pilih sendiri' : ''}
                       </span>
                       <button
                         onClick={() => setChosen(prev => {
                           const next = new Set(prev);
-                          c.allParcels.forEach(p => next.delete(p.id));
+                          saringResi(c.allParcels, cariResi).forEach(p => next.delete(p.id));
                           return next;
                         })}
                         disabled={!c.parcel_count}
@@ -756,7 +789,8 @@ export default function AdminInvoice() {
                       <button
                         onClick={() => setChosen(prev => {
                           const next = new Set(prev);
-                          c.allParcels.filter(p => !p.paid_at).forEach(p => next.add(p.id));
+                          saringResi(c.allParcels, cariResi)
+                            .filter(p => !p.paid_at).forEach(p => next.add(p.id));
                           return next;
                         })}
                         className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 flex-shrink-0"
@@ -800,7 +834,7 @@ export default function AdminInvoice() {
                       </div>
                     )}
                     <div className="divide-y divide-cream-100 border-t border-cream-100">
-                      {urutChecklist(c.allParcels).map(p => (
+                      {urutChecklist(saringResi(c.allParcels, cariResi)).map(p => (
                         <div key={p.id} className={`flex items-center gap-3 px-4 py-2 ${p.paid_at ? 'bg-green-50/40' : ''}`}>
                           {p.paid_at ? (
                             <button
@@ -929,6 +963,16 @@ function unpaidIds(d) {
   return new Set(
     (d?.customers || []).flatMap(c =>
       c.parcels.filter(p => !p.paid_at && p.photo_url).map(p => p.id))
+  );
+}
+
+// Resi yang cocok dengan kata kunci; tanpa kata kunci semuanya ikut
+function saringResi(parcels, q) {
+  const kunci = String(q || '').trim().toLowerCase();
+  if (!kunci) return parcels;
+  return parcels.filter(p =>
+    String(p.tracking_number || '').toLowerCase().includes(kunci) ||
+    String(p.recipient_name || '').toLowerCase().includes(kunci)
   );
 }
 
