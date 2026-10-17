@@ -8,6 +8,7 @@ const { logActivity, batchLabel, parcelLabel } = require('../lib/log');
 const { activePackageId, loadPackageInfo, attachPackage } = require('../lib/packages');
 const { stripMissing } = require('../lib/columns');
 const { ensureOpenBox } = require('../lib/box');
+const { getSetting } = require('../lib/settings');
 
 // Use memory storage — file goes to Supabase Storage, not disk
 const upload = multer({
@@ -80,6 +81,18 @@ function buildPayload(kind, body, batch = null) {
     if (body.box_id) payload.box_id = parseInt(body.box_id);
     else if (body.box_id === '') payload.box_id = null;
   }
+  return payload;
+}
+
+// Resi yang diketik admin sendiri kena denda sebesar setelan di Control
+// Tarif — hanya kalau sakelarnya dinyalakan dan admin belum mengisi angka
+// dendanya sendiri. Dipasang di server supaya form mana pun ikut aturannya.
+async function applyManualFine(payload, body) {
+  if (!payload.is_manual_input) return payload;
+  if (body.fine_amount !== undefined && Number(body.fine_amount) > 0) return payload;
+  if (!(await getSetting('manual_fine_on'))) return payload;
+
+  payload.fine_amount = Math.max(0, Number(await getSetting('manual_fine_amount')) || 0);
   return payload;
 }
 
@@ -301,6 +314,7 @@ function registerCrud(kind) {
       const batch = await getBatch(parseInt(batch_id));
       const payload = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
       payload.batch_id = parseInt(batch_id);
+      await applyManualFine(payload, req.body);
       // Resi WH tanpa box pilihan masuk ke box terbuka pemiliknya; kalau
       // belum punya (pelanggan baru / box lama ditutup) box dibuat otomatis.
       if (kind === 'wh' && !payload.box_id && payload.owner_code_id) {

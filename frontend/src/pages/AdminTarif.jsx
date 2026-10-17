@@ -268,6 +268,137 @@ function BatchTarifCard({ batch, type, onSaved }) {
   );
 }
 
+// ── Denda untuk resi yang diketik admin sendiri ─────────────────────
+//
+// Berlaku untuk semua resi, bukan per batch, jadi setelannya disimpan di
+// app_settings. Sakelarnya terpisah dari tarifnya supaya admin bisa
+// menyiapkan angkanya dulu lalu menyalakannya kapan mau.
+const CONTOH_PENGUMUMAN =
+  'Per 17 Oktober 2026, kalau barang sudah sampai ke admin sebelum kamu setor resi, '
+  + 'resinya admin input manual dan kena tarif Rp 1.000/resi. '
+  + 'Resi yang diinput manual jenisnya otomatis "Barang" ya.';
+
+function ManualFineCard() {
+  const [on, setOn]           = useState(false);
+  const [tarif, setTarif]     = useState('1000');
+  const [notice, setNotice]   = useState('');
+  const [ready, setReady]     = useState(true);
+  const [simpan, setSimpan]   = useState('');
+
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.json()).then(d => {
+      setOn(!!d.manual_fine_on);
+      setTarif(String(d.manual_fine_amount ?? 1000));
+      setNotice(d.manual_fine_notice || '');
+      setReady(d._ready !== false);
+    }).catch(() => {});
+  }, []);
+
+  async function simpanSetelan(key, value) {
+    const res = await fetch(`/api/settings/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
+    if (!res.ok) { setReady(false); return false; }
+    setSimpan(key);
+    setTimeout(() => setSimpan(''), 2000);
+    return true;
+  }
+
+  async function toggle() {
+    const next = !on;
+    setOn(next);
+    if (!(await simpanSetelan('manual_fine_on', next))) setOn(!next);
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-cream-200 shadow-soft p-4 mb-5">
+      <div className="flex items-start gap-3">
+        <span className="text-xl leading-none">✍️</span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold text-matcha-800 text-sm">Denda resi input manual</h2>
+          <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+            Dipakai otomatis waktu kamu menandai sebuah resi sebagai “input manual”.
+            Kalau kamu mengisi sendiri kolom denda resi itu, angkamu yang dipakai.
+          </p>
+        </div>
+        <button
+          onClick={toggle}
+          className={`flex-shrink-0 w-12 h-7 rounded-full transition-colors relative ${
+            on ? 'bg-matcha-700' : 'bg-gray-300'
+          }`}
+          title={on ? 'Matikan denda' : 'Nyalakan denda'}
+        >
+          <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all ${
+            on ? 'left-6' : 'left-1'
+          }`} />
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <label className="text-xs text-gray-600 flex items-center gap-1.5">
+          Tarif Rp
+          <input
+            type="number" min="0" step="500" value={tarif}
+            onChange={e => setTarif(e.target.value)}
+            onBlur={() => simpanSetelan('manual_fine_amount', Math.max(0, Number(tarif) || 0))}
+            className="w-24 border border-cream-300 rounded-lg px-2 py-1 text-sm"
+          />
+          <span className="text-gray-400">/resi</span>
+        </label>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+          on ? 'bg-matcha-100 text-matcha-700' : 'bg-gray-100 text-gray-500'
+        }`}>
+          {on ? `● Aktif · ${rupiah(Number(tarif) || 0)}/resi` : '○ Mati'}
+        </span>
+        {simpan && <span className="text-xs text-green-600 font-semibold">✓ Tersimpan</span>}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-cream-200">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold text-gray-600 flex-1">
+            Pengumuman di panel pelanggan
+          </p>
+          {notice.trim() !== CONTOH_PENGUMUMAN && (
+            <button
+              onClick={() => setNotice(CONTOH_PENGUMUMAN)}
+              className="text-[11px] text-matcha-700 hover:underline"
+            >
+              pakai contoh
+            </button>
+          )}
+        </div>
+        <textarea
+          rows={3} value={notice}
+          onChange={e => setNotice(e.target.value)}
+          placeholder="Kosongkan kalau tidak mau ada pengumuman"
+          className="mt-1.5 w-full border border-cream-300 rounded-xl px-3 py-2 text-sm leading-snug"
+        />
+        <div className="flex items-center gap-2 mt-1.5">
+          <button
+            onClick={() => simpanSetelan('manual_fine_notice', notice.trim())}
+            className="btn-primary text-xs px-3 py-1.5"
+          >
+            Simpan pengumuman
+          </button>
+          <span className="text-[11px] text-gray-400">
+            Tampil di panel pelanggan begitu disimpan
+          </span>
+        </div>
+      </div>
+
+      {!ready && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-3">
+          Setelan belum bisa disimpan — jalankan dulu
+          <code className="mx-1">supabase/migrations/016_auto_acc_and_fix_request.sql</code>
+          di Supabase.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function AdminTarif() {
   const [whBatches, setWhBatches] = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -295,9 +426,11 @@ export default function AdminTarif() {
         <span className="text-3xl">💰</span>
         <div>
           <h1 className="text-xl font-bold text-matcha-800">Control Tarif</h1>
-          <p className="text-sm text-gray-500">Atur tarif satuan, video unboxing, dan denda tiap batch Warehouse</p>
+          <p className="text-sm text-gray-500">Atur denda resi input manual, tarif satuan, video unboxing, dan denda tiap batch Warehouse</p>
         </div>
       </div>
+
+      <ManualFineCard />
 
       {loading ? (
         <LoadingSpinner text="Memuat data tarif..." />

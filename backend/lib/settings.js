@@ -6,6 +6,9 @@ const supabase = require('../supabase');
 const DEFAULTS = {
   auto_approve_requests: false,   // setoran resi langsung disetujui
   cny_rate: 0,                    // 1 Yuan = berapa Rupiah; 0 = belum diisi
+  manual_fine_on: false,          // denda resi yang diketik admin, nyala/mati
+  manual_fine_amount: 1000,       // besarnya denda itu, Rupiah per resi
+  manual_fine_notice: '',         // pengumuman soal denda itu di panel pelanggan
 };
 
 async function getSetting(key) {

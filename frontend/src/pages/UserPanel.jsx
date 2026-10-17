@@ -6,7 +6,7 @@ import RequestForm from '../components/RequestForm';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
-import { ManualMineNotice, UnclaimedNotice, AlbumNotice } from '../components/ManualNotices';
+import { ManualMineNotice, UnclaimedNotice, AlbumNotice, FineNotice } from '../components/ManualNotices';
 import TodayNotice from '../components/TodayNotice';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
 import { fetchAsUser, downloadMany, slugify, cardName, money, formatDate } from '../utils/format';
@@ -35,6 +35,19 @@ export default function UserPanel({ type }) {
   // Kabar baru sejak kunjungan terakhir — lihat utils/updates.js
   const accessCode = sessionStorage.getItem('access_code') || '';
   const [since, setSince] = useState(() => readLastSeen(accessCode));
+
+  // Pengumuman admin soal tarif resi input manual. Yang sudah ditutup
+  // pelanggan diingat lewat teksnya, jadi pengumuman baru tetap muncul.
+  const [fineInfo, setFineInfo] = useState(null);
+  const [fineHidden, setFineHidden] = useState(() => {
+    try { return localStorage.getItem('fine_notice_seen') || ''; } catch { return ''; }
+  });
+
+  function hideFineNotice() {
+    const teks = fineInfo?.manual_fine_notice || '';
+    setFineHidden(teks);
+    try { localStorage.setItem('fine_notice_seen', teks); } catch { /* mode privat */ }
+  }
 
   // Resi input manual yang belum ada pemiliknya — ditawarkan ke semua
   // pelanggan. Yang sudah bilang "bukan punyaku" tidak ditanya lagi,
@@ -106,6 +119,13 @@ export default function UserPanel({ type }) {
     fetchAsUser('/api/parcels/today')
       .then(r => (r.ok ? r.json() : null))
       .then(d => d && setToday(d))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/settings/public')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => d && setFineInfo(d))
       .catch(() => {});
   }, []);
 
@@ -407,6 +427,10 @@ export default function UserPanel({ type }) {
                   </div>
                 )}
               </div>
+            )}
+
+            {!loading && !error && fineInfo?.manual_fine_notice !== fineHidden && (
+              <FineNotice info={fineInfo} onDismiss={hideFineNotice} />
             )}
 
             {!loading && !error && !batch && (

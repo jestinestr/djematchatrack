@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminBoxCard from '../components/AdminBoxCard';
 import AddParcelModal from '../components/AddParcelModal';
+import BulkAddParcel from '../components/BulkAddParcel';
 import ParcelDetailModal from '../components/ParcelDetailModal';
 import LabelPrintModal from '../components/LabelPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -27,7 +28,8 @@ export default function AdminWarehouse() {
   const [extraFilter, setExtraFilter] = useState('all'); // all | unboxing | freebies | manual
   const [order, setOrder] = useState('new');     // new | old
   const [editing, setEditing] = useState(null);
-  const [adding, setAdding] = useState(false);   // tambah resi dari tampilan Semua Resi
+  const [adding, setAdding] = useState(false);
+  const [bulkAdding, setBulkAdding] = useState(false);   // tambah resi dari tampilan Semua Resi
   // Penanda urutan versi lama masih mengendap di browser ini. Dulu memang
   // di situ tempatnya; sekarang sudah pindah ke database, jadi sisanya
   // ditawarkan untuk dipulihkan sekali lalu dibuang.
@@ -317,8 +319,16 @@ export default function AdminWarehouse() {
           </p>
         </div>
         <button
+          onClick={() => setBulkAdding(true)}
+          className="ml-auto text-xs font-semibold px-3 py-2 rounded-xl bg-white text-matcha-700
+                     border border-matcha-300 hover:bg-matcha-50 transition-colors"
+          title="Ketik sampai 5 resi sekaligus untuk satu pelanggan"
+        >
+          + Resi Massal
+        </button>
+        <button
           onClick={() => setAdding(true)}
-          className="ml-auto text-xs font-semibold px-3 py-2 rounded-xl bg-matcha-800 text-white
+          className="text-xs font-semibold px-3 py-2 rounded-xl bg-matcha-800 text-white
                      border border-matcha-800 hover:bg-matcha-700 transition-colors"
           title="Tambah resi tanpa harus masuk ke box dulu"
         >
@@ -757,6 +767,15 @@ export default function AdminWarehouse() {
           onPrinted={markPrinted}
           type="WH"
           onClose={() => setLabelTargets(null)}
+        />
+      )}
+
+      {bulkAdding && (
+        <BulkAddParcel
+          batchId={tarif?.batchId}
+          unitFee={Number(tarif?.unit_fee ?? 1.5)}
+          onClose={() => setBulkAdding(false)}
+          onAdded={() => load()}
         />
       )}
 

@@ -24,6 +24,43 @@ function ParcelLine({ parcel, index }) {
   );
 }
 
+// ── Pengumuman tarif resi input manual ─────────────────────────────
+//
+// Teksnya ditulis admin di Control Tarif, jadi isinya bisa berubah tanpa
+// ganti kode. Kartunya hilang sendiri kalau pengumumannya dikosongkan
+// atau dendanya dimatikan. Pelanggan bisa menutupnya; kalau admin
+// mengubah teksnya, kartunya muncul lagi.
+export function FineNotice({ info, onDismiss }) {
+  if (!info?.manual_fine_on || !info.manual_fine_notice?.trim()) return null;
+
+  return (
+    <div className="rounded-3xl border-2 border-amber-300 bg-amber-50 p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl leading-none">📣</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-amber-900">Pemberitahuan dari admin</p>
+          <p className="text-xs text-amber-800 mt-1 leading-relaxed whitespace-pre-line">
+            {info.manual_fine_notice}
+          </p>
+          <p className="text-[11px] text-amber-700/80 mt-2 leading-snug">
+            Supaya tidak kena tarif ini, setor resimu lewat tombol
+            <b> Setor Resi</b> sebelum barangnya sampai ke admin ya 💚
+          </p>
+        </div>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="text-amber-400 hover:text-amber-700 text-lg leading-none flex-shrink-0"
+            title="Sudah paham, sembunyikan"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Resi manual milik sendiri ───────────────────────────────────────
 export function ManualMineNotice({ parcels, onOpenParcel }) {
   if (!parcels.length) return null;
