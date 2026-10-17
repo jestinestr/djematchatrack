@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CURRENCIES, money, normCurrency, weightSurcharge, weightTierLabel } from '../utils/format';
+import { CURRENCIES, money, rupiah, normCurrency, weightSurcharge, weightTierLabel } from '../utils/format';
 import LabelPrintModal from './LabelPrintModal';
 
 // Judul kecil pemisah antar kelompok isian
@@ -57,12 +57,18 @@ export default function AddParcelModal({
   });
   const [showLabel, setShowLabel] = useState(false);
   const [pkgs, setPkgs] = useState([]); // paket WH aktif, untuk isi otomatis biaya
+  // Denda resi input manual — angkanya diatur admin di Control Tarif
+  const [denda, setDenda] = useState({ manual_fine_on: false, manual_fine_amount: 0 });
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(parcel?.photo_url || null);
   const [coPhoto, setCoPhoto] = useState(null);
   const [coPreview, setCoPreview] = useState(parcel?.co_photo_url || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/settings/public').then(r => r.json()).then(d => d && setDenda(d)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch('/api/codes').then(r => r.json()).then(setCodes).catch(() => {});
@@ -92,6 +98,7 @@ export default function AddParcelModal({
   const autoFee = feePerGram > 0 && weight > 0 ? Math.round(weight * feePerGram * 100) / 100 : 0;
   const surcharge = isHC ? 0 : weightSurcharge(weight);
   const needQty = form.parcel_type === 'paperbased' && !form.is_manual_input;
+  const dendaAktif = denda.manual_fine_on && denda.manual_fine_amount > 0;
 
   function setField(key, value) {
     setForm(f => ({ ...f, [key]: value }));
@@ -451,14 +458,24 @@ export default function AddParcelModal({
             <div className="text-sm font-semibold text-pink-800">🎁 Freebies tinggal / stay</div>
           </label>
 
-          {/* Penanda input manual — cuma tanda, tidak menambah denda */}
+          {/* Penanda input manual — ikut menentukan denda */}
           <label className="flex items-start gap-3 p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors">
             <input type="checkbox" checked={form.is_manual_input} onChange={e => setField('is_manual_input', e.target.checked)} className="w-4 h-4 accent-amber-600" />
             <div>
               <div className="text-sm font-semibold text-amber-800">✍️ Tandai sebagai input manual</div>
               <div className="text-xs text-amber-600">
-                Sekadar penanda. Muncul sebagai label kuning di daftar resi
-                dan sebagai kolom tersendiri saat export CSV.
+                {dendaAktif ? (
+                  <>
+                    Kena denda <b>{rupiah(denda.manual_fine_amount)}/resi</b>, otomatis masuk
+                    invoice{isEdit ? ' kalau tandanya baru dicentang sekarang' : ''}.
+                    Tarifnya diatur di Control Tarif.
+                  </>
+                ) : (
+                  <>
+                    Sekadar penanda — dendanya sedang dimatikan di Control Tarif.
+                    Muncul sebagai label kuning di daftar resi dan kolom tersendiri saat export CSV.
+                  </>
+                )}
               </div>
             </div>
           </label>

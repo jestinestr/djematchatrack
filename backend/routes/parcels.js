@@ -87,12 +87,26 @@ function buildPayload(kind, body, batch = null) {
 // Resi yang diketik admin sendiri kena denda sebesar setelan di Control
 // Tarif — hanya kalau sakelarnya dinyalakan dan admin belum mengisi angka
 // dendanya sendiri. Dipasang di server supaya form mana pun ikut aturannya.
-async function applyManualFine(payload, body) {
-  if (!payload.is_manual_input) return payload;
+async function applyManualFine(payload, body, sebelum = null) {
   if (body.fine_amount !== undefined && Number(body.fine_amount) > 0) return payload;
-  if (!(await getSetting('manual_fine_on'))) return payload;
 
-  payload.fine_amount = Math.max(0, Number(await getSetting('manual_fine_amount')) || 0);
+  const nyala = await getSetting('manual_fine_on');
+  const tarif = Math.max(0, Number(await getSetting('manual_fine_amount')) || 0);
+
+  if (payload.is_manual_input) {
+    // Resi baru, atau tandanya baru dicentang saat diedit. Resi yang
+    // tandanya memang sudah manual dibiarkan — dendanya mungkin sudah
+    // diatur sendiri oleh admin.
+    const baruDicentang = !sebelum || !sebelum.is_manual_input;
+    if (nyala && baruDicentang) payload.fine_amount = tarif;
+    return payload;
+  }
+
+  // Tandanya dicabut → denda otomatisnya ikut hilang, tapi angka yang
+  // diisi admin sendiri tidak diganggu.
+  if (sebelum?.is_manual_input && Number(sebelum.fine_amount) === tarif && tarif > 0) {
+    payload.fine_amount = 0;
+  }
   return payload;
 }
 
@@ -366,9 +380,12 @@ function registerCrud(kind) {
     try {
       // Denda mengikuti batch tempat resi ini berada
       const { data: current } = await supabase
-        .from(table).select('batch_id, owner_code_id, tracking_number').eq('id', req.params.id).single();
+        .from(table)
+        .select('batch_id, owner_code_id, tracking_number, is_manual_input, fine_amount')
+        .eq('id', req.params.id).single();
       const batch = await getBatch(current?.batch_id);
       const updates = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
+      await applyManualFine(updates, req.body, current);
       // Ganti pemilik → resi ikut paket aktif pemilik baru
       if (kind === 'wh' && String(current?.owner_code_id ?? '') !== String(updates.owner_code_id ?? '')) {
         const pkgId = await activePackageId(updates.owner_code_id);
