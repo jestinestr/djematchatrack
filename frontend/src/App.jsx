@@ -8,6 +8,7 @@ import AdminWarehouse from './pages/AdminWarehouse';
 import AdminArchive from './pages/AdminArchive';
 import AdminCodes from './pages/AdminCodes';
 import AdminRequests from './pages/AdminRequests';
+import AdminBoxRequests from './pages/AdminBoxRequests';
 import AdminGallery from './pages/AdminGallery';
 import AdminInvoice from './pages/AdminInvoice';
 import AdminLog from './pages/AdminLog';
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="/admin/wh" element={<AdminWarehouse />} />
         <Route path="/admin/gallery"  element={<AdminGallery />} />
         <Route path="/admin/requests" element={<AdminRequests />} />
+        <Route path="/admin/box-requests" element={<AdminBoxRequests />} />
         <Route path="/admin/archive" element={<AdminArchive />} />
         <Route path="/admin/invoice" element={<AdminInvoice />} />
         <Route path="/admin/tarif" element={<AdminTarif />} />

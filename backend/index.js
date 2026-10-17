@@ -71,6 +71,7 @@ app.use('/api/boxes', require('./routes/boxes').router);
 app.use('/api/photos', require('./routes/photos'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/billings', require('./routes/billings'));
+app.use('/api/box-requests', require('./routes/boxRequests'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV || 'development' }));

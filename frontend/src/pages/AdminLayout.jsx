@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin/gallery',  icon: '📸', label: 'Recap Foto' },
   { to: '/foto', icon: '📷', label: 'Upload Foto' },
   { to: '/admin/requests', icon: '📬', label: 'Setor Resi', badge: true },
+  { to: '/admin/box-requests', icon: '📮', label: 'Req Close Box', badge: 'box' },
   { to: '/admin/invoice', icon: '🧾', label: 'Invoice' },
   { to: '/admin/archive', icon: '📁', label: 'Arsip' },
   { to: '/admin/log', icon: '📝', label: 'Catatan' },
@@ -18,12 +19,17 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [boxCount, setBoxCount] = useState(0);
 
   useEffect(() => {
     function fetchCount() {
       fetch('/api/requests/count')
         .then(r => r.json())
         .then(d => setPendingCount(d.count || 0))
+        .catch(() => {});
+      fetch('/api/box-requests/count')
+        .then(r => r.json())
+        .then(d => setBoxCount(d.count || 0))
         .catch(() => {});
     }
     fetchCount();
@@ -77,11 +83,14 @@ export default function AdminLayout() {
             >
               <span className="text-base w-5 text-center">{item.icon}</span>
               <span className="flex-1">{item.label}</span>
-              {item.badge && pendingCount > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none min-w-[18px] text-center">
-                  {pendingCount}
-                </span>
-              )}
+              {(() => {
+                const n = item.badge === 'box' ? boxCount : item.badge ? pendingCount : 0;
+                return n > 0 ? (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none min-w-[18px] text-center">
+                    {n}
+                  </span>
+                ) : null;
+              })()}
             </NavLink>
           ))}
         </nav>

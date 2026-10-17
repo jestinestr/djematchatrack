@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ParcelCard from '../components/ParcelCard';
 import ParcelDetailModal from '../components/ParcelDetailModal';
 import RequestForm from '../components/RequestForm';
+import CloseBoxRequest from '../components/CloseBoxRequest';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
@@ -28,6 +29,7 @@ export default function UserPanel({ type }) {
   const [error, setError]     = useState('');
   const [search, setSearch]   = useState('');
   const [showRequest, setShowRequest] = useState(false);
+  const [mintaTutup, setMintaTutup] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [detail, setDetail]   = useState(null);
   const [photoFilter, setPhotoFilter] = useState('all'); // all | yes | no
@@ -362,14 +364,28 @@ export default function UserPanel({ type }) {
               )}
             </div>
 
-            {/* Setor resi */}
-            <button
-              onClick={() => setShowRequest(v => !v)}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-dashed border-matcha-300 text-matcha-700 font-semibold text-sm hover:bg-matcha-50 hover:border-matcha-400 transition-all"
-            >
-              <span className="text-lg">📝</span>
-              {showRequest ? 'Tutup Form' : `📨 Setor Resi ${type}`}
-            </button>
+            {/* Setor resi & minta box ditutup */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRequest(v => !v)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-dashed border-matcha-300 text-matcha-700 font-semibold text-sm hover:bg-matcha-50 hover:border-matcha-400 transition-all"
+              >
+                <span className="text-lg">📝</span>
+                {showRequest ? 'Tutup Form' : `📨 Setor Resi ${type}`}
+              </button>
+              {/* Hanya untuk box yang masih terbuka — yang sudah ditutup
+                  barangnya memang sudah jalan */}
+              {batch?.status !== 'closed' && (
+                <button
+                  onClick={() => setMintaTutup(true)}
+                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-dashed border-sky-300 text-sky-700 font-semibold text-sm hover:bg-sky-50 hover:border-sky-400 transition-all"
+                  title="Minta admin menutup box dan mengirim barangnya"
+                >
+                  <span className="text-lg">📮</span>
+                  <span className="hidden sm:inline">Minta Tutup Box</span>
+                </button>
+              )}
+            </div>
             {showRequest && (
               <RequestForm
                 type={type}
@@ -646,6 +662,15 @@ export default function UserPanel({ type }) {
           </div>
         </main>
       </div>
+
+      {mintaTutup && (
+        <CloseBoxRequest
+          parcels={mine}
+          boxName={batch?.title || batch?.name}
+          onClose={() => setMintaTutup(false)}
+          onSent={() => alert('Permintaan terkirim — tunggu admin menyetujui ya 💚')}
+        />
+      )}
 
       {detail && (
         <ParcelDetailModal
