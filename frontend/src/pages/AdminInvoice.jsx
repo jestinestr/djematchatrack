@@ -735,6 +735,36 @@ export default function AdminInvoice() {
                         <span className="ml-1 text-green-600 font-semibold">· {c.allParcels.filter(p => p.paid_at).length} lunas</span>
                       )}
                     </summary>
+                    {/* Centang otomatis cuma titik awal — di sini bisa
+                        dikosongkan dulu lalu dipilih sendiri satu-satu */}
+                    <div className="px-4 py-2 border-t border-cream-100 bg-cream-50/70 flex items-center gap-2">
+                      <span className="text-xs text-gray-500 flex-1">
+                        {c.parcel_count} dari {c.allParcels.filter(p => !p.paid_at).length} resi dicentang
+                        {c.parcel_count > 0 && ' · boleh dikosongkan lalu pilih sendiri'}
+                      </span>
+                      <button
+                        onClick={() => setChosen(prev => {
+                          const next = new Set(prev);
+                          c.allParcels.forEach(p => next.delete(p.id));
+                          return next;
+                        })}
+                        disabled={!c.parcel_count}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-cream-300 bg-white text-gray-600 hover:bg-cream-100 disabled:opacity-40 flex-shrink-0"
+                      >
+                        Kosongkan
+                      </button>
+                      <button
+                        onClick={() => setChosen(prev => {
+                          const next = new Set(prev);
+                          c.allParcels.filter(p => !p.paid_at).forEach(p => next.add(p.id));
+                          return next;
+                        })}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 flex-shrink-0"
+                      >
+                        Pilih semua
+                      </button>
+                    </div>
+
                     {tanpaFoto(c).length > 0 && (
                       <div className="px-4 py-2 border-t border-cream-100 bg-amber-50/70 flex items-center gap-2">
                         <span className="text-xs text-amber-800 flex-1">
