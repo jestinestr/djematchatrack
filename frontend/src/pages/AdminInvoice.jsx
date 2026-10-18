@@ -342,6 +342,95 @@ export default function AdminInvoice() {
     if (String(bill.ref_id) === String(batchId)) await refreshInvoice();
   }
 
+  // Lihat/cetak ulang invoice yang sudah ditagih.
+  //
+  // Isinya dibangun ulang dari data resi yang sekarang, jadi kalau ada yang
+  // baru dibetulkan (biaya, foto, catatan) hasil cetakannya ikut terbaru.
+  // Kalau totalnya jadi berbeda dari yang tersimpan, admin ditawari
+  // memperbarui tagihannya sekalian.
+  async function cetakUlang(bill) {
+    const url = bill.scope === 'box'
+      ? `/api/invoices/box/${bill.ref_id}`
+      : `/api/invoices/batch/${bill.ref_id}`;
+
+    let d;
+    try {
+      d = await fetch(url).then(r => r.json());
+    } catch {
+      alert('Gagal memuat rekap penagihan ini');
+      return;
+    }
+
+    const asli = (d.customers || []).find(c =>
+      String(c.owner?.id) === String(bill.owner_code_id));
+    if (!asli) {
+      alert('Rekap pelanggan ini sudah tidak ada di wadahnya — mungkin resinya sudah dipindah.');
+      return;
+    }
+
+    const ids = new Set((bill.parcel_ids || []).map(String));
+    const dipakai = (asli.parcels || []).filter(p => ids.has(String(p.id)));
+    if (!dipakai.length) {
+      alert('Resi yang ditagih di invoice ini sudah tidak ada di wadahnya.');
+      return;
+    }
+
+    const kurs = Number(bill.cny_rate) || 0;
+    // Invoice ini dulu ditagih dalam Rupiah kalau nilai Yuannya disimpan nol
+    const dalamRupiah = kurs > 0 && !Number(bill.total_cny);
+    const totals = calcTotals({ ...asli, carry: null }, dipakai, type, true);
+    const kartu = { ...asli, parcels: dipakai, parcel_count: dipakai.length, totals };
+
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
+      return;
+    }
+    w.document.write(buildInvoicesHTML(d.batch, [kartu], type, kurs, dalamRupiah));
+    w.document.close();
+    w.focus();
+
+    // Angkanya bergeser sejak dicetak? tawarkan memperbarui tagihannya
+    const idrBaru = dalamRupiah
+      ? totals.IDR.total + totals.CNY.total * kurs
+      : totals.IDR.total;
+    const cnyBaru = dalamRupiah ? 0 : totals.CNY.total;
+    const beda = Math.abs(idrBaru - Number(bill.total_idr)) > 0.5
+      || Math.abs(cnyBaru - Number(bill.total_cny)) > 0.009;
+    if (!beda) return;
+
+    const ringkas = [
+      idrBaru ? rupiah(idrBaru) : null,
+      cnyBaru ? money(cnyBaru, 'CNY') : null,
+    ].filter(Boolean).join(' + ') || '0';
+    const lama = [
+      Number(bill.total_idr) ? rupiah(bill.total_idr) : null,
+      Number(bill.total_cny) ? money(bill.total_cny, 'CNY') : null,
+    ].filter(Boolean).join(' + ') || '0';
+
+    if (!window.confirm(
+      `Totalnya sekarang ${ringkas}, sedangkan yang tercatat di penagihan ${lama}.\n\n`
+      + 'Perbarui tagihannya ke angka yang baru? Pembayaran yang sudah dicatat tetap ada.'
+    )) return;
+
+    await fetch('/api/billings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope: bill.scope,
+        ref_id: bill.ref_id,
+        type: bill.type,
+        owner_code_id: bill.owner_code_id,
+        title: bill.title,
+        parcel_ids: dipakai.map(p => p.id),
+        total_idr: idrBaru,
+        total_cny: cnyBaru,
+        cny_rate: kurs,
+      }),
+    });
+    loadBillings();
+  }
+
   async function removeBilling(bill) {
     if (!window.confirm(`Hapus "${bill.title}" dari daftar penagihan? Resinya tidak ikut terhapus.`)) return;
     await fetch(`/api/billings/${bill.id}`, { method: 'DELETE' });
@@ -500,6 +589,7 @@ export default function AdminInvoice() {
             onPaid={setBillingPaid}
             onRemove={removeBilling}
             onOpen={b => setBatchId(String(b.ref_id))}
+            onPrint={cetakUlang}
             onChanged={loadBillings}
           />
         </>
