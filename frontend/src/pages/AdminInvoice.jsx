@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import BillingList from '../components/BillingList';
 import {
@@ -45,6 +45,7 @@ export default function AdminInvoice() {
   const [search, setSearch] = useState('');
   const [bukaResi, setBukaResi] = useState(() => new Set()); // daftar resi yang dibentang
   const [billings, setBillings] = useState({ ready: true, list: [] });
+  const dikunciRef = useRef(new Map());
   const [carry, setCarry] = useState({});     // ownerId -> { idr, cny }
   const [billCarry, setBillCarry] = useState(true);  // ikut ditagih (bawaan: ya)
   // Usahanya berbasis Yuan; kurs dipakai supaya invoice ikut menyebut
@@ -113,7 +114,7 @@ export default function AdminInvoice() {
       .then(r => r.json())
       .then(d => {
         setData(d);
-        setChosen(unpaidIds(d));
+        setChosen(unpaidIds(d, dikunciRef.current, batchId));
         const next = {};
         for (const c of d.customers || []) {
           if (c.owner) {
@@ -188,7 +189,24 @@ export default function AdminInvoice() {
     );
   }, [customers, search]);
 
+  // Resi yang sudah masuk penagihan berjalan dikunci: tidak bisa dicentang
+  // ke invoice lain selama penagihannya belum dilunasi atau dibuang (✕) dari
+  // daftar penagihan. Kalau penagihannya memang untuk wadah yang sedang
+  // dibuka, resinya tetap tercentang supaya cetak ulang tidak kehilangan isi.
+  const dikunci = useMemo(() => {
+    const m = new Map();
+    for (const b of billings.list || []) {
+      for (const id of b.parcel_ids || []) m.set(String(id), b);
+    }
+    return m;
+  }, [billings.list]);
+
+  dikunciRef.current = dikunci;
+  const terkunci = id => dikunci.get(String(id)) || null;
+  const miliknyaSendiri = b => String(b.ref_id) === String(batchId);
+
   function toggleChosen(id) {
+    if (terkunci(id)) return;        // sedang ditagih — biarkan apa adanya
     setChosen(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -210,7 +228,7 @@ export default function AdminInvoice() {
       if (res.ok) {
         const fresh = await fetch(isBox ? `/api/invoices/box/${batchId}` : `/api/invoices/batch/${batchId}`).then(r => r.json());
         setData(fresh);
-        setChosen(unpaidIds(fresh));
+        setChosen(unpaidIds(fresh, dikunciRef.current, batchId));
       }
     } finally {
       setPayingId(null);
@@ -882,11 +900,22 @@ export default function AdminInvoice() {
                         {cariResi
                           ? ' · tombol di kanan berlaku untuk hasil pencarian saja'
                           : c.parcel_count > 0 ? ' · boleh dikosongkan lalu pilih sendiri' : ''}
+                        {(() => {
+                          const n = c.allParcels.filter(p => terkunci(p.id)).length;
+                          return n ? (
+                            <span className="block text-amber-700">
+                              {n} resi sedang ditagih dan terkunci — buang penagihannya (✕) di
+                              daftar penagihan berjalan kalau mau ditagih ulang
+                            </span>
+                          ) : null;
+                        })()}
                       </span>
                       <button
                         onClick={() => setChosen(prev => {
                           const next = new Set(prev);
-                          saringResi(c.allParcels, cariResi).forEach(p => next.delete(p.id));
+                          saringResi(c.allParcels, cariResi)
+                            .filter(p => !terkunci(p.id))
+                            .forEach(p => next.delete(p.id));
                           return next;
                         })}
                         disabled={!c.parcel_count}
@@ -898,7 +927,8 @@ export default function AdminInvoice() {
                         onClick={() => setChosen(prev => {
                           const next = new Set(prev);
                           saringResi(c.allParcels, cariResi)
-                            .filter(p => !p.paid_at).forEach(p => next.add(p.id));
+                            .filter(p => !p.paid_at && !terkunci(p.id))
+                            .forEach(p => next.add(p.id));
                           return next;
                         })}
                         className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 flex-shrink-0"
@@ -915,7 +945,7 @@ export default function AdminInvoice() {
                         <button
                           onClick={() => setChosen(prev => {
                             const next = new Set(prev);
-                            const ids = tanpaFoto(c).map(p => p.id);
+                            const ids = tanpaFoto(c).filter(p => !terkunci(p.id)).map(p => p.id);
                             const semua = ids.every(id => next.has(id));
                             ids.forEach(id => (semua ? next.delete(id) : next.add(id)));
                             return next;
@@ -952,6 +982,13 @@ export default function AdminInvoice() {
                             >
                               ✓ Lunas
                             </button>
+                          ) : terkunci(p.id) ? (
+                            <span
+                              title={`Sedang ditagih di "${terkunci(p.id).title}" — buang penagihannya (✕) dulu kalau mau ditagih ulang`}
+                              className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            >
+                              🧾 Ditagih
+                            </span>
                           ) : (
                             <input
                               type="checkbox"
@@ -1092,11 +1129,16 @@ export default function AdminInvoice() {
 // Hanya yang sudah ada foto arrival — artinya barangnya memang sudah sampai
 // dan layak ditagih. Resi yang fotonya belum ada sengaja dibiarkan kosong;
 // admin yang memutuskan sendiri kalau memang mau ikut ditagih.
-function unpaidIds(d) {
-  return new Set(
-    (d?.customers || []).flatMap(c =>
-      c.parcels.filter(p => !p.paid_at && p.photo_url).map(p => p.id))
-  );
+function unpaidIds(d, dikunci = new Map(), refId = null) {
+  const ikut = p => {
+    if (p.paid_at) return false;
+    const bill = dikunci.get(String(p.id));
+    // Sedang ditagih: ikut hanya kalau penagihannya memang untuk wadah ini,
+    // supaya cetak ulangnya tidak kehilangan resi.
+    if (bill) return String(bill.ref_id) === String(refId);
+    return !!p.photo_url;
+  };
+  return new Set((d?.customers || []).flatMap(c => c.parcels.filter(ikut).map(p => p.id)));
 }
 
 // Resi yang cocok dengan kata kunci; tanpa kata kunci semuanya ikut
