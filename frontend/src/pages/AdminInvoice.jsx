@@ -51,6 +51,9 @@ export default function AdminInvoice() {
   // Rupiahnya. Disimpan di setelan server, jadi sama di semua alat.
   const [rate, setRate] = useState(0);
   const [rateDraft, setRateDraft] = useState('');
+  // Tagihan Yuan dikonversi ke Rupiah memakai kurs di atas, jadi invoice
+  // keluar dengan satu total Rupiah dan pelanggan bayar Rupiah
+  const [tagihRupiah, setTagihRupiah] = useState(false);
   const [batchId, setBatchId] = useState('');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
@@ -354,7 +357,8 @@ export default function AdminInvoice() {
       alert('Belum ada resi yang dicentang untuk ditagih. Buka "Pilih resi yang ditagih" lalu centang resinya dulu.');
       return;
     }
-    const html = buildInvoicesHTML(batch, picked, type, rate);
+    const dalamRupiah = tagihRupiah && rate > 0;
+    const html = buildInvoicesHTML(batch, picked, type, rate, dalamRupiah);
     const w = window.open('', '_blank');
     if (!w) {
       alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
@@ -376,8 +380,12 @@ export default function AdminInvoice() {
         owner_code_id: c.owner?.id,
         title: invoiceTitle(batch, [c], type === 'HC' ? 'Hand Carry' : 'Warehouse'),
         parcel_ids: c.parcels.map(p => p.id),
-        total_idr: c.totals.IDR.total,
-        total_cny: c.totals.CNY.total,
+        // Mode Rupiah: semuanya dijadikan satu total Rupiah memakai kurs
+        total_idr: dalamRupiah
+          ? c.totals.IDR.total + c.totals.CNY.total * rate
+          : c.totals.IDR.total,
+        total_cny: dalamRupiah ? 0 : c.totals.CNY.total,
+        cny_rate: rate,
         rolled_from: billCarry ? (c.carry?.items || []).map(x => x.id) : [],
       }),
     }))).then(loadBillings).catch(() => {});
@@ -923,6 +931,21 @@ export default function AdminInvoice() {
               />
             </label>
 
+            <label
+              className={`flex items-center gap-1.5 text-xs whitespace-nowrap px-2 py-1 rounded-lg border ${
+                rate > 0
+                  ? 'border-cream-300 text-gray-600 cursor-pointer hover:bg-cream-50'
+                  : 'border-cream-200 text-gray-300 cursor-not-allowed'
+              }`}
+              title={rate > 0
+                ? 'Total Yuan dikonversi ke Rupiah, invoicenya ditagih dalam Rupiah'
+                : 'Isi kursnya dulu'}
+            >
+              <input type="checkbox" checked={tagihRupiah && rate > 0} disabled={!rate}
+                onChange={e => setTagihRupiah(e.target.checked)} />
+              Tagih dalam Rupiah
+            </label>
+
             <button onClick={toggleAll} className="text-xs font-semibold text-matcha-700 hover:underline">
               {selected.size === invoiceable.length ? 'Batal pilih semua' : `Pilih semua (${invoiceable.length})`}
             </button>
@@ -1094,7 +1117,7 @@ function invoiceTitle(batch, customers, typeLabel) {
 }
 
 /* ── Dokumen invoice untuk dicetak ───────────────────────── */
-function buildInvoicesHTML(batch, customers, type, rate = 0) {
+function buildInvoicesHTML(batch, customers, type, rate = 0, dalamRupiah = false) {
   const today = formatDate(new Date().toISOString(), false);
   const typeLabel = type === 'HC' ? 'Hand Carry' : 'Warehouse';
 
@@ -1144,7 +1167,16 @@ function buildInvoicesHTML(batch, customers, type, rate = 0) {
         ${cur === 'CNY' && rate > 0 ? `<tr class="rate">
           <td>Setara Rupiah &middot; kurs ¥1 = ${esc(rupiah(rate))}</td>
           <td class="right">${esc(rupiah(c.totals.CNY.total * rate))}</td>
-        </tr>` : ''}`).join('');
+        </tr>` : ''}`).join('')
+      // Ditagih dalam Rupiah: semua mata uang dijadikan satu angka akhir
+      + (dalamRupiah ? `
+        <tr class="grand rupiah">
+          <td>TOTAL TAGIHAN (Rupiah)</td>
+          <td class="right">${esc(rupiah(c.totals.IDR.total + c.totals.CNY.total * rate))}</td>
+        </tr>
+        <tr class="rate">
+          <td colspan="2">Dibayar dalam Rupiah &middot; kurs ¥1 = ${esc(rupiah(rate))}</td>
+        </tr>` : '');
 
     return `
     <section class="invoice">
@@ -1244,6 +1276,8 @@ function buildInvoicesHTML(batch, customers, type, rate = 0) {
           border-left: 3px solid #a8a29e; padding: 6px 10px; }
   .summary tr.rate td { font-size: 11px; color: #57534e; font-weight: 600;
                         border-top: none; padding-top: 0; }
+  .summary tr.grand.rupiah td { border-top: 2px solid #2A4A40; font-size: 14px;
+                                padding-top: 6px; }
 </style>
 </head>
 <body>${pages}

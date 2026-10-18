@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CURRENCIES, money, formatDate } from '../utils/format';
+import { CURRENCIES, money, rupiah, formatDate } from '../utils/format';
 
 // Penagihan yang sudah dicetak dan sedang ditunggu bayarannya.
 //
@@ -94,6 +94,19 @@ function BillingRow({ bill, onPaid, onRemove, onOpen, onChanged }) {
   const selisih = selisihBayar(bill);
   const adaBayar = (bill.paid_idr || 0) > 0 || (bill.paid_cny || 0) > 0;
 
+  // Kurs invoice ini tercatat → tagihannya boleh dibayar pakai Rupiah,
+  // berapa pun bagian yang tadinya dalam Yuan.
+  const kurs = Number(bill.rate || bill.cny_rate) || 0;
+  const sisaRupiah = kurs > 0 ? Number(bill.due_equiv_idr ?? 0) : 0;
+
+  function isiSisaRupiah() {
+    setForm(f => ({
+      ...f,
+      amount: String(Math.round(sisaRupiah)),
+      currency: 'IDR',
+    }));
+  }
+
   return (
     <div className="bg-white/60">
       <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
@@ -108,6 +121,11 @@ function BillingRow({ bill, onPaid, onRemove, onOpen, onChanged }) {
 
         <div className="text-right whitespace-nowrap">
           <p className="text-sm font-bold text-amber-800">{total}</p>
+          {kurs > 0 && sisaRupiah > 0 && (
+            <p className="text-[11px] text-gray-500">
+              sisa ≈ {rupiah(sisaRupiah)} · kurs ¥1 = {rupiah(kurs)}
+            </p>
+          )}
           {adaBayar && (
             <p className="text-[11px] font-semibold">
               {selisih.length === 0
@@ -181,11 +199,30 @@ function BillingRow({ bill, onPaid, onRemove, onOpen, onChanged }) {
             </button>
           </form>
 
+          {kurs > 0 && sisaRupiah > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button type="button" onClick={isiSisaRupiah}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50">
+                Isi sisa dalam Rupiah ({rupiah(sisaRupiah)})
+              </button>
+              <span className="text-[11px] text-gray-400">
+                dihitung dengan kurs invoice ini, ¥1 = {rupiah(kurs)}
+              </span>
+            </div>
+          )}
+
           {adaBayar && selisih.length > 0 && (
             <p className="text-[11px] text-gray-500 leading-snug">
               {selisih.some(x => x.v > 0)
                 ? 'Masih kurang. Selama belum ditandai lunas, sisanya ikut ditagih di invoice berikutnya.'
                 : 'Kelebihan bayar ini jadi potongan di invoice berikutnya.'}
+            </p>
+          )}
+
+          {kurs > 0 && (
+            <p className="text-[11px] text-gray-400 leading-snug">
+              Bayaran Rupiah otomatis menutup tagihan Yuan memakai kurs invoice ini
+              (¥1 = {rupiah(kurs)}), jadi angkanya tidak ikut berubah kalau kurs hari ini bergeser.
             </p>
           )}
         </div>

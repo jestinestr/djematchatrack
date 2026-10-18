@@ -48,15 +48,42 @@ router.get('/', async (req, res) => {
 // Berapa yang sudah dibayar dan berapa sisanya, per mata uang.
 //  due  > 0 → masih kurang bayar
 //  due  < 0 → pelanggan kelebihan bayar, jadi titipan untuk invoice berikut
+//
+// Kalau invoicenya menyimpan kurs, kelebihan bayar di satu mata uang
+// dipakai menutup kekurangan di mata uang satunya. Itu yang membuat
+// tagihan Yuan bisa dilunasi dengan Rupiah: kursnya ikut kurs invoice
+// waktu dicetak, bukan kurs hari ini.
 function paymentSummary(bill, payments) {
   const mine = payments.filter(p => String(p.billing_id) === String(bill.id));
   const paid_idr = mine.filter(p => p.currency === 'IDR').reduce((s, p) => s + num(p.amount), 0);
   const paid_cny = mine.filter(p => p.currency !== 'IDR').reduce((s, p) => s + num(p.amount), 0);
+
+  const rate = num(bill.cny_rate);
+  let due_idr = num(bill.total_idr) - paid_idr;
+  let due_cny = num(bill.total_cny) - paid_cny;
+
+  if (rate > 0) {
+    if (due_idr < -0.009 && due_cny > 0.009) {
+      const pakai = Math.min(-due_idr / rate, due_cny);   // Rupiah menutup Yuan
+      due_cny -= pakai;
+      due_idr += pakai * rate;
+    } else if (due_cny < -0.009 && due_idr > 0.009) {
+      const pakai = Math.min(-due_cny * rate, due_idr);   // Yuan menutup Rupiah
+      due_idr -= pakai;
+      due_cny += pakai / rate;
+    }
+  }
+
+  const bersih = v => (Math.abs(v) < 0.009 ? 0 : v);
   return {
     paid_idr,
     paid_cny,
-    due_idr: num(bill.total_idr) - paid_idr,
-    due_cny: num(bill.total_cny) - paid_cny,
+    rate,
+    due_idr: bersih(due_idr),
+    due_cny: bersih(due_cny),
+    // Sisa tagihan kalau semuanya dihitung dalam Rupiah — dipakai panel
+    // pembayaran supaya admin tahu persis berapa yang harus ditransfer.
+    due_equiv_idr: rate > 0 ? bersih(due_idr + due_cny * rate) : null,
     payment_count: mine.length,
   };
 }
@@ -109,7 +136,7 @@ router.delete('/payments/:paymentId', async (req, res) => {
 //  lunas yang dihitung — menandai lunas berarti admin menganggap selesai.
 router.get('/outstanding/:ownerId', async (req, res) => {
   let query = supabase
-    .from('billings').select('id, title, total_idr, total_cny, issued_at')
+    .from('billings').select('*')
     .eq('owner_code_id', req.params.ownerId).eq('status', 'unpaid');
   // Yang saldonya sudah digulung ke invoice berikutnya tidak dihitung lagi
   if (await hasColumn('billings', 'rolled_into')) query = query.is('rolled_into', null);
@@ -154,6 +181,11 @@ router.post('/', async (req, res) => {
     issued_at: new Date().toISOString(),
     paid_at: null,
   };
+
+  // Kurs invoice disimpan kalau kolomnya sudah ada (migrasi 021)
+  if (await hasColumn('billings', 'cny_rate')) {
+    payload.cny_rate = Math.max(0, num(req.body.cny_rate));
+  }
 
   try {
     let existing = null;
