@@ -218,6 +218,8 @@ export default function AdminInvoice() {
   }
   const batch = data?.batch;
   const invoiceable = customers.filter(c => c.owner);
+  // Semua tagihan Yuan dihitung jadi Rupiah memakai kurs yang diisi admin
+  const pakaiRupiah = tagihRupiah && rate > 0;
 
   const grand = useMemo(() => {
     const t = { IDR: 0, CNY: 0, fine: 0, parcels: 0 };
@@ -446,7 +448,7 @@ export default function AdminInvoice() {
       alert('Belum ada resi yang dicentang untuk ditagih. Buka "Pilih resi yang ditagih" lalu centang resinya dulu.');
       return;
     }
-    const dalamRupiah = tagihRupiah && rate > 0;
+    const dalamRupiah = pakaiRupiah;
     const html = buildInvoicesHTML(batch, picked, type, rate, dalamRupiah);
     const w = window.open('', '_blank');
     if (!w) {
@@ -616,9 +618,13 @@ export default function AdminInvoice() {
             {[
               { icon: '👤', label: 'Pelanggan', value: invoiceable.length },
               { icon: '📦', label: 'Total Resi', value: grand.parcels },
-              { icon: '💰', label: 'Total Tagihan',
-                value: [grand.IDR ? money(grand.IDR, 'IDR') : null, grand.CNY ? money(grand.CNY, 'CNY') : null].filter(Boolean).join(' + ') || '—',
-                sub: rate > 0 && grand.CNY ? `≈ ${rupiah(grand.CNY * rate + (grand.IDR || 0))}` : null },
+              { icon: '💰', label: pakaiRupiah ? 'Ditagih dalam Rupiah' : 'Total Tagihan',
+                value: pakaiRupiah
+                  ? rupiah(grand.IDR + grand.CNY * rate)
+                  : [grand.IDR ? money(grand.IDR, 'IDR') : null, grand.CNY ? money(grand.CNY, 'CNY') : null].filter(Boolean).join(' + ') || '—',
+                sub: pakaiRupiah
+                  ? `dari ${money(grand.CNY, 'CNY')} · kurs ¥1 = ${rupiah(rate)}`
+                  : rate > 0 && grand.CNY ? `≈ ${rupiah(grand.CNY * rate + (grand.IDR || 0))}` : null },
               { icon: '⚠️', label: 'Total Denda', value: grand.fine ? rupiah(grand.fine) : '—' },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-2xl border border-cream-200 shadow-soft px-3 py-2.5 flex items-center gap-2.5">
@@ -685,11 +691,15 @@ export default function AdminInvoice() {
                           c.totals.CNY.total ? money(c.totals.CNY.total, 'CNY') : null,
                         ].filter(Boolean).join(' + ') || '—'}
                       </p>
-                      {rate > 0 && c.totals.CNY.total > 0 && (
+                      {pakaiRupiah && c.totals.CNY.total > 0 ? (
+                        <p className="text-[11px] font-bold text-matcha-700">
+                          ditagih {rupiah(c.totals.IDR.total + c.totals.CNY.total * rate)}
+                        </p>
+                      ) : rate > 0 && c.totals.CNY.total > 0 ? (
                         <p className="text-[11px] text-gray-400">
                           ≈ {rupiah(c.totals.CNY.total * rate + (c.totals.IDR.total || 0))}
                         </p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
@@ -1012,11 +1022,14 @@ export default function AdminInvoice() {
               <span className="text-gray-400">Rp</span>
               <input
                 type="number" min="0" step="1" value={rateDraft}
-                onChange={e => setRateDraft(e.target.value)}
+                onChange={e => {
+                  setRateDraft(e.target.value);
+                  setRate(Math.max(0, Number(e.target.value) || 0)); // langsung kepakai
+                }}
                 onBlur={simpanKurs}
                 onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                 placeholder="0"
-                title="Dipakai untuk menuliskan setaraan Rupiah di invoice"
+                title="Kurs yang dipakai menghitung tagihan Rupiah di invoice ini"
                 className="input-field text-xs py-1 w-24"
               />
             </label>
@@ -1035,6 +1048,13 @@ export default function AdminInvoice() {
                 onChange={e => setTagihRupiah(e.target.checked)} />
               Tagih dalam Rupiah
             </label>
+
+            {pakaiRupiah && (
+              <span className="text-xs font-bold text-matcha-800 bg-matcha-50 border border-matcha-200
+                               px-2 py-1 rounded-lg whitespace-nowrap">
+                Ditagih {rupiah(grand.IDR + grand.fine + grand.CNY * rate)} · ¥1 = {rupiah(rate)}
+              </span>
+            )}
 
             <button onClick={toggleAll} className="text-xs font-semibold text-matcha-700 hover:underline">
               {selected.size === invoiceable.length ? 'Batal pilih semua' : `Pilih semua (${invoiceable.length})`}
