@@ -16,6 +16,36 @@ function resiHTML(tn) {
   return `${esc(s.slice(0, -4))}<b>${esc(s.slice(-4))}</b>`;
 }
 
+// Cetak tanpa membuka tab baru: labelnya ditaruh di bingkai tersembunyi
+// lalu dialog cetak langsung muncul di atas halaman ini. Bonusnya, pemblokir
+// popup tidak ikut campur dan admin tidak perlu menutup tab sisa.
+function cetakDiam(html) {
+  const bingkai = document.createElement('iframe');
+  bingkai.setAttribute('aria-hidden', 'true');
+  bingkai.style.cssText =
+    'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden';
+  document.body.appendChild(bingkai);
+
+  const buang = () => { if (bingkai.parentNode) bingkai.remove(); };
+  const jalan = () => {
+    const w = bingkai.contentWindow;
+    if (!w) return buang();
+    w.onafterprint = buang;          // dibuang begitu dialognya ditutup
+    setTimeout(buang, 60_000);       // jaring pengaman kalau dialognya digantung
+    w.focus();
+    w.print();
+  };
+
+  const d = bingkai.contentWindow?.document;
+  if (!d) { buang(); return; }
+  d.open();
+  d.write(html);
+  d.close();
+  // Tunggu isinya terbentuk dulu, kalau tidak halamannya tercetak kosong
+  if (d.readyState === 'complete') setTimeout(jalan, 200);
+  else bingkai.onload = () => setTimeout(jalan, 200);
+}
+
 export default function LabelPrintModal({ parcels, ownerName, type, onClose, onPrinted }) {
   const [size, setSize] = useState('40x30');
   const [rows, setRows] = useState(() =>
@@ -83,12 +113,6 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
   }
 </style></head><body>${labels}</body></html>`;
 
-    const w = window.open('', '_blank');
-    // Popup diblokir browser — tanpa kabar, tombol Cetak terasa rusak
-    if (!w) {
-      alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
-      return;
-    }
     // Setiap jalur cetak harus mencatat sendiri — dulu hanya tombol di tabel
     // yang melapor, jadi label yang dicetak dari kartu box atau form edit
     // keluar fisiknya tapi tidak tercatat, dan penanda urutan tidak pernah
@@ -99,10 +123,8 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind: 'wh', ids }),
     }).catch(() => {}).finally(() => onPrinted?.(ids));
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
+
+    cetakDiam(html);
   }
 
   const s = LABEL_SIZES[size];
