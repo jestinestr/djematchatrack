@@ -4,6 +4,7 @@ import ParcelCard from '../components/ParcelCard';
 import ParcelDetailModal from '../components/ParcelDetailModal';
 import RequestForm from '../components/RequestForm';
 import CloseBoxRequest from '../components/CloseBoxRequest';
+import InfoTnc from '../components/InfoTnc';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
@@ -30,6 +31,7 @@ export default function UserPanel({ type }) {
   const [search, setSearch]   = useState('');
   const [showRequest, setShowRequest] = useState(false);
   const [mintaTutup, setMintaTutup] = useState(false);
+  const [bukaInfo, setBukaInfo] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [detail, setDetail]   = useState(null);
   const [photoFilter, setPhotoFilter] = useState('all'); // all | yes | no
@@ -302,7 +304,13 @@ export default function UserPanel({ type }) {
         })}
       </nav>
 
-      <div className="px-3 py-3 border-t border-white/10">
+      <div className="px-3 py-3 border-t border-white/10 space-y-0.5">
+        <button
+          onClick={() => { setBukaInfo(true); setSideOpen(false); }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm font-medium text-white/70 hover:bg-white/8 hover:text-white transition-all"
+        >
+          <span>ℹ️</span> Info &amp; Ketentuan
+        </button>
         <button
           onClick={exitSession}
           className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all"
@@ -342,6 +350,11 @@ export default function UserPanel({ type }) {
               {batch && batch.total_count > mine.length && ` · ${batch.total_count} resi di batch ini`}
             </p>
           </div>
+          <button onClick={() => setBukaInfo(true)}
+            title="Syarat & ketentuan warehouse"
+            className="text-matcha-200 hover:text-white text-xs flex-shrink-0">
+            ℹ️ Info
+          </button>
           <button onClick={() => navigate('/')} className="text-matcha-200 hover:text-white text-xs underline underline-offset-2 flex-shrink-0">
             Beranda
           </button>
@@ -662,6 +675,8 @@ export default function UserPanel({ type }) {
           </div>
         </main>
       </div>
+
+      {bukaInfo && <InfoTnc onClose={() => setBukaInfo(false)} />}
 
       {mintaTutup && (
         <CloseBoxRequest

@@ -2,11 +2,13 @@ import { useState } from 'react';
 import AdminTarif from './AdminTarif';
 import AdminPackages from './AdminPackages';
 import AdminCodes from './AdminCodes';
+import AdminTnc from './AdminTnc';
 
 const TABS = [
   { key: 'tarif', label: 'Tarif', hint: 'Biaya per gram, satuan, unboxing, denda' },
   { key: 'paket', label: 'Paket WH', hint: 'Kuota resi per pelanggan' },
   { key: 'kode',  label: 'Kode Akses', hint: 'Akun pelanggan dan hak aksesnya' },
+  { key: 'info',  label: 'Info & TnC',  hint: 'Syarat & ketentuan yang dibaca pelanggan' },
 ];
 
 export default function AdminSettings() {
@@ -39,6 +41,7 @@ export default function AdminSettings() {
       {tab === 'tarif' && <AdminTarif />}
       {tab === 'paket' && <AdminPackages />}
       {tab === 'kode' && <AdminCodes />}
+      {tab === 'info' && <AdminTnc />}
     </div>
   );
 }

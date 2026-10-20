@@ -17,6 +17,7 @@ router.get('/public', async (req, res) => {
     manual_fine_on: !!all.manual_fine_on,
     manual_fine_amount: Number(all.manual_fine_amount) || 0,
     manual_fine_notice: all.manual_fine_notice || '',
+    tnc_text: all.tnc_text || '',
   });
 });
 
@@ -31,6 +32,9 @@ router.put('/:key', async (req, res) => {
         action: 'setting',
         summary: `Mode auto ACC setor resi ${value ? 'dinyalakan' : 'dimatikan'}`,
       });
+    }
+    if (key === 'tnc_text') {
+      logActivity({ action: 'setting', summary: 'Syarat & ketentuan pelanggan diperbarui' });
     }
     if (key === 'manual_fine_on') {
       logActivity({

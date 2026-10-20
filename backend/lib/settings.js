@@ -9,6 +9,7 @@ const DEFAULTS = {
   manual_fine_on: false,          // denda resi yang diketik admin, nyala/mati
   manual_fine_amount: 1000,       // besarnya denda itu, Rupiah per resi
   manual_fine_notice: '',         // pengumuman soal denda itu di panel pelanggan
+  tnc_text: '',                   // syarat & ketentuan; kosong = pakai draf bawaan
 };
 
 async function getSetting(key) {
