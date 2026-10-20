@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { LABEL_SIZES, labelPad, ownerOnly, labelToday } from '../utils/label';
+import { LABEL_SIZES, labelPad, bacaGeser, simpanGeser, GESER_BATAS, ownerOnly, labelToday } from '../utils/label';
 
 // Ukuran label dan aturan penulisan nama ada di utils/label.js.
 export { LABEL_SIZES };
@@ -48,6 +48,7 @@ function cetakDiam(html) {
 
 export default function LabelPrintModal({ parcels, ownerName, type, onClose, onPrinted }) {
   const [size, setSize] = useState('40x30');
+  const [geser, setGeser] = useState(() => bacaGeser('40x30'));
   const [rows, setRows] = useState(() =>
     parcels.map(p => ({
       id: p.id,
@@ -63,9 +64,17 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
 
   const today = labelToday();
 
+  // Tiap printer mencetak sedikit meleset — Niimbot B1 pas, P50 Ningyou
+  // perlu digeser lagi ke kanan. Angkanya diingat per ukuran label.
+  function aturGeser(v) {
+    const batas = Math.min(GESER_BATAS.max, Math.max(GESER_BATAS.min, Math.round(v * 10) / 10));
+    setGeser(batas);
+    simpanGeser(size, batas);
+  }
+
   function print() {
     const s = LABEL_SIZES[size];
-    const pad = labelPad(s);
+    const pad = labelPad(s, geser);
     const labels = rows.map(r => {
       // Nama pengguna sama dengan penerima → cukup satu baris nama
       const body = ownerOnly(r) || !r.owner
@@ -130,7 +139,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
   }
 
   const s = LABEL_SIZES[size];
-  const pad = labelPad(s);
+  const pad = labelPad(s, geser);
   const px = mm => `${mm * 3.78}px`;
   const first = rows[0];
   const firstSame = first && (ownerOnly(first) || !first.owner);
@@ -156,7 +165,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
           {Object.entries(LABEL_SIZES).map(([key, v]) => (
             <button
               key={key}
-              onClick={() => setSize(key)}
+              onClick={() => { setSize(key); setGeser(bacaGeser(key)); }}
               className={`text-xs px-3 py-1.5 rounded-xl font-semibold border transition-colors ${
                 size === key
                   ? 'bg-slate-800 text-white border-slate-800'
@@ -166,6 +175,37 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
               {v.label}
             </button>
           ))}
+          <div className="flex items-center gap-1 ml-1 pl-2 border-l border-slate-200">
+            <span className="text-xs text-slate-500" title="Geser isi label ke kiri/kanan — tiap printer meleset beda-beda">
+              Geser
+            </span>
+            <button
+              onClick={() => aturGeser(geser - GESER_BATAS.langkah)}
+              disabled={geser <= GESER_BATAS.min}
+              className="w-6 h-6 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 leading-none"
+              title="Geser ke kiri"
+            >
+              ←
+            </button>
+            <span className="text-xs font-bold text-slate-700 w-14 text-center tabular-nums">
+              {geser > 0 ? '+' : ''}{geser.toFixed(1)} mm
+            </span>
+            <button
+              onClick={() => aturGeser(geser + GESER_BATAS.langkah)}
+              disabled={geser >= GESER_BATAS.max}
+              className="w-6 h-6 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 leading-none"
+              title="Geser ke kanan"
+            >
+              →
+            </button>
+            {geser !== (LABEL_SIZES[size].nudge || 0) && (
+              <button onClick={() => aturGeser(LABEL_SIZES[size].nudge || 0)}
+                className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-0.5">
+                reset
+              </button>
+            )}
+          </div>
+
           <div className="flex-1" />
           {first && (
             <div
@@ -191,7 +231,12 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
           )}
         </div>
 
-        <p className="px-5 pt-3 text-xs text-slate-500">
+        <p className="px-5 pt-3 text-[11px] text-slate-400">
+          Geseran diingat per ukuran label di peramban ini — setel sekali sesuai printermu
+          (Niimbot B1 dan P50 Ningyou meleset beda-beda), lalu dipakai terus.
+        </p>
+
+        <p className="px-5 pt-2 text-xs text-slate-500">
           Label hanya menampilkan satu nama kalau nama penerima sama dengan nama pengguna,
           kosong, atau berpola "J+nama". Selain itu nama pengguna dicetak di atas nama penerima.
         </p>
