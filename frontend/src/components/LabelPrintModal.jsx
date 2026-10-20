@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { LABEL_SIZES, ownerOnly, labelToday } from '../utils/label';
+import { LABEL_SIZES, labelPad, ownerOnly, labelToday } from '../utils/label';
 
 // Ukuran label dan aturan penulisan nama ada di utils/label.js.
 export { LABEL_SIZES };
@@ -65,6 +65,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
 
   function print() {
     const s = LABEL_SIZES[size];
+    const pad = labelPad(s);
     const labels = rows.map(r => {
       // Nama pengguna sama dengan penerima → cukup satu baris nama
       const body = ownerOnly(r) || !r.owner
@@ -89,7 +90,8 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #e5e5e5; }
   .label {
-    width: ${s.w}mm; height: ${s.h}mm; padding: 1.2mm 1.5mm;
+    width: ${s.w}mm; height: ${s.h}mm;
+    padding: 1.2mm ${pad.kanan}mm 1.2mm ${pad.kiri}mm;
     display: flex; flex-direction: column; justify-content: center;
     text-align: center; overflow: hidden; background: #fff; position: relative;
     font-family: "Arial Narrow", Arial, Helvetica, sans-serif; color: #000;
@@ -102,10 +104,10 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .name  { font-size: ${s.name}pt; line-height: 1.15; font-weight: 700;
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .resi  { font-size: ${s.resi}pt; line-height: 1.15; font-weight: 500;
+  .resi  { font-size: ${s.resi}pt; line-height: 1.15; font-weight: ${s.resiBobot};
            letter-spacing: .01em; word-break: break-all; margin-top: .4mm; }
-  .resi b { font-size: ${s.resiTail}pt; font-weight: 900; }
-  .date  { position: absolute; right: 1.5mm; bottom: .8mm;
+  .resi b { font-size: ${s.resiTail}pt; font-weight: ${s.resiEkorBobot}; }
+  .date  { position: absolute; right: ${pad.tanggalKanan}mm; bottom: .8mm;
            font-size: ${s.date}pt; color: #555; }
   @media print {
     html, body { background: #fff; }
@@ -128,6 +130,7 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
   }
 
   const s = LABEL_SIZES[size];
+  const pad = labelPad(s);
   const px = mm => `${mm * 3.78}px`;
   const first = rows[0];
   const firstSame = first && (ownerOnly(first) || !first.owner);
@@ -167,7 +170,8 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
           {first && (
             <div
               className="relative flex flex-col justify-center text-center border border-slate-300 bg-white overflow-hidden flex-shrink-0"
-              style={{ width: px(s.w), height: px(s.h), padding: '1.2mm 1.5mm', fontFamily: 'Arial Narrow, Arial, sans-serif' }}
+              style={{ width: px(s.w), height: px(s.h), fontFamily: 'Arial Narrow, Arial, sans-serif',
+                       padding: `1.2mm ${pad.kanan}mm 1.2mm ${pad.kiri}mm` }}
             >
               {!firstSame && (
                 <div style={{ fontSize: `${s.owner}pt`, lineHeight: 1.1, color: '#333' }}>{first.owner}</div>
@@ -175,11 +179,12 @@ export default function LabelPrintModal({ parcels, ownerName, type, onClose, onP
               <div style={{ fontSize: `${s.name}pt`, lineHeight: 1.15, fontWeight: 700 }}>
                 {firstSame ? (first.owner || first.name) : first.name}
               </div>
-              <div style={{ fontSize: `${s.resi}pt`, lineHeight: 1.15, wordBreak: 'break-all' }}>
+              <div style={{ fontSize: `${s.resi}pt`, lineHeight: 1.15, wordBreak: 'break-all',
+                            fontWeight: s.resiBobot }}>
                 {(first.resi || '').slice(0, -4)}
-                <b style={{ fontSize: `${s.resiTail}pt`, fontWeight: 900 }}>{(first.resi || '').slice(-4)}</b>
+                <b style={{ fontSize: `${s.resiTail}pt`, fontWeight: s.resiEkorBobot }}>{(first.resi || '').slice(-4)}</b>
               </div>
-              <span style={{ position: 'absolute', right: '1.5mm', bottom: '0.8mm', fontSize: `${s.date}pt`, color: '#555' }}>
+              <span style={{ position: 'absolute', right: `${pad.tanggalKanan}mm`, bottom: '0.8mm', fontSize: `${s.date}pt`, color: '#555' }}>
                 {today}
               </span>
             </div>
