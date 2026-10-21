@@ -22,7 +22,7 @@ export default function AdminBoxRequests() {
   const [ready, setReady]     = useState(true);
   const [loading, setLoading] = useState(true);
   const [sibuk, setSibuk]     = useState(null);
-  const [packing, setPacking] = useState(null);   // id box yang sedang dichecklist
+  const [packing, setPacking] = useState(null);   // id permintaan yang sedang dichecklist
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,7 +125,7 @@ export default function AdminBoxRequests() {
       )}
 
       {packing && (
-        <PackChecklist boxId={packing} onClose={() => setPacking(null)} onChanged={load} />
+        <PackChecklist requestId={packing} onClose={() => setPacking(null)} onChanged={load} />
       )}
 
       {loading ? (
@@ -139,7 +139,7 @@ export default function AdminBoxRequests() {
           {list.map(r => (
             <Kartu key={r.id} r={r} sibuk={sibuk === r.id} onPutuskan={putuskan}
               onInvoice={keInvoice} onBatalkan={batalkan}
-              onPacking={() => setPacking(r.box_id_kini || r.box_id)} />
+              onPacking={() => setPacking(r.id)} />
           ))}
         </div>
       )}

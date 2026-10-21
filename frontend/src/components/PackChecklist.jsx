@@ -1,31 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-// Checklist packing: menandai resi yang barangnya sudah masuk ke box.
+// Checklist packing untuk satu permintaan tutup box.
 //
-// Dipakai sambil memasukkan barang ke kardus, sering lewat ponsel dan satu
-// tangan. Karena itu barisnya besar, yang belum masuk ditaruh di atas, dan
-// ada kotak ketik cepat: ketik beberapa angka terakhir resinya lalu Enter —
-// langsung tercentang tanpa perlu mencari-cari di daftar.
-export default function PackChecklist({ boxId, onClose, onChanged }) {
-  const [data, setData]     = useState(null);
+// Daftarnya persis resi yang diminta pelanggan, jadi yang dicentang =
+// barangnya sudah masuk kardus. Kalau ada yang ternyata tidak ketemu,
+// resinya dikeluarkan dari permintaan — dengan begitu tagihan yang dicetak
+// nanti cocok dengan yang benar-benar dikirim.
+//
+// Dipakai sambil packing, sering lewat ponsel dan satu tangan: barisnya
+// besar, yang belum masuk ditaruh di atas, dan kotak cari di atasnya bisa
+// langsung mencentang kalau hasilnya tinggal satu.
+export default function PackChecklist({ requestId, onClose, onChanged }) {
+  const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState('');
-  const [ketik, setKetik]   = useState('');
-  const [kabar, setKabar]   = useState(null);   // { ok, teks }
-  const [sibuk, setSibuk]   = useState(false);
+  const [error, setError]     = useState('');
+  const [cari, setCari]       = useState('');
+  const [kabar, setKabar]     = useState(null);   // { ok, teks }
+  const [sibuk, setSibuk]     = useState(false);
   const kotak = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await fetch(`/api/boxes/${boxId}/packlist`).then(r => r.json());
+      const d = await fetch(`/api/box-requests/${requestId}/packlist`).then(r => r.json());
       setData(d);
       setError(d.ready === false ? d.error : '');
     } catch {
-      setError('Gagal memuat daftar isi box');
+      setError('Gagal memuat daftar packing');
     }
     setLoading(false);
-  }, [boxId]);
+  }, [requestId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -34,23 +38,34 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
   const belum = parcels.filter(p => !p.packed_at);
   const persen = parcels.length ? Math.round((sudah.length / parcels.length) * 100) : 0;
 
+  const q = cari.trim().toLowerCase();
+  const cocok = useMemo(() => !q ? parcels : parcels.filter(p =>
+    String(p.tracking_number).toLowerCase().includes(q) ||
+    String(p.recipient_name || '').toLowerCase().includes(q)
+  ), [parcels, q]);
+
   // Yang belum masuk di atas — itu yang sedang dicari di meja packing
-  const urut = useMemo(
-    () => [...belum, ...sudah.slice().reverse()],
-    [parcels] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const urut = useMemo(() => {
+    const b = cocok.filter(p => !p.packed_at);
+    const s = cocok.filter(p => p.packed_at);
+    return [...b, ...s];
+  }, [cocok]);
+
+  function lapor(ok, teks) {
+    setKabar({ ok, teks });
+    setTimeout(() => setKabar(null), 2500);
+  }
 
   async function tandai(ids, masuk) {
     if (!ids.length) return;
     setSibuk(true);
-    // Centangnya terasa langsung; kalau gagal, daftarnya dimuat ulang
-    setData(d => ({
+    setData(d => ({                        // centangnya terasa langsung
       ...d,
       parcels: d.parcels.map(p =>
         ids.includes(p.id) ? { ...p, packed_at: masuk ? new Date().toISOString() : null } : p),
     }));
     try {
-      const res = await fetch(`/api/boxes/${boxId}/pack`, {
+      const res = await fetch(`/api/box-requests/${requestId}/pack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, packed: masuk }),
@@ -65,26 +80,44 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
     }
   }
 
-  // Ketik cepat: cocokkan dengan potongan nomor resi
-  function ketikMasuk(e) {
-    e.preventDefault();
-    const q = ketik.trim().toLowerCase();
-    if (!q) return;
+  // Barangnya tidak ketemu → keluarkan dari permintaan ini
+  async function keluarkan(p) {
+    if (!window.confirm(
+      `Keluarkan ${p.tracking_number} dari permintaan ini?\n\n`
+      + 'Resinya tetap ada di box dan bisa ikut kiriman berikutnya — cuma tidak ikut '
+      + 'yang ini, jadi tagihannya nanti cocok dengan yang benar-benar dikirim.'
+    )) return;
 
-    const cocok = parcels.filter(p => String(p.tracking_number).toLowerCase().includes(q));
-    if (!cocok.length) {
-      setKabar({ ok: false, teks: `Tidak ada resi yang mengandung "${ketik}" di box ini` });
-    } else if (cocok.length > 1) {
-      setKabar({ ok: false, teks: `${cocok.length} resi cocok dengan "${ketik}" — ketik lebih panjang` });
-    } else if (cocok[0].packed_at) {
-      setKabar({ ok: false, teks: `${cocok[0].tracking_number} sudah dicentang sebelumnya` });
-    } else {
-      tandai([cocok[0].id], true);
-      setKabar({ ok: true, teks: `✓ ${cocok[0].tracking_number} masuk box` });
+    setSibuk(true);
+    try {
+      const res = await fetch(`/api/box-requests/${requestId}/drop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [p.id] }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Gagal mengeluarkan'); }
+      lapor(true, `${p.tracking_number} dikeluarkan dari permintaan`);
+      await load();
+      onChanged?.();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSibuk(false);
     }
-    setKetik('');
+  }
+
+  // Enter di kotak cari: kalau tinggal satu hasil, langsung dicentang
+  function cariMasuk(e) {
+    e.preventDefault();
+    if (!q) return;
+    if (!cocok.length) return lapor(false, `Tidak ada resi "${cari}" di daftar ini`);
+    if (cocok.length > 1) return lapor(false, `${cocok.length} resi cocok — ketik lebih panjang`);
+    if (cocok[0].packed_at) return lapor(false, `${cocok[0].tracking_number} sudah dicentang`);
+
+    tandai([cocok[0].id], true);
+    lapor(true, `✓ ${cocok[0].tracking_number} masuk box`);
+    setCari('');
     kotak.current?.focus();
-    setTimeout(() => setKabar(null), 2500);
   }
 
   return (
@@ -98,7 +131,9 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
             <div className="min-w-0">
               <h2 className="text-base font-bold text-matcha-800">📦 Checklist Packing</h2>
               <p className="text-xs text-gray-500 mt-0.5 truncate">
-                {data?.box ? `${data.box.owner?.label || '—'} · ${data.box.name}` : 'Memuat…'}
+                {data?.request
+                  ? `${data.request.owner?.label || '—'} · ${data.request.box?.name || 'tanpa box'} · permintaan tutup box`
+                  : 'Memuat…'}
               </p>
             </div>
             <button onClick={onClose}
@@ -107,7 +142,6 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
             </button>
           </div>
 
-          {/* Kemajuan */}
           {!!parcels.length && (
             <div className="mt-3">
               <div className="flex items-center gap-2 text-xs">
@@ -123,15 +157,23 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
           )}
         </div>
 
-        {/* Ketik cepat */}
+        {/* Cari — sekaligus centang cepat */}
         {!!parcels.length && (
-          <form onSubmit={ketikMasuk} className="px-5 py-3 border-b border-cream-100 flex gap-2">
-            <input
-              ref={kotak} value={ketik} onChange={e => setKetik(e.target.value)}
-              placeholder="Ketik akhiran nomor resi lalu Enter…"
-              className="flex-1 min-w-0 border border-cream-300 rounded-xl px-3 py-2 text-sm font-mono"
-            />
-            <button type="submit" disabled={!ketik.trim()}
+          <form onSubmit={cariMasuk} className="px-5 py-3 border-b border-cream-100 flex gap-2">
+            <div className="relative flex-1 min-w-0">
+              <input
+                ref={kotak} value={cari} onChange={e => setCari(e.target.value)}
+                placeholder="Cari nomor resi / nama…"
+                className="w-full border border-cream-300 rounded-xl px-3 py-2 text-sm font-mono pr-7"
+              />
+              {cari && (
+                <button type="button" onClick={() => setCari('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">
+                  ×
+                </button>
+              )}
+            </div>
+            <button type="submit" disabled={!q}
               className="btn-primary text-sm px-4 py-2 disabled:opacity-40">
               Centang
             </button>
@@ -149,12 +191,14 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
 
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5">
           {loading ? (
-            <p className="text-sm text-gray-400 text-center py-6">Memuat isi box…</p>
+            <p className="text-sm text-gray-400 text-center py-6">Memuat daftar…</p>
           ) : !parcels.length ? (
-            <p className="text-sm text-gray-400 text-center py-6">Box ini belum ada isinya</p>
+            <p className="text-sm text-gray-400 text-center py-6">Permintaan ini sudah tidak ada isinya</p>
+          ) : !urut.length ? (
+            <p className="text-sm text-gray-400 text-center py-6">Tidak ada yang cocok dengan “{cari}”</p>
           ) : urut.map(p => (
-            <label key={p.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
+            <div key={p.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
                 p.packed_at
                   ? 'border-green-200 bg-green-50/70'
                   : 'border-cream-200 bg-white hover:border-matcha-300'
@@ -162,7 +206,8 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
               <input
                 type="checkbox" checked={!!p.packed_at}
                 onChange={() => tandai([p.id], !p.packed_at)}
-                className="w-5 h-5 accent-matcha-700 flex-shrink-0"
+                className="w-5 h-5 accent-matcha-700 flex-shrink-0 cursor-pointer"
+                title="Barangnya sudah masuk box"
               />
               <div className="min-w-0 flex-1">
                 <p className={`font-mono text-xs font-bold truncate ${
@@ -181,7 +226,14 @@ export default function PackChecklist({ boxId, onClose, onChanged }) {
                   tanpa foto
                 </span>
               )}
-            </label>
+              <button
+                onClick={() => keluarkan(p)} disabled={sibuk}
+                title="Barangnya tidak ada — keluarkan dari permintaan ini"
+                className="text-[11px] font-semibold text-gray-400 hover:text-red-600 px-1.5 flex-shrink-0 disabled:opacity-40"
+              >
+                tidak ada
+              </button>
+            </div>
           ))}
         </div>
 

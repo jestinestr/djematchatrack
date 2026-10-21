@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import AddParcelModal from '../components/AddParcelModal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import PackChecklist from '../components/PackChecklist';
 import ActionButton, { IconPencil, IconTrash } from '../components/ActionButton';
 import { money, rupiah, baseFee, sumParcels, formatMulti, storageDays } from '../utils/format';
 
@@ -152,7 +151,7 @@ function BatchDetailDrawer({ batch, type, title, subtitle, onClose, onParcelEdit
 }
 
 /* ── Batch Row (table row) ──────────────────────────────── */
-function BatchRow({ batch, type, icon, iconBg, title, subtitle, date, onClick, onPacking }) {
+function BatchRow({ batch, type, icon, iconBg, title, subtitle, date, onClick }) {
   const parcels = batch.parcels || [];
   const totals = sumParcels(parcels, type);
   const totalFines = totals.fine;
@@ -193,16 +192,9 @@ function BatchRow({ batch, type, icon, iconBg, title, subtitle, date, onClick, o
       <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell whitespace-nowrap">
         {formatDate(date)}
       </td>
-      {/* Checklist packing + chevron */}
-      <td className="px-4 py-3 text-right whitespace-nowrap">
-        <button
-          onClick={e => { e.stopPropagation(); onPacking?.(); }}
-          title="Checklist packing — centang barang yang sudah masuk box"
-          className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-cream-300 bg-white text-gray-600 hover:bg-cream-50 hover:border-matcha-300 mr-1"
-        >
-          📦
-        </button>
-        <span className="text-gray-300 group-hover:text-matcha-500 transition-colors">›</span>
+      {/* Chevron */}
+      <td className="px-4 py-3 text-gray-300 group-hover:text-matcha-500 transition-colors text-right">
+        ›
       </td>
     </tr>
   );
@@ -215,7 +207,6 @@ export default function AdminArchive() {
   const [closedBoxes, setClosedBoxes] = useState([]);
   const [billings, setBillings] = useState([]);
   const [selected, setSelected] = useState(null); // { batch, type, title, subtitle }
-  const [packing, setPacking] = useState(null);   // id box yang sedang dichecklist
 
   // Arsip = box yang sudah ditutup, beserta status penagihannya.
   useEffect(() => {
@@ -340,7 +331,6 @@ export default function AdminArchive() {
                   subtitle={row.subtitle}
                   date={row.date}
                   onClick={() => setSelected(row)}
-                  onPacking={() => setPacking(row.batch.id)}
                 />
               ))}
             </tbody>
@@ -349,10 +339,6 @@ export default function AdminArchive() {
       )}
 
       {/* Detail Drawer */}
-      {packing && (
-        <PackChecklist boxId={packing} onClose={() => setPacking(null)} />
-      )}
-
       {selected && (
         <BatchDetailDrawer
           batch={selected.batch}

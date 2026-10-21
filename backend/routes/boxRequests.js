@@ -4,6 +4,7 @@ const supabase = require('../supabase');
 const { fetchCodes } = require('../lib/owner');
 const { logActivity } = require('../lib/log');
 const { closeBox, ensureOpenBox } = require('../lib/box');
+const { hasColumn } = require('../lib/columns');
 
 // Permintaan tutup box dari pelanggan.
 //
@@ -204,6 +205,104 @@ router.post('/', async (req, res) => {
       + (payload.insurance ? ` · asuransi ¥${payload.insurance_cny}` : ' · tanpa asuransi'),
     ref_type: 'box_close_request',
     ref_id: data.id,
+  });
+
+  res.json(data);
+});
+
+// ── Checklist packing ───────────────────────────────────────────────
+//
+//  Daftarnya persis isi permintaan ini, bukan seluruh box: yang dicentang
+//  berarti barangnya sudah masuk kardus. Kalau ada yang ternyata tidak
+//  ketemu, resinya dikeluarkan dari permintaan — jadi yang ditagih nanti
+//  cocok dengan yang benar-benar dikirim.
+const PACK_BELUM_AKTIF =
+  'Checklist packing belum aktif — jalankan supabase/migrations/022_packing_checklist.sql';
+
+router.get('/:id/packlist', async (req, res) => {
+  const { data: minta, error } = await supabase
+    .from('box_close_requests').select('*').eq('id', req.params.id).single();
+  if (error || !minta) return res.status(404).json({ error: 'Permintaan tidak ditemukan' });
+
+  const siap = await hasColumn('wh_parcels', 'packed_at');
+  const ids = (minta.parcel_ids || []).map(Number).filter(Boolean);
+  const kolom = 'id, tracking_number, recipient_name, type, photo_url, estimated_quantity, box_id'
+    + (siap ? ', packed_at' : '');
+  const { data: rows } = ids.length
+    ? await supabase.from('wh_parcels').select(kolom).in('id', ids)
+    : { data: [] };
+
+  // Urutannya mengikuti urutan di permintaan
+  const byId = new Map((rows || []).map(p => [String(p.id), p]));
+  const parcels = ids.map(i => byId.get(String(i))).filter(Boolean)
+    .map(p => ({ ...p, packed_at: siap ? p.packed_at : null }));
+
+  const withBox = (await withOwner([minta]))[0];
+  res.json({
+    ready: siap,
+    error: siap ? null : PACK_BELUM_AKTIF,
+    request: { id: minta.id, status: minta.status, owner: withBox.owner, box: withBox.box },
+    parcels,
+    packed: parcels.filter(p => p.packed_at).length,
+    total: parcels.length,
+  });
+});
+
+//  body { ids: [...], packed: true|false }
+router.post('/:id/pack', async (req, res) => {
+  if (!(await hasColumn('wh_parcels', 'packed_at'))) {
+    return res.status(503).json({ error: PACK_BELUM_AKTIF });
+  }
+  const { data: minta } = await supabase
+    .from('box_close_requests').select('parcel_ids').eq('id', req.params.id).single();
+  if (!minta) return res.status(404).json({ error: 'Permintaan tidak ditemukan' });
+
+  const milik = new Set((minta.parcel_ids || []).map(String));
+  const ids = (Array.isArray(req.body.ids) ? req.body.ids : [])
+    .map(Number).filter(x => x && milik.has(String(x)));   // hanya resi di permintaan ini
+  if (!ids.length) return res.status(400).json({ error: 'Tidak ada resi yang dipilih' });
+
+  const masuk = req.body.packed !== false;
+  const { error } = await supabase
+    .from('wh_parcels')
+    .update({ packed_at: masuk ? new Date().toISOString() : null })
+    .in('id', ids);
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ success: true, updated: ids.length, packed: masuk });
+});
+
+//  body { ids: [...] } — barangnya tidak ketemu, keluarkan dari permintaan
+router.post('/:id/drop', async (req, res) => {
+  const { data: minta, error: cariErr } = await supabase
+    .from('box_close_requests').select('*').eq('id', req.params.id).single();
+  if (cariErr || !minta) return res.status(404).json({ error: 'Permintaan tidak ditemukan' });
+
+  const buang = new Set((Array.isArray(req.body.ids) ? req.body.ids : []).map(String));
+  if (!buang.size) return res.status(400).json({ error: 'Tidak ada resi yang dipilih' });
+
+  const sisa = (minta.parcel_ids || []).filter(i => !buang.has(String(i)));
+  const { data, error } = await supabase
+    .from('box_close_requests')
+    .update({ parcel_ids: sisa, parcel_count: sisa.length })
+    .eq('id', minta.id).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Resinya tetap di boxnya, cuma tidak ikut kiriman ini — tanda packingnya
+  // dilepas supaya tidak terbawa kalau nanti diikutkan lagi.
+  if (await hasColumn('wh_parcels', 'packed_at')) {
+    await supabase.from('wh_parcels')
+      .update({ packed_at: null }).in('id', [...buang].map(Number).filter(Boolean));
+  }
+
+  const { data: resi } = await supabase
+    .from('wh_parcels').select('tracking_number').in('id', [...buang].map(Number).filter(Boolean));
+  logActivity({
+    action: 'box_close_drop',
+    summary: `${buang.size} resi dikeluarkan dari permintaan tutup box (barangnya tidak ada)`,
+    detail: (resi || []).map(x => x.tracking_number).join(' · '),
+    ref_type: 'box_close_request',
+    ref_id: minta.id,
   });
 
   res.json(data);
