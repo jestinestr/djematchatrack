@@ -241,10 +241,14 @@ router.patch('/:id', async (req, res) => {
     .eq('id', req.params.id).select().single();
   if (error) return res.status(500).json({ error: error.message });
 
-  // Invoice box lunas → box ditutup otomatis; resi yang belum ditagih
-  // pindah ke box baru supaya pelanggan tidak nyangkut di box lama.
+  // Invoice box lunas boleh sekalian menutup boxnya; resi yang belum
+  // ditagih pindah ke box baru supaya pelanggan tidak nyangkut di box lama.
+  // Penutupan itu tidak selalu diinginkan — mis. tagihan sebagian yang
+  // resinya masih menunggu invoice berikutnya — jadi penanya ada di layar
+  // dan jawabannya dikirim lewat close_box.
+  const tutupBox = req.body.close_box === undefined ? true : !!req.body.close_box;
   let boxResult = { closed: false, moved: 0 };
-  if (paid && bill.scope === 'box' && String(bill.type).toUpperCase() === 'WH') {
+  if (paid && tutupBox && bill.scope === 'box' && String(bill.type).toUpperCase() === 'WH') {
     boxResult = await closeBoxAfterPaid(bill.ref_id, ids);
   }
 

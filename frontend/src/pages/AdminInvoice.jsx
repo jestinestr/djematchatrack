@@ -357,10 +357,26 @@ export default function AdminInvoice() {
 
   async function setBillingPaid(bill, paid) {
     if (paid && !window.confirm(`Tandai "${bill.title}" sudah lunas? ${bill.parcel_count} resi di dalamnya ikut ditandai lunas.`)) return;
+
+    // Menandai lunas invoice box dulunya selalu ikut menutup boxnya — resi
+    // lain di box itu terlempar ke box baru tanpa ditanya. Sekarang
+    // keputusannya di tangan admin.
+    let tutupBox = true;
+    if (paid && bill.scope === 'box') {
+      const sisa = Math.max(0, (data?.customers || [])
+        .filter(c => String(c.owner?.id) === String(bill.owner_code_id))
+        .reduce((n, c) => n + (c.allParcels?.length || 0), 0) - (bill.parcel_count || 0));
+      tutupBox = window.confirm(
+        'Sekalian tutup boxnya?\n\n'
+        + `OK  = box ditutup${sisa ? `, ${sisa} resi lain pindah ke box berikutnya` : ''}\n`
+        + 'Batal = box dibiarkan terbuka, cuma invoicenya yang lunas'
+      );
+    }
+
     await fetch(`/api/billings/${bill.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: paid ? 'paid' : 'unpaid' }),
+      body: JSON.stringify({ status: paid ? 'paid' : 'unpaid', close_box: tutupBox }),
     });
     loadBillings();
     if (String(bill.ref_id) === String(batchId)) await refreshInvoice();
