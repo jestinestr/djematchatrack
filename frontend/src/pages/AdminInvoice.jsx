@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import BillingList from '../components/BillingList';
 import {
@@ -55,7 +56,10 @@ export default function AdminInvoice() {
   // Tagihan Yuan dikonversi ke Rupiah memakai kurs di atas, jadi invoice
   // keluar dengan satu total Rupiah dan pelanggan bayar Rupiah
   const [tagihRupiah, setTagihRupiah] = useState(false);
-  const [batchId, setBatchId] = useState('');
+  // Dibuka dari halaman lain dengan ?box=<id> — mis. dari permintaan tutup
+  // box, supaya admin langsung mendarat di tagihan box itu.
+  const [params, setParams] = useSearchParams();
+  const [batchId, setBatchId] = useState(() => params.get('box') || '');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
@@ -616,7 +620,7 @@ export default function AdminInvoice() {
       )}
 
       {batchId && (
-        <button onClick={() => setBatchId('')}
+        <button onClick={() => { setBatchId(''); if (params.get('box')) setParams({}, { replace: true }); }}
           className="text-xs font-semibold text-gray-500 hover:text-matcha-700 mb-3">
           ← Semua box
         </button>

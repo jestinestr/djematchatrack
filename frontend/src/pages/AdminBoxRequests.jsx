@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { money, formatDate } from '../utils/format';
 
@@ -14,6 +15,7 @@ const TABS = [
 ];
 
 export default function AdminBoxRequests() {
+  const navigate = useNavigate();
   const [tab, setTab]         = useState('pending');
   const [list, setList]       = useState([]);
   const [ready, setReady]     = useState(true);
@@ -33,6 +35,37 @@ export default function AdminBoxRequests() {
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Urus tagihannya dulu: box pelanggan itu langsung dibuka di halaman
+  // invoice, jadi biaya tambahan bisa dimasukkan sebelum ditagih.
+  function keInvoice(r) {
+    if (!r.box_id) {
+      alert('Permintaan ini belum menunjuk box mana pun, jadi invoicenya belum bisa dibuka.');
+      return;
+    }
+    navigate(`/admin/invoice?box=${r.box_id}`);
+  }
+
+  // Salah pencet setuju? Boxnya dibuka lagi dan permintaannya balik menunggu.
+  async function batalkan(r) {
+    if (!window.confirm(
+      `Batalkan persetujuan untuk ${r.owner?.label || 'pelanggan ini'}?\n\n`
+      + 'Boxnya dibuka lagi, resinya ditarik kembali, dan permintaannya balik ke daftar menunggu.'
+    )) return;
+
+    setSibuk(r.id);
+    const res = await fetch(`/api/box-requests/${r.id}/reopen`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    setSibuk(null);
+    if (!res.ok) { alert(data.error || 'Gagal membatalkan'); return; }
+    alert(`Persetujuan dibatalkan — box dibuka lagi${data.pulled ? ` dan ${data.pulled} resi ditarik kembali` : ''}.`);
+    setTab('pending');
+    load();
+  }
 
   async function putuskan(id, aksi) {
     const catatan = aksi === 'reject'
@@ -98,7 +131,8 @@ export default function AdminBoxRequests() {
       ) : (
         <div className="space-y-3">
           {list.map(r => (
-            <Kartu key={r.id} r={r} sibuk={sibuk === r.id} onPutuskan={putuskan} />
+            <Kartu key={r.id} r={r} sibuk={sibuk === r.id} onPutuskan={putuskan}
+              onInvoice={keInvoice} onBatalkan={batalkan} />
           ))}
         </div>
       )}
@@ -106,7 +140,7 @@ export default function AdminBoxRequests() {
   );
 }
 
-function Kartu({ r, sibuk, onPutuskan }) {
+function Kartu({ r, sibuk, onPutuskan, onInvoice, onBatalkan }) {
   const tanpaFoto = (r.parcels || []).filter(p => !p.photo_url);
   const bisaSetuju = r.status === 'pending' && !tanpaFoto.length && (r.parcels || []).length > 0;
 
@@ -185,6 +219,13 @@ function Kartu({ r, sibuk, onPutuskan }) {
           )}
         </div>
 
+        {r.status === 'pending' && (
+          <p className="text-[11px] text-gray-500 bg-cream-50 border border-cream-200 rounded-xl px-3 py-2">
+            Biasanya urutannya: <b>urus invoice dulu</b> (masukkan biaya tambahan lalu tagih),
+            baru <b>setujui</b> supaya boxnya ditutup.
+          </p>
+        )}
+
         {r.note && (
           <p className="text-xs text-gray-600 bg-cream-50 border border-cream-200 rounded-xl px-3 py-2">
             <span className="font-semibold">Catatan pelanggan:</span> {r.note}
@@ -197,7 +238,12 @@ function Kartu({ r, sibuk, onPutuskan }) {
         )}
 
         {r.status === 'pending' && (
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-1 flex-wrap">
+            <button onClick={() => onInvoice(r)}
+              className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 transition-colors"
+              title="Buka invoice box ini dulu — tambahkan biaya lalu tagih">
+              🧾 Urus invoice dulu
+            </button>
             <button onClick={() => onPutuskan(r.id, 'approve')} disabled={sibuk || !bisaSetuju}
               className="btn-primary text-sm px-4 py-2 flex-1 disabled:opacity-50"
               title={bisaSetuju ? 'Tutup box dan setujui' : 'Masih ada resi tanpa foto arrival'}>
@@ -206,6 +252,20 @@ function Kartu({ r, sibuk, onPutuskan }) {
             <button onClick={() => onPutuskan(r.id, 'reject')} disabled={sibuk}
               className="btn-secondary text-sm px-4 py-2 disabled:opacity-50">
               Tolak
+            </button>
+          </div>
+        )}
+
+        {r.status === 'approved' && (
+          <div className="flex gap-2 pt-1 flex-wrap">
+            <button onClick={() => onInvoice(r)}
+              className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 transition-colors">
+              🧾 Buka invoicenya
+            </button>
+            <button onClick={() => onBatalkan(r)} disabled={sibuk}
+              className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-amber-300 bg-white text-amber-800 hover:bg-amber-50 disabled:opacity-50 transition-colors"
+              title="Buka lagi boxnya dan kembalikan permintaannya ke daftar menunggu">
+              {sibuk ? 'Memproses…' : '↩ Batalkan persetujuan'}
             </button>
           </div>
         )}

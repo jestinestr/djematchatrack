@@ -233,6 +233,80 @@ router.patch('/:id/approve', async (req, res) => {
   res.json({ ...data, moved: pindah });
 });
 
+// ── Batalkan persetujuan ────────────────────────────────────────────
+//  Boxnya dibuka lagi, resi yang terlanjur terarsip dihidupkan, dan resi
+//  yang tadi dipindah ke box berikutnya ditarik kembali. Permintaannya
+//  balik ke daftar menunggu, jadi bisa disetujui ulang setelah urusan
+//  invoicenya beres. Resi yang baru masuk sesudah persetujuan dibiarkan di
+//  box barunya — itu memang punya kiriman berikutnya.
+router.patch('/:id/reopen', async (req, res) => {
+  const { data: minta, error: cariErr } = await supabase
+    .from('box_close_requests').select('*').eq('id', req.params.id).single();
+  if (cariErr || !minta) return res.status(404).json({ error: 'Permintaan tidak ditemukan' });
+  if (minta.status !== 'approved') {
+    return res.status(409).json({ error: 'Yang bisa dibatalkan hanya permintaan yang sudah disetujui' });
+  }
+
+  const boxId = minta.box_id;
+  let ditarik = 0;
+  let dihapus = 0;
+
+  if (boxId) {
+    const { data: box } = await supabase
+      .from('boxes').select('id, owner_code_id').eq('id', boxId).single();
+
+    // Box berikutnya yang lahir gara-gara persetujuan tadi. Dicari sejak
+    // permintaannya masuk, bukan sejak disetujui — box penggantinya dibuat
+    // beberapa detik sebelum stempel persetujuan ditulis.
+    const batas = minta.decided_at || minta.created_at;
+    const { data: boxBaru } = await supabase
+      .from('boxes').select('id')
+      .eq('owner_code_id', box?.owner_code_id)
+      .eq('status', 'open')
+      .gte('created_at', minta.created_at);
+
+    for (const b of boxBaru || []) {
+      if (String(b.id) === String(boxId)) continue;
+      const { data: isi } = await supabase
+        .from('wh_parcels').select('id, created_at').eq('box_id', b.id);
+
+      // Hanya resi yang sudah ada sebelum persetujuan yang ditarik pulang
+      const pindahan = (isi || []).filter(x => new Date(x.created_at) < new Date(batas));
+      if (pindahan.length) {
+        await supabase.from('wh_parcels')
+          .update({ box_id: boxId }).in('id', pindahan.map(x => x.id));
+        ditarik += pindahan.length;
+      }
+      // Box itu dibuang kalau jadi kosong — tidak menyisakan box hampa
+      if (pindahan.length === (isi || []).length) {
+        await supabase.from('boxes').delete().eq('id', b.id);
+        dihapus++;
+      }
+    }
+
+    await supabase.from('boxes')
+      .update({ status: 'open', closed_at: null }).eq('id', boxId);
+    await supabase.from('wh_parcels')
+      .update({ status: 'active' }).eq('box_id', boxId).eq('status', 'archived');
+  }
+
+  const { data, error } = await supabase
+    .from('box_close_requests')
+    .update({ status: 'pending', decided_at: null, admin_note: null })
+    .eq('id', minta.id).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+
+  logActivity({
+    action: 'box_close_reopened',
+    summary: `Persetujuan tutup box dibatalkan · ${minta.parcel_count} resi`,
+    detail: `Box dibuka lagi${ditarik ? `, ${ditarik} resi ditarik kembali` : ''}${dihapus ? `, ${dihapus} box kosong dihapus` : ''}`,
+    ref_type: 'box_close_request',
+    ref_id: minta.id,
+  });
+
+  res.json({ ...data, pulled: ditarik, removed_boxes: dihapus });
+});
+
 // ── Admin menolak ───────────────────────────────────────────────────
 router.patch('/:id/reject', async (req, res) => {
   const { data, error } = await supabase
