@@ -180,6 +180,13 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
           </form>
         )}
 
+        {!!parcels.length && (
+          <p className="px-5 pt-2 text-[11px] text-gray-400 leading-snug">
+            Centang kalau barangnya sudah masuk kardus. Tombol <b>✕</b> untuk resi yang
+            barangnya tidak ketemu — keluar dari kiriman ini, tetap aman di boxnya.
+          </p>
+        )}
+
         {kabar && (
           <p className={`px-5 py-2 text-xs font-semibold ${
             kabar.ok ? 'text-green-700 bg-green-50' : 'text-amber-800 bg-amber-50'
@@ -206,7 +213,7 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
               <input
                 type="checkbox" checked={!!p.packed_at}
                 onChange={() => tandai([p.id], !p.packed_at)}
-                className="w-5 h-5 accent-matcha-700 flex-shrink-0 cursor-pointer"
+                className="w-6 h-6 accent-matcha-700 flex-shrink-0 cursor-pointer"
                 title="Barangnya sudah masuk box"
               />
               <div className="min-w-0 flex-1">
@@ -226,12 +233,17 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
                   tanpa foto
                 </span>
               )}
+              {/* Dipakai juga lewat ponsel, jadi bidang ketuknya dibuat
+                  selebar jempol walau tandanya cuma ✕ */}
               <button
                 onClick={() => keluarkan(p)} disabled={sibuk}
                 title="Barangnya tidak ada — keluarkan dari permintaan ini"
-                className="text-[11px] font-semibold text-gray-400 hover:text-red-600 px-1.5 flex-shrink-0 disabled:opacity-40"
+                aria-label={`Keluarkan ${p.tracking_number} — barangnya tidak ada`}
+                className="w-11 h-11 flex items-center justify-center rounded-full border border-cream-300
+                           bg-white text-gray-400 text-lg leading-none flex-shrink-0 transition-colors
+                           hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
               >
-                tidak ada
+                ✕
               </button>
             </div>
           ))}
