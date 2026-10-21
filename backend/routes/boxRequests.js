@@ -27,6 +27,23 @@ async function viewerOf(req) {
   return data || null;
 }
 
+// Box yang sebenarnya dipakai resi-resi di satu permintaan.
+//
+// box_id dicatat saat pelanggan mengajukan, tapi resinya bisa pindah box
+// sesudah itu — mis. invoice sebagian ditandai lunas, lalu sisa resinya
+// otomatis geser ke box berikutnya. Yang dipakai adalah box tempat resinya
+// berada sekarang, supaya yang ditutup memang box yang benar.
+function boxSekarang(parcels, fallback = null) {
+  const hitung = new Map();
+  for (const p of parcels || []) {
+    if (!p.box_id) continue;
+    hitung.set(String(p.box_id), (hitung.get(String(p.box_id)) || 0) + 1);
+  }
+  if (!hitung.size) return fallback;
+  const [terbanyak] = [...hitung.entries()].sort((a, b) => b[1] - a[1]);
+  return Number(terbanyak[0]);
+}
+
 async function withOwner(rows) {
   const codes = await fetchCodes();
   const byId = new Map(codes.map(c => [String(c.id), c]));
@@ -70,12 +87,31 @@ router.get('/', async (req, res) => {
   const parcels = await parcelsOf(semuaId);
   const byId = new Map(parcels.map(p => [String(p.id), p]));
 
+  // Box yang ditampilkan ikut resinya sekarang; kalau sudah bergeser,
+  // nama box lamanya tetap disebut supaya admin tidak bingung.
+  const boxLain = [...new Set(rows.map(r => {
+    const isi = (r.parcel_ids || []).map(id => byId.get(String(id))).filter(Boolean);
+    return boxSekarang(isi, r.box_id);
+  }).filter(Boolean))];
+  const { data: boxes2 } = boxLain.length
+    ? await supabase.from('boxes').select('id, name, status').in('id', boxLain)
+    : { data: [] };
+  const box2ById = new Map((boxes2 || []).map(b => [String(b.id), b]));
+
   res.json({
     ready: true,
-    requests: rows.map(r => ({
-      ...r,
-      parcels: (r.parcel_ids || []).map(id => byId.get(String(id))).filter(Boolean),
-    })),
+    requests: rows.map(r => {
+      const isi = (r.parcel_ids || []).map(id => byId.get(String(id))).filter(Boolean);
+      const kini = boxSekarang(isi, r.box_id);
+      const pindah = String(kini) !== String(r.box_id);
+      return {
+        ...r,
+        parcels: isi,
+        box: box2ById.get(String(kini)) || r.box,
+        box_lama: pindah ? r.box : null,
+        box_id_kini: kini,
+      };
+    }),
   });
 });
 
@@ -192,8 +228,10 @@ router.patch('/:id/approve', async (req, res) => {
   }
 
   // Resi yang tidak ikut dipilih tidak boleh ikut tertutup: dipindahkan
-  // lebih dulu ke box berikutnya.
-  const boxId = minta.box_id || dipilih[0]?.box_id || null;
+  // lebih dulu ke box berikutnya. Boxnya diambil dari tempat resinya
+  // sekarang — resi bisa bergeser ke box berikutnya setelah permintaan
+  // diajukan, mis. gara-gara invoice sebagian ditandai lunas.
+  const boxId = boxSekarang(dipilih, minta.box_id);
   let pindah = 0;
   if (boxId) {
     const ikut = new Set((minta.parcel_ids || []).map(String));
@@ -216,16 +254,19 @@ router.patch('/:id/approve', async (req, res) => {
       status: 'approved',
       decided_at: new Date().toISOString(),
       admin_note: String(req.body.admin_note || '').trim() || null,
+      box_id: boxId,          // box yang benar-benar ditutup
     })
     .eq('id', minta.id).select().single();
   if (error) return res.status(500).json({ error: error.message });
 
   const codes = await fetchCodes();
   const label = codes.find(c => String(c.id) === String(minta.owner_code_id))?.label || 'pelanggan';
+  const geser = String(boxId) !== String(minta.box_id) ? ' · box sudah bergeser sejak diajukan' : '';
   logActivity({
     action: 'box_close_approved',
     summary: `Permintaan tutup box ${label} disetujui · ${minta.parcel_count} resi`,
-    detail: pindah ? `${pindah} resi yang tidak ikut dipindah ke box berikutnya` : null,
+    detail: (pindah ? `${pindah} resi yang tidak ikut dipindah ke box berikutnya` : 'semua resinya ikut')
+      + geser,
     ref_type: 'box_close_request',
     ref_id: minta.id,
   });

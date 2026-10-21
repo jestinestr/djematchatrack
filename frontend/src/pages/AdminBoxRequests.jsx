@@ -149,8 +149,10 @@ function Kartu({ r, sibuk, onPutuskan, onInvoice, onBatalkan }) {
       <div className="px-4 py-3 bg-cream-50 border-b border-cream-200 flex items-center gap-2 flex-wrap">
         <span className="font-bold text-matcha-800 text-sm">{r.owner?.label || '—'}</span>
         {r.box && (
-          <span className="text-[11px] bg-white border border-cream-300 text-gray-500 px-2 py-0.5 rounded-full">
+          <span className="text-[11px] bg-white border border-cream-300 text-gray-500 px-2 py-0.5 rounded-full"
+            title={r.box_lama ? `Resinya sudah bergeser dari ${r.box_lama.name} ke sini` : undefined}>
             {r.box.name}
+            {r.box_lama && <span className="text-amber-700"> · pindahan dari {r.box_lama.name}</span>}
           </span>
         )}
         <span className="text-[11px] text-gray-400">{r.parcel_count} resi</span>
