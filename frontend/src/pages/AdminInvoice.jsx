@@ -147,12 +147,24 @@ export default function AdminInvoice() {
       if (!alive) return;
       const next = {};
       for (const [id, d] of pairs) {
-        if (d && (Math.abs(d.idr) > 0.009 || Math.abs(d.cny) > 0.009)) next[id] = d;
+        if (!d) continue;
+        // Penagihan untuk wadah yang sedang dibuka tidak dihitung sebagai
+        // bawaan: mencetak lagi di sini memperbarui penagihan itu, bukan
+        // menambah yang baru. Tanpa ini resi dan biaya yang sama ikut
+        // dihitung dua kali — sekali lewat resinya, sekali lewat bawaan.
+        const lain = (d.items || []).filter(b =>
+          !(String(b.ref_id) === String(batchId) && String(b.scope) === (isBox ? 'box' : 'batch')));
+        const sisa = {
+          items: lain,
+          idr: lain.reduce((n, b) => n + (b.due_idr || 0), 0),
+          cny: lain.reduce((n, b) => n + (b.due_cny || 0), 0),
+        };
+        if (Math.abs(sisa.idr) > 0.009 || Math.abs(sisa.cny) > 0.009) next[id] = sisa;
       }
       setCarry(next);
     });
     return () => { alive = false; };
-  }, [data]);
+  }, [data, batchId, isBox]);
 
   const rawCustomers = data?.customers || [];
   const customers = useMemo(() => rawCustomers.map(c => {
