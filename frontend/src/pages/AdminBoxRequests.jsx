@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
+import PackChecklist from '../components/PackChecklist';
 import { money, formatDate } from '../utils/format';
 
 // Permintaan tutup box dari pelanggan — admin tinggal menyetujui.
@@ -21,6 +22,7 @@ export default function AdminBoxRequests() {
   const [ready, setReady]     = useState(true);
   const [loading, setLoading] = useState(true);
   const [sibuk, setSibuk]     = useState(null);
+  const [packing, setPacking] = useState(null);   // id box yang sedang dichecklist
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,6 +124,10 @@ export default function AdminBoxRequests() {
         </p>
       )}
 
+      {packing && (
+        <PackChecklist boxId={packing} onClose={() => setPacking(null)} onChanged={load} />
+      )}
+
       {loading ? (
         <LoadingSpinner text="Memuat permintaan..." />
       ) : !list.length ? (
@@ -132,7 +138,8 @@ export default function AdminBoxRequests() {
         <div className="space-y-3">
           {list.map(r => (
             <Kartu key={r.id} r={r} sibuk={sibuk === r.id} onPutuskan={putuskan}
-              onInvoice={keInvoice} onBatalkan={batalkan} />
+              onInvoice={keInvoice} onBatalkan={batalkan}
+              onPacking={() => setPacking(r.box_id_kini || r.box_id)} />
           ))}
         </div>
       )}
@@ -140,7 +147,7 @@ export default function AdminBoxRequests() {
   );
 }
 
-function Kartu({ r, sibuk, onPutuskan, onInvoice, onBatalkan }) {
+function Kartu({ r, sibuk, onPutuskan, onInvoice, onBatalkan, onPacking }) {
   const tanpaFoto = (r.parcels || []).filter(p => !p.photo_url);
   const bisaSetuju = r.status === 'pending' && !tanpaFoto.length && (r.parcels || []).length > 0;
 
@@ -251,6 +258,11 @@ function Kartu({ r, sibuk, onPutuskan, onInvoice, onBatalkan }) {
               title={bisaSetuju ? 'Tutup box dan setujui' : 'Masih ada resi tanpa foto arrival'}>
               {sibuk ? 'Memproses…' : '✓ Setujui & tutup box'}
             </button>
+            <button onClick={onPacking}
+              className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 transition-colors"
+              title="Centang barang yang sudah masuk box">
+              📦 Checklist
+            </button>
             <button onClick={() => onPutuskan(r.id, 'reject')} disabled={sibuk}
               className="btn-secondary text-sm px-4 py-2 disabled:opacity-50">
               Tolak
@@ -263,6 +275,11 @@ function Kartu({ r, sibuk, onPutuskan, onInvoice, onBatalkan }) {
             <button onClick={() => onInvoice(r)}
               className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 transition-colors">
               🧾 Buka invoicenya
+            </button>
+            <button onClick={onPacking}
+              className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-cream-300 bg-white text-gray-600 hover:bg-cream-50 transition-colors"
+              title="Centang barang yang sudah masuk box">
+              📦 Checklist packing
             </button>
             <button onClick={() => onBatalkan(r)} disabled={sibuk}
               className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-amber-300 bg-white text-amber-800 hover:bg-amber-50 disabled:opacity-50 transition-colors"

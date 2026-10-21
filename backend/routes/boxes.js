@@ -4,6 +4,7 @@ const supabase = require('../supabase');
 const { fetchCodes } = require('../lib/owner');
 const { logActivity } = require('../lib/log');
 const { ensureOpenBox } = require('../lib/box');
+const { hasColumn } = require('../lib/columns');
 
 // Label yang dipakai di mana-mana: "BosBesar - Box 1"
 const boxLabel = (box, ownerLabel) => `${ownerLabel || '—'} - ${box.name}`;
@@ -152,6 +153,69 @@ router.post('/:id/reopen', async (req, res) => {
     ref_id: data.id,
   });
   res.json(withOwner);
+});
+
+// ── Checklist packing ───────────────────────────────────────────────
+//
+//  Dipakai saat isi box dimasukkan ke kardus satu per satu: tiap resi
+//  dicentang kalau barangnya sudah benar-benar masuk, jadi yang ketinggalan
+//  ketahuan sebelum boxnya berangkat.
+const PACK_BELUM_AKTIF =
+  'Checklist packing belum aktif — jalankan supabase/migrations/022_packing_checklist.sql';
+
+router.get('/:id/packlist', async (req, res) => {
+  const siap = await hasColumn('wh_parcels', 'packed_at');
+  const kolom = 'id, tracking_number, recipient_name, type, photo_url, estimated_quantity'
+    + (siap ? ', packed_at' : '');
+
+  const [{ data: box }, { data: rows, error }] = await Promise.all([
+    supabase.from('boxes').select('id, name, status, owner_code_id').eq('id', req.params.id).single(),
+    supabase.from('wh_parcels').select(kolom).eq('box_id', req.params.id).order('id'),
+  ]);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const withOwner = (await withOwners(box ? [box] : []))[0] || null;
+  const parcels = (rows || []).map(p => ({ ...p, packed_at: siap ? p.packed_at : null }));
+
+  res.json({
+    ready: siap,
+    error: siap ? null : PACK_BELUM_AKTIF,
+    box: withOwner,
+    parcels,
+    packed: parcels.filter(p => p.packed_at).length,
+    total: parcels.length,
+  });
+});
+
+//  body { ids: [...], packed: true|false }
+router.post('/:id/pack', async (req, res) => {
+  if (!(await hasColumn('wh_parcels', 'packed_at'))) {
+    return res.status(503).json({ error: PACK_BELUM_AKTIF });
+  }
+  const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Boolean);
+  if (!ids.length) return res.status(400).json({ error: 'Tidak ada resi yang dipilih' });
+
+  const masuk = req.body.packed !== false;
+  const { error } = await supabase
+    .from('wh_parcels')
+    .update({ packed_at: masuk ? new Date().toISOString() : null })
+    .in('id', ids).eq('box_id', req.params.id);   // hanya resi di box ini
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Satu catatan saja per aksi borongan, bukan per resi
+  if (ids.length > 1) {
+    const { data: box } = await supabase
+      .from('boxes').select('id, name, owner_code_id').eq('id', req.params.id).single();
+    const label = (await withOwners(box ? [box] : []))[0];
+    logActivity({
+      action: 'box_pack',
+      summary: `${ids.length} resi ditandai ${masuk ? 'sudah' : 'belum'} masuk ${label ? boxLabel(label, label.owner?.label) : 'box'}`,
+      ref_type: 'box',
+      ref_id: req.params.id,
+    });
+  }
+
+  res.json({ success: true, updated: ids.length, packed: masuk });
 });
 
 // ── Hapus box (hanya kalau kosong) ──────────────────────────────────
