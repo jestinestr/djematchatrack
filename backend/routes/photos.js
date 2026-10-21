@@ -227,17 +227,41 @@ async function clearIfDone(table) {
   if (!(await hasColumn(table, 'open_order'))) return { cleared: 0 };
 
   const { data } = await supabase
-    .from(table).select('id, open_printed, photo_url').not('open_order', 'is', null);
+    .from(table)
+    .select('id, open_order, open_printed, photo_url, tracking_number, recipient_name, owner_code_id')
+    .not('open_order', 'is', null);
   const marked = data || [];
   if (!marked.length) return { cleared: 0 };
 
   const belum = marked.filter(p => !(p.open_printed && p.photo_url));
   if (belum.length) return { cleared: 0, remaining: belum.length };
 
+  // Daftarnya ditulis ke Catatan dulu. Tandanya memang sengaja lepas
+  // sendiri begitu semuanya dicetak dan difoto, tapi tanpa catatan ini
+  // tidak ada lagi jejak resi mana saja yang dibuka hari itu.
+  await catatUrutan(marked, 'Urutan buka selesai');
+
   await supabase.from(table)
     .update({ open_order: null, open_printed: false })
     .in('id', marked.map(p => p.id));
   return { cleared: marked.length };
+}
+
+// Satu baris catatan berisi urutan lengkapnya
+async function catatUrutan(rows, judul) {
+  const urut = [...rows].sort((a, b) => (a.open_order || 0) - (b.open_order || 0));
+  const codes = await fetchCodes().catch(() => []);
+  const nama = id => codes.find(c => String(c.id) === String(id))?.label || null;
+
+  logActivity({
+    action: 'open_order_done',
+    summary: `${judul} · ${urut.length} resi`,
+    detail: urut
+      .map(p => `${p.open_order}. ${p.tracking_number}${nama(p.owner_code_id) ? ` (${nama(p.owner_code_id)})` : ''}`)
+      .join(' · '),
+    ref_type: 'open_order',
+    ref_id: null,
+  });
 }
 
 //  body { kind, id }                  → dapat nomor berikutnya
@@ -256,8 +280,18 @@ router.post('/mark', async (req, res) => {
 
   const { data, error } = await supabase
     .from(TABLE[kind]).update(updates)
-    .eq('id', req.body.id).select('id, open_order, open_printed').single();
+    .eq('id', req.body.id).select('id, open_order, open_printed, tracking_number, recipient_name, owner_code_id').single();
   if (error) return res.status(500).json({ error: error.message });
+
+  const codes = await fetchCodes().catch(() => []);
+  const pemilik = codes.find(c => String(c.id) === String(data.owner_code_id))?.label;
+  logActivity({
+    action: 'open_order_mark',
+    summary: `Tanda buka ke-${data.open_order}: ${data.tracking_number}${pemilik ? ` (${pemilik})` : ''}`,
+    ref_type: `${kind}_parcel`,
+    ref_id: data.id,
+  });
+
   res.json({ ...data, kind });
 });
 
