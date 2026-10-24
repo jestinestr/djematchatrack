@@ -6,7 +6,7 @@ const { uploadPhoto } = require('../lib/storage');
 const { fetchCodes, attachOwners, maskParcel, norm } = require('../lib/owner');
 const { logActivity, batchLabel, parcelLabel } = require('../lib/log');
 const { activePackageId, loadPackageInfo, attachPackage } = require('../lib/packages');
-const { stripMissing } = require('../lib/columns');
+const { stripMissing, hasColumn } = require('../lib/columns');
 const { ensureOpenBox } = require('../lib/box');
 const { getSetting } = require('../lib/settings');
 
@@ -495,6 +495,53 @@ async function cariKembar(list) {
   }
   return out;
 }
+
+// ── Checklist packing untuk sekumpulan resi ─────────────────────────
+//  Dipakai halaman invoice: resi yang mau ditagih sekalian dicek sudah
+//  masuk kardus atau belum. Permintaan tutup box punya route sendiri
+//  karena di sana resinya juga bisa dikeluarkan dari daftar.
+const PACK_BELUM_AKTIF =
+  'Checklist packing belum aktif — jalankan supabase/migrations/022_packing_checklist.sql';
+
+router.post('/packlist', async (req, res) => {
+  const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Boolean);
+  const siap = await hasColumn('wh_parcels', 'packed_at');
+  if (!ids.length) return res.json({ ready: siap, parcels: [], packed: 0, total: 0 });
+
+  const kolom = 'id, tracking_number, recipient_name, type, photo_url, estimated_quantity, box_id'
+    + (siap ? ', packed_at' : '');
+  const { data, error } = await supabase.from('wh_parcels').select(kolom).in('id', ids);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const byId = new Map((data || []).map(p => [String(p.id), p]));
+  const parcels = ids.map(i => byId.get(String(i))).filter(Boolean)
+    .map(p => ({ ...p, packed_at: siap ? p.packed_at : null }));
+
+  res.json({
+    ready: siap,
+    error: siap ? null : PACK_BELUM_AKTIF,
+    parcels,
+    packed: parcels.filter(p => p.packed_at).length,
+    total: parcels.length,
+  });
+});
+
+router.post('/pack', async (req, res) => {
+  if (!(await hasColumn('wh_parcels', 'packed_at'))) {
+    return res.status(503).json({ error: PACK_BELUM_AKTIF });
+  }
+  const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Boolean);
+  if (!ids.length) return res.status(400).json({ error: 'Tidak ada resi yang dipilih' });
+
+  const masuk = req.body.packed !== false;
+  const { error } = await supabase
+    .from('wh_parcels')
+    .update({ packed_at: masuk ? new Date().toISOString() : null })
+    .in('id', ids);
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ success: true, updated: ids.length, packed: masuk });
+});
 
 router.post('/check-duplicate', async (req, res) => {
   const list = Array.isArray(req.body.tracking_numbers) ? req.body.tracking_numbers : [];

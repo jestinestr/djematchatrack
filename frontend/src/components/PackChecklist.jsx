@@ -10,7 +10,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // Dipakai sambil packing, sering lewat ponsel dan satu tangan: barisnya
 // besar, yang belum masuk ditaruh di atas, dan kotak cari di atasnya bisa
 // langsung mencentang kalau hasilnya tinggal satu.
-export default function PackChecklist({ requestId, onClose, onChanged }) {
+export default function PackChecklist({
+  requestId,          // dipakai dari Req Close Box: ✕ mengeluarkan dari permintaan
+  parcelIds,          // dipakai dari Invoice: daftar resi yang mau ditagih
+  judul,              // keterangan kecil di bawah judul
+  onDrop,             // ✕ waktu memakai parcelIds — diurus pemanggilnya
+  onClose,
+  onChanged,
+}) {
+  const lewatPermintaan = !!requestId;
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
@@ -22,14 +30,21 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await fetch(`/api/box-requests/${requestId}/packlist`).then(r => r.json());
+      const d = lewatPermintaan
+        ? await fetch(`/api/box-requests/${requestId}/packlist`).then(r => r.json())
+        : await fetch('/api/parcels/packlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: parcelIds || [] }),
+          }).then(r => r.json());
       setData(d);
       setError(d.ready === false ? d.error : '');
     } catch {
       setError('Gagal memuat daftar packing');
     }
     setLoading(false);
-  }, [requestId]);
+    // daftar resinya ikut berubah kalau centang tagihnya diubah
+  }, [requestId, lewatPermintaan, JSON.stringify(parcelIds || [])]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 
@@ -65,7 +80,7 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
         ids.includes(p.id) ? { ...p, packed_at: masuk ? new Date().toISOString() : null } : p),
     }));
     try {
-      const res = await fetch(`/api/box-requests/${requestId}/pack`, {
+      const res = await fetch(lewatPermintaan ? `/api/box-requests/${requestId}/pack` : '/api/parcels/pack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, packed: masuk }),
@@ -80,8 +95,19 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
     }
   }
 
-  // Barangnya tidak ketemu → keluarkan dari permintaan ini
+  // Barangnya tidak ketemu → keluarkan dari daftar
   async function keluarkan(p) {
+    if (!lewatPermintaan) {
+      if (!window.confirm(
+        `Keluarkan ${p.tracking_number} dari daftar yang ditagih?\n\n`
+        + 'Centang tagihnya dilepas, resinya sendiri tidak diapa-apakan.'
+      )) return;
+      onDrop?.(p);
+      lapor(true, `${p.tracking_number} tidak ikut ditagih`);
+      setData(d => ({ ...d, parcels: d.parcels.filter(x => x.id !== p.id) }));
+      return;
+    }
+
     if (!window.confirm(
       `Keluarkan ${p.tracking_number} dari permintaan ini?\n\n`
       + 'Resinya tetap ada di box dan bisa ikut kiriman berikutnya — cuma tidak ikut '
@@ -131,9 +157,10 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
             <div className="min-w-0">
               <h2 className="text-base font-bold text-matcha-800">📦 Checklist Packing</h2>
               <p className="text-xs text-gray-500 mt-0.5 truncate">
-                {data?.request
-                  ? `${data.request.owner?.label || '—'} · ${data.request.box?.name || 'tanpa box'} · permintaan tutup box`
-                  : 'Memuat…'}
+                {judul
+                  || (data?.request
+                    ? `${data.request.owner?.label || '—'} · ${data.request.box?.name || 'tanpa box'} · permintaan tutup box`
+                    : 'Memuat…')}
               </p>
             </div>
             <button onClick={onClose}
@@ -183,7 +210,9 @@ export default function PackChecklist({ requestId, onClose, onChanged }) {
         {!!parcels.length && (
           <p className="px-5 pt-2 text-[11px] text-gray-400 leading-snug">
             Centang kalau barangnya sudah masuk kardus. Tombol <b>✕</b> untuk resi yang
-            barangnya tidak ketemu — keluar dari kiriman ini, tetap aman di boxnya.
+            barangnya tidak ketemu — {lewatPermintaan
+              ? 'keluar dari kiriman ini, tetap aman di boxnya.'
+              : 'centang tagihnya dilepas, resinya tidak diapa-apakan.'}
           </p>
         )}
 

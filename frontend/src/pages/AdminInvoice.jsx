@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import BillingList from '../components/BillingList';
+import PackChecklist from '../components/PackChecklist';
 import {
   CURRENCIES, money, rupiah, baseFee, normCurrency,
   formatWeight, formatDate,
@@ -68,6 +69,9 @@ export default function AdminInvoice() {
   const [savingId, setSavingId] = useState(null);
   const [chosen, setChosen]   = useState(new Set()); // id resi yang ikut ditagih
   const [payingId, setPayingId] = useState(null);
+  // Checklist packing untuk resi yang mau ditagih — bikin invoice biasanya
+  // berarti boxnya sebentar lagi ditutup, jadi isinya dicek sekalian
+  const [packing, setPacking] = useState(null);   // { ownerId, ids, judul }
 
   const isBox = true;
 
@@ -647,6 +651,19 @@ export default function AdminInvoice() {
         </>
       )}
 
+      {packing && (
+        <PackChecklist
+          parcelIds={packing.ids}
+          judul={packing.judul}
+          onDrop={p => setChosen(prev => {
+            const next = new Set(prev);
+            next.delete(p.id);
+            return next;
+          })}
+          onClose={() => setPacking(null)}
+        />
+      )}
+
       {batchId && (
         <button onClick={() => { setBatchId(''); if (params.get('box')) setParams({}, { replace: true }); }}
           className="text-xs font-semibold text-gray-500 hover:text-matcha-700 mb-3">
@@ -942,6 +959,18 @@ export default function AdminInvoice() {
                           ) : null;
                         })()}
                       </span>
+                      <button
+                        onClick={() => setPacking({
+                          ownerId: c.owner?.id,
+                          ids: c.parcels.map(p => p.id),
+                          judul: `${c.owner?.label || '—'} · ${c.box_title || batch?.label || ''} · ${c.parcel_count} resi ditagih`,
+                        })}
+                        disabled={!c.parcel_count}
+                        title="Centang barang yang sudah masuk kardus"
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 disabled:opacity-40 flex-shrink-0"
+                      >
+                        📦 Checklist packing
+                      </button>
                       <button
                         onClick={() => setChosen(prev => {
                           const next = new Set(prev);
