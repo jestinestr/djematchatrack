@@ -15,6 +15,7 @@ export default function PackChecklist({
   parcelIds,          // dipakai dari Invoice: daftar resi yang mau ditagih
   judul,              // keterangan kecil di bawah judul
   onDrop,             // ✕ waktu memakai parcelIds — diurus pemanggilnya
+  dariTagihan,        // ✕ berarti mengeluarkan resi dari tagihan yang sudah dicetak
   onClose,
   onChanged,
 }) {
@@ -100,7 +101,9 @@ export default function PackChecklist({
     if (!lewatPermintaan) {
       if (!window.confirm(
         `Keluarkan ${p.tracking_number} dari daftar yang ditagih?\n\n`
-        + 'Centang tagihnya dilepas, resinya sendiri tidak diapa-apakan.'
+        + (dariTagihan
+          ? 'Resinya keluar dari tagihan ini dan totalnya dihitung ulang. Resinya sendiri tidak diapa-apakan.'
+          : 'Centang tagihnya dilepas, resinya sendiri tidak diapa-apakan.')
       )) return;
       onDrop?.(p);
       lapor(true, `${p.tracking_number} tidak ikut ditagih`);
@@ -212,7 +215,9 @@ export default function PackChecklist({
             Centang kalau barangnya sudah masuk kardus. Tombol <b>✕</b> untuk resi yang
             barangnya tidak ketemu — {lewatPermintaan
               ? 'keluar dari kiriman ini, tetap aman di boxnya.'
-              : 'centang tagihnya dilepas, resinya tidak diapa-apakan.'}
+              : dariTagihan
+                ? 'keluar dari tagihan ini dan totalnya dihitung ulang.'
+                : 'centang tagihnya dilepas, resinya tidak diapa-apakan.'}
           </p>
         )}
 

@@ -479,6 +479,26 @@ export default function AdminInvoice() {
     loadBillings();
   }
 
+  // Checklist packing untuk satu penagihan yang sudah dicetak. Invoice
+  // tercetak biasanya berarti boxnya sebentar lagi ditutup, jadi isinya
+  // dicocokkan dari sini juga. ✕ di modalnya mengeluarkan resi dari tagihan
+  // itu, lalu totalnya dihitung ulang sendiri.
+  function packingTagihan(bill) {
+    setPacking({
+      ids: bill.parcel_ids || [],
+      judul: `${bill.title} · ${bill.parcel_count} resi ditagih`,
+      bill,
+    });
+  }
+
+  async function keluarkanDariTagihan(bill, parcel) {
+    const sisa = (bill.parcel_ids || []).filter(i => String(i) !== String(parcel.id));
+    const h = await hitungUlang({ ...bill, parcel_ids: sisa });
+    if (!h) return;
+    await simpanTagihanBaru({ ...bill, parcel_ids: sisa }, h);
+    setPacking(pk => (pk ? { ...pk, ids: sisa, bill: { ...bill, parcel_ids: sisa } } : pk));
+  }
+
   // Biaya kurir sering baru ketahuan sesudah invoice dicetak — angkanya
   // dibetulkan di daftar biaya, lalu tagihannya diperbarui dari sini.
   async function perbaruiTagihan(bill) {
@@ -680,6 +700,7 @@ export default function AdminInvoice() {
             onRemove={removeBilling}
             onOpen={b => setBatchId(String(b.ref_id))}
             onPrint={cetakUlang}
+            onPack={packingTagihan}
             onChanged={loadBillings}
           />
         </>
@@ -689,11 +710,14 @@ export default function AdminInvoice() {
         <PackChecklist
           parcelIds={packing.ids}
           judul={packing.judul}
-          onDrop={p => setChosen(prev => {
-            const next = new Set(prev);
-            next.delete(p.id);
-            return next;
-          })}
+          dariTagihan={!!packing.bill}
+          onDrop={p => (packing.bill
+            ? keluarkanDariTagihan(packing.bill, p)
+            : setChosen(prev => {
+                const next = new Set(prev);
+                next.delete(p.id);
+                return next;
+              }))}
           onClose={() => setPacking(null)}
         />
       )}
@@ -1158,6 +1182,7 @@ export default function AdminInvoice() {
               onOpen={() => {}}
               onPrint={cetakUlang}
               onUpdate={perbaruiTagihan}
+              onPack={packingTagihan}
               onChanged={loadBillings}
             />
           )}

@@ -6,7 +6,7 @@ import { CURRENCIES, money, rupiah, formatDate } from '../utils/format';
 // Tagihan bisa campur Yuan dan Rupiah, jadi pembayaran dicatat beserta mata
 // uangnya dan kurang/lebihnya dihitung per mata uang — bukan dijumlahkan
 // jadi satu angka yang menyesatkan.
-export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, onUpdate, onChanged, judul }) {
+export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, onUpdate, onPack, onChanged, judul }) {
   if (!list.length) return null;
 
   return (
@@ -24,7 +24,8 @@ export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, o
       <div className="divide-y divide-amber-100">
         {list.map(b => (
           <BillingRow key={b.id} bill={b} onPaid={onPaid} onRemove={onRemove}
-            onOpen={onOpen} onPrint={onPrint} onUpdate={onUpdate} onChanged={onChanged} />
+            onOpen={onOpen} onPrint={onPrint} onUpdate={onUpdate} onPack={onPack}
+            onChanged={onChanged} />
         ))}
       </div>
     </div>
@@ -39,7 +40,7 @@ export const selisihBayar = bill => [
   { cur: 'CNY', v: bill.due_cny ?? bill.total_cny },
 ].filter(x => Math.abs(x.v || 0) > 0.009);
 
-function BillingRow({ bill, onPaid, onRemove, onOpen, onPrint, onUpdate, onChanged }) {
+function BillingRow({ bill, onPaid, onRemove, onOpen, onPrint, onUpdate, onPack, onChanged }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState({ amount: '', currency: 'CNY', note: '' });
@@ -139,6 +140,13 @@ function BillingRow({ bill, onPaid, onRemove, onOpen, onPrint, onUpdate, onChang
           )}
         </div>
 
+        {onPack && (
+          <button onClick={() => onPack(bill)}
+            title="Checklist packing — centang barang yang sudah masuk kardus"
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-cream-300 bg-white text-gray-600 hover:bg-cream-50 whitespace-nowrap">
+            📦 Checklist
+          </button>
+        )}
         {onUpdate && (
           <button onClick={() => onUpdate(bill)}
             title="Hitung ulang tagihannya dari biaya & resi yang sekarang"
