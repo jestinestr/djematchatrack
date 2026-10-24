@@ -6,7 +6,7 @@ import { CURRENCIES, money, rupiah, formatDate } from '../utils/format';
 // Tagihan bisa campur Yuan dan Rupiah, jadi pembayaran dicatat beserta mata
 // uangnya dan kurang/lebihnya dihitung per mata uang — bukan dijumlahkan
 // jadi satu angka yang menyesatkan.
-export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, onChanged }) {
+export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, onUpdate, onChanged, judul }) {
   if (!list.length) return null;
 
   return (
@@ -14,7 +14,7 @@ export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, o
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200">
         <span className="text-base leading-none">🧾</span>
         <p className="text-xs font-bold text-amber-900 flex-1">
-          Penagihan berjalan ({list.length})
+          {judul || 'Penagihan berjalan'} ({list.length})
         </p>
         <span className="text-[11px] text-amber-700/80 hidden sm:block">
           Invoice yang sudah dicetak, menunggu dibayar
@@ -24,7 +24,7 @@ export default function BillingList({ list, onPaid, onRemove, onOpen, onPrint, o
       <div className="divide-y divide-amber-100">
         {list.map(b => (
           <BillingRow key={b.id} bill={b} onPaid={onPaid} onRemove={onRemove}
-            onOpen={onOpen} onPrint={onPrint} onChanged={onChanged} />
+            onOpen={onOpen} onPrint={onPrint} onUpdate={onUpdate} onChanged={onChanged} />
         ))}
       </div>
     </div>
@@ -39,7 +39,7 @@ export const selisihBayar = bill => [
   { cur: 'CNY', v: bill.due_cny ?? bill.total_cny },
 ].filter(x => Math.abs(x.v || 0) > 0.009);
 
-function BillingRow({ bill, onPaid, onRemove, onOpen, onPrint, onChanged }) {
+function BillingRow({ bill, onPaid, onRemove, onOpen, onPrint, onUpdate, onChanged }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState({ amount: '', currency: 'CNY', note: '' });
@@ -139,6 +139,13 @@ function BillingRow({ bill, onPaid, onRemove, onOpen, onPrint, onChanged }) {
           )}
         </div>
 
+        {onUpdate && (
+          <button onClick={() => onUpdate(bill)}
+            title="Hitung ulang tagihannya dari biaya & resi yang sekarang"
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-matcha-300 bg-white text-matcha-700 hover:bg-matcha-50 whitespace-nowrap">
+            🔄 Perbarui
+          </button>
+        )}
         <button onClick={() => onPrint?.(bill)} title="Lihat & cetak ulang invoicenya"
           className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-cream-300 bg-white text-gray-600 hover:bg-cream-50 whitespace-nowrap">
           🖨 Lihat

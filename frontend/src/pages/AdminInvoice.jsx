@@ -258,6 +258,9 @@ export default function AdminInvoice() {
   const invoiceable = customers.filter(c => c.owner);
   // Semua tagihan Yuan dihitung jadi Rupiah memakai kurs yang diisi admin
   const pakaiRupiah = tagihRupiah && rate > 0;
+  // Penagihan yang sudah dicetak untuk box yang sedang dibuka
+  const tagihanBoxIni = (billings.list || []).filter(b =>
+    String(b.ref_id) === String(batchId) && String(b.scope) === (isBox ? 'box' : 'batch'));
 
   const grand = useMemo(() => {
     const t = { IDR: 0, CNY: 0, fine: 0, parcels: 0 };
@@ -404,7 +407,9 @@ export default function AdminInvoice() {
   // baru dibetulkan (biaya, foto, catatan) hasil cetakannya ikut terbaru.
   // Kalau totalnya jadi berbeda dari yang tersimpan, admin ditawari
   // memperbarui tagihannya sekalian.
-  async function cetakUlang(bill) {
+  // Hitung ulang satu penagihan memakai data resi & biaya yang sekarang.
+  // Dipakai dua tombol: cetak ulang, dan perbarui tagihan tanpa mencetak.
+  async function hitungUlang(bill) {
     const url = bill.scope === 'box'
       ? `/api/invoices/box/${bill.ref_id}`
       : `/api/invoices/batch/${bill.ref_id}`;
@@ -414,61 +419,48 @@ export default function AdminInvoice() {
       d = await fetch(url).then(r => r.json());
     } catch {
       alert('Gagal memuat rekap penagihan ini');
-      return;
+      return null;
     }
 
     const asli = (d.customers || []).find(c =>
       String(c.owner?.id) === String(bill.owner_code_id));
     if (!asli) {
       alert('Rekap pelanggan ini sudah tidak ada di wadahnya — mungkin resinya sudah dipindah.');
-      return;
+      return null;
     }
 
     const ids = new Set((bill.parcel_ids || []).map(String));
     const dipakai = (asli.parcels || []).filter(p => ids.has(String(p.id)));
     if (!dipakai.length) {
       alert('Resi yang ditagih di invoice ini sudah tidak ada di wadahnya.');
-      return;
+      return null;
     }
 
     const kurs = Number(bill.cny_rate) || 0;
     // Invoice ini dulu ditagih dalam Rupiah kalau nilai Yuannya disimpan nol
     const dalamRupiah = kurs > 0 && !Number(bill.total_cny);
     const totals = calcTotals({ ...asli, carry: null }, dipakai, type, true);
-    const kartu = { ...asli, parcels: dipakai, parcel_count: dipakai.length, totals };
 
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
-      return;
-    }
-    w.document.write(buildInvoicesHTML(d.batch, [kartu], type, kurs, dalamRupiah));
-    w.document.close();
-    w.focus();
-
-    // Angkanya bergeser sejak dicetak? tawarkan memperbarui tagihannya
-    const idrBaru = dalamRupiah
-      ? totals.IDR.total + totals.CNY.total * kurs
-      : totals.IDR.total;
+    const idrBaru = dalamRupiah ? totals.IDR.total + totals.CNY.total * kurs : totals.IDR.total;
     const cnyBaru = dalamRupiah ? 0 : totals.CNY.total;
     const beda = Math.abs(idrBaru - Number(bill.total_idr)) > 0.5
       || Math.abs(cnyBaru - Number(bill.total_cny)) > 0.009;
-    if (!beda) return;
 
-    const ringkas = [
-      idrBaru ? rupiah(idrBaru) : null,
-      cnyBaru ? money(cnyBaru, 'CNY') : null,
-    ].filter(Boolean).join(' + ') || '0';
-    const lama = [
-      Number(bill.total_idr) ? rupiah(bill.total_idr) : null,
-      Number(bill.total_cny) ? money(bill.total_cny, 'CNY') : null,
-    ].filter(Boolean).join(' + ') || '0';
+    const uang = (idr, cny) => [idr ? rupiah(idr) : null, cny ? money(cny, 'CNY') : null]
+      .filter(Boolean).join(' + ') || '0';
 
-    if (!window.confirm(
-      `Totalnya sekarang ${ringkas}, sedangkan yang tercatat di penagihan ${lama}.\n\n`
-      + 'Perbarui tagihannya ke angka yang baru? Pembayaran yang sudah dicatat tetap ada.'
-    )) return;
+    return {
+      batch: d.batch,
+      kartu: { ...asli, parcels: dipakai, parcel_count: dipakai.length, totals },
+      kurs, dalamRupiah, idrBaru, cnyBaru, beda,
+      ringkasBaru: uang(idrBaru, cnyBaru),
+      ringkasLama: uang(Number(bill.total_idr), Number(bill.total_cny)),
+    };
+  }
 
+  // Simpan angka baru ke penagihan yang sama — resi, pembayaran, dan
+  // nomor invoicenya tidak berubah.
+  async function simpanTagihanBaru(bill, h) {
     await fetch('/api/billings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -478,13 +470,55 @@ export default function AdminInvoice() {
         type: bill.type,
         owner_code_id: bill.owner_code_id,
         title: bill.title,
-        parcel_ids: dipakai.map(p => p.id),
-        total_idr: idrBaru,
-        total_cny: cnyBaru,
-        cny_rate: kurs,
+        parcel_ids: h.kartu.parcels.map(p => p.id),
+        total_idr: h.idrBaru,
+        total_cny: h.cnyBaru,
+        cny_rate: h.kurs,
       }),
     });
     loadBillings();
+  }
+
+  // Biaya kurir sering baru ketahuan sesudah invoice dicetak — angkanya
+  // dibetulkan di daftar biaya, lalu tagihannya diperbarui dari sini.
+  async function perbaruiTagihan(bill) {
+    const h = await hitungUlang(bill);
+    if (!h) return;
+    if (!h.beda) {
+      alert(`Tagihannya sudah sesuai: ${h.ringkasLama}. Tidak ada yang perlu diperbarui.`);
+      return;
+    }
+    if (!window.confirm(
+      `Perbarui tagihan "${bill.title}"?\n\n`
+      + `Tercatat sekarang: ${h.ringkasLama}\n`
+      + `Setelah diperbarui: ${h.ringkasBaru}\n\n`
+      + 'Pembayaran yang sudah dicatat tetap ada.'
+    )) return;
+    await simpanTagihanBaru(bill, h);
+  }
+
+  async function cetakUlang(bill) {
+    const h = await hitungUlang(bill);
+    if (!h) return;
+    const { batch: wadah, kartu, kurs, dalamRupiah } = h;
+
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Jendela cetak diblokir browser. Izinkan popup untuk situs ini, lalu coba lagi.');
+      return;
+    }
+    w.document.write(buildInvoicesHTML(wadah, [kartu], type, kurs, dalamRupiah));
+    w.document.close();
+    w.focus();
+
+    // Angkanya bergeser sejak dicetak? tawarkan memperbarui tagihannya
+    if (!h.beda) return;
+    if (!window.confirm(
+      `Totalnya sekarang ${h.ringkasBaru}, sedangkan yang tercatat di penagihan ${h.ringkasLama}.\n\n`
+      + 'Perbarui tagihannya ke angka yang baru? Pembayaran yang sudah dicatat tetap ada.'
+    )) return;
+
+    await simpanTagihanBaru(bill, h);
   }
 
   async function removeBilling(bill) {
@@ -1111,6 +1145,22 @@ export default function AdminInvoice() {
               );
             })}
           </div>
+
+          {/* Penagihan box ini — ditaruh di sini supaya sesudah menambah
+              biaya (ongkir kurir sering baru ketahuan belakangan) tagihannya
+              bisa langsung diperbarui tanpa keluar dulu */}
+          {tagihanBoxIni.length > 0 && (
+            <BillingList
+              judul="Penagihan box ini"
+              list={tagihanBoxIni}
+              onPaid={setBillingPaid}
+              onRemove={removeBilling}
+              onOpen={() => {}}
+              onPrint={cetakUlang}
+              onUpdate={perbaruiTagihan}
+              onChanged={loadBillings}
+            />
+          )}
 
           {/* Aksi — satu bingkai di bawah, sesudah semua isinya terlihat */}
           <div className="mt-4 bg-white rounded-2xl border border-cream-200 shadow-soft p-3
