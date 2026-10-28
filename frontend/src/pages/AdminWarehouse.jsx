@@ -824,6 +824,12 @@ export default function AdminWarehouse() {
 //  yang masih kurang — label dan foto — karena begitu keduanya beres,
 //  nomornya dilepas sendiri oleh server.
 function OpenMarkCell({ parcel, next, onMark, onUnmark }) {
+  // Fotonya sudah ada = paketnya memang sudah dibuka, jadi tidak perlu
+  // ditandai lagi. Tombol "+"-nya diganti strip supaya barisnya tenang.
+  if (parcel.open_order == null && parcel.photo_url) {
+    return <span className="text-gray-300" title="Sudah ada foto arrival — sudah dibuka">—</span>;
+  }
+
   if (parcel.open_order == null) {
     return (
       <button
