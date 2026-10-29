@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { compressImage } from '../utils/image';
 import { clearSession, isUploader } from '../utils/auth';
@@ -33,8 +33,11 @@ export default function PhotoAdmin() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const kind = 'wh';   // Hand Carry sudah dipensiunkan
-  const [missingOnly, setMissingOnly] = useState(true);
-  const [unboxingOnly, setUnboxingOnly] = useState(false);
+  // 'belum' | 'unboxing' | 'semua' — satu saringan saja, supaya tidak
+  // ada kombinasi yang membingungkan waktu dipakai sambil foto-foto
+  const [saringan, setSaringan] = useState('belum');
+  const missingOnly = saringan === 'belum';
+  const unboxingOnly = saringan === 'unboxing';
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -98,7 +101,18 @@ export default function PhotoAdmin() {
     }
   }
 
+  // Urutan kerja di lapangan: yang ditandai urutan buka paling atas,
+  // lalu yang belum ada fotonya, baru yang sudah selesai.
+  const urutKerja = useMemo(() => [...parcels].sort((a, b) => {
+    const ta = a.open_order != null ? 0 : a.photo_url ? 2 : 1;
+    const tb = b.open_order != null ? 0 : b.photo_url ? 2 : 1;
+    if (ta !== tb) return ta - tb;
+    if (ta === 0) return a.open_order - b.open_order;
+    return 0;
+  }), [parcels]);
+
   const withPhoto = parcels.filter(p => p.photo_url).length;
+  const belumFoto = parcels.length - withPhoto;
   const needUnboxing = parcels.filter(p => p.need_unboxing).length;
   const markedCount = parcels.filter(p => p.open_order != null).length;
 
@@ -141,25 +155,40 @@ export default function PhotoAdmin() {
             )}
           </div>
 
-          {/* Saringan */}
-          <div className="flex items-center gap-2 mt-2.5 overflow-x-auto no-scrollbar">
-            <button onClick={() => setMissingOnly(v => !v)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition ${
-                missingOnly ? 'bg-berry-500 text-white' : 'bg-white/15 text-white/75'
-              }`}>
-              {missingOnly ? '📷 Belum ada foto' : '📋 Semua resi'}
-            </button>
-            <button onClick={() => setUnboxingOnly(v => !v)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition ${
-                unboxingOnly ? 'bg-violet-500 text-white' : 'bg-white/15 text-white/75'
-              }`}>
-              🎥 Unboxing
-            </button>
+          {/* Saringan — satu pilihan aktif, jadi jelas sedang lihat apa */}
+          <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+            {[
+              ['belum', 'Belum difoto'],
+              ['unboxing', 'Unboxing'],
+              ['semua', 'Semua resi'],
+            ].map(([v, label]) => (
+              <button key={v} onClick={() => setSaringan(v)}
+                className={`text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition ${
+                  saringan === v ? 'bg-white text-matcha-800' : 'bg-white/15 text-white/75'
+                }`}>
+                {label}
+              </button>
+            ))}
+            <div className="flex-1" />
             <button onClick={() => setBulkOpen(true)}
-              className="text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap bg-white text-matcha-800 transition">
-              📚 Upload banyak
+              className="text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap bg-white/15 text-white transition">
+              Upload banyak
             </button>
           </div>
+
+          {/* Kemajuan hari ini — biar kelihatan sisa pekerjaannya */}
+          {!loading && parcels.length > 0 && (
+            <div className="mt-2.5">
+              <div className="flex items-center justify-between text-[11px] text-white/80 font-semibold">
+                <span>{withPhoto} dari {parcels.length} sudah difoto</span>
+                {belumFoto > 0 && <span className="text-amber-200">{belumFoto} belum</span>}
+              </div>
+              <div className="h-1.5 bg-white/20 rounded-full mt-1 overflow-hidden">
+                <div className="h-full bg-white/80 transition-all duration-300"
+                  style={{ width: `${Math.round((withPhoto / parcels.length) * 100)}%` }} />
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -190,20 +219,23 @@ export default function PhotoAdmin() {
         ) : (
           <>
             <p className="text-[11px] text-gray-400 font-semibold mb-2 px-1">
-              {parcels.length} resi · {withPhoto} sudah ada foto
+              {parcels.length} resi{saringan === 'belum' ? ' belum difoto' : ''}
+              {saringan !== 'belum' && ` · ${withPhoto} sudah ada foto`}
               {markedCount > 0 && <span className="text-matcha-700"> · 🔖 {markedCount} ditandai buka</span>}
               {needUnboxing > 0 && (
                 <span className="text-violet-600"> · 🎥 {needUnboxing} minta unboxing</span>
               )}
             </p>
             <div className="space-y-2.5">
-              {parcels.map(p => (
+              {urutKerja.map(p => (
                 <button key={rowKey(p)} onClick={() => setActive(p)}
-                  className={`w-full flex items-center gap-3 bg-white rounded-3xl border-2 p-2.5
+                  className={`w-full flex items-center gap-3 rounded-3xl border-2 p-2.5
                               text-left active:scale-[0.99] transition shadow-soft ${
                     p.need_unboxing
-                      ? 'border-violet-400 ring-2 ring-violet-100'
-                      : 'border-cream-200 active:border-matcha-300'
+                      ? 'bg-white border-violet-400 ring-2 ring-violet-100'
+                      : p.photo_url
+                        ? 'bg-cream-50/70 border-cream-200'
+                        : 'bg-white border-cream-200 active:border-matcha-300'
                   }`}>
                   {/* Nomor urut bongkar, ditandai admin dari PC */}
                   {p.open_order != null && (
