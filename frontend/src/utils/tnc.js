@@ -43,6 +43,12 @@ export const TATA_CARA = [
       + 'Kurang bayar ikut ditagih di invoice berikutnya, kelebihan jadi potongan.',
   },
   {
+    judul: 'Kalau butuh waktu lebih',
+    isi: 'Durasi simpan bisa diperpanjang, tapi **harus lewat admin** — hubungi admin '
+      + 'sebelum jatahnya habis. Sebaliknya kalau sudah mau dikirim, ajukan lewat '
+      + '**Minta Tutup Box**, bukan lewat chat, supaya resinya tercatat rapi.',
+  },
+  {
     judul: 'Barang dikirim',
     isi: 'Setelah lunas, boxnya ditutup dan dikirim ke alamat yang kamu tulis. '
       + 'Resi yang belum ikut kiriman ini otomatis masuk box berikutnya — tidak hilang.',
@@ -62,6 +68,8 @@ export const TNC_DEFAULT = `## Setor resi
 - Durasi penyimpanan satu box dihitung sejak **foto arrival pertama** di box itu — bukan sejak boxnya dibuat, dan bukan per resi.
 - Resi yang masuk belakangan ikut durasi box yang sedang berjalan, jadi **kalau belanjaanmu sudah lengkap segera minta boxnya ditutup**.
 - Warehouse mengingatkan lewat panel ini beberapa hari sebelum durasinya habis.
+- **Mau memperpanjang durasi? Hubungi admin dulu ya** — perpanjangan diatur admin, tidak berjalan otomatis.
+- **Mau barangnya dikirim? Ajukan lewat tombol Minta Tutup Box**, jangan lewat chat, supaya resinya tercatat dan tidak ada yang tertinggal.
 - Kalau ada kelonggaran (mis. pengiriman tertunda cuaca), warehouse bisa memberi bonus hari yang tidak ikut dihitung.
 
 ## Jadwal update

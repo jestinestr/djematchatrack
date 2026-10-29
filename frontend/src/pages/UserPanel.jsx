@@ -510,7 +510,7 @@ export default function UserPanel({ type }) {
 
             {!loading && !error && batch && (
               <>
-                <DurasiNotice info={durasiInfo} />
+                <DurasiNotice info={durasiInfo} onTutupBox={() => setMintaTutup(true)} />
 
                 {/* Kerjaan admin hari ini */}
                 <TodayNotice

@@ -64,7 +64,7 @@ export function FineNotice({ info, onDismiss }) {
 // ── Durasi simpan box hampir habis ──────────────────────────────────
 //  Dihitung sejak foto arrival pertama di box itu — sama persis dengan
 //  yang dilihat admin, jadi tidak ada angka yang berbeda cerita.
-export function DurasiNotice({ info }) {
+export function DurasiNotice({ info, onTutupBox }) {
   if (!info) return null;
   const { sisa, batas, nama } = info;
 
@@ -84,8 +84,30 @@ export function DurasiNotice({ info }) {
         </p>
         <p className={`text-xs mt-0.5 leading-snug ${lewat ? 'text-red-700/90' : 'text-amber-800/90'}`}>
           Jatahnya {batas} hari, dihitung sejak <b>foto arrival pertama</b> di box ini.
-          Kalau belanjaanmu sudah lengkap, segera pakai tombol <b>Minta Tutup Box</b> ya 🤍
         </p>
+
+        {/* Dua jalan keluarnya disebut terang-terangan, supaya pelanggan
+            tidak bingung harus apa */}
+        <ul className={`text-xs mt-2 space-y-1 leading-snug ${lewat ? 'text-red-800' : 'text-amber-900'}`}>
+          <li>
+            📦 <b>Mau dikirim sekarang?</b> Ajukan lewat tombol <b>Minta Tutup Box</b>.
+          </li>
+          <li>
+            💬 <b>Mau diperpanjang?</b> Silakan hubungi admin dulu ya — perpanjangan
+            diatur admin, bukan otomatis.
+          </li>
+        </ul>
+
+        {onTutupBox && (
+          <button onClick={onTutupBox}
+            className={`mt-2.5 text-xs font-bold px-3 py-2 rounded-xl border-2 bg-white transition-colors ${
+              lewat
+                ? 'border-red-300 text-red-700 hover:bg-red-50'
+                : 'border-amber-300 text-amber-800 hover:bg-amber-100'
+            }`}>
+            📮 Minta Tutup Box sekarang
+          </button>
+        )}
       </div>
     </div>
   );
