@@ -7,7 +7,7 @@ import LabelPrintModal from '../components/LabelPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import ActionButton, { IconEye, IconPencil, IconPrinter, IconTrash } from '../components/ActionButton';
-import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone } from '../utils/format';
+import { sumParcels, formatMulti, money, baseFee, storageDays, storageTone, boxStorage, rupiah } from '../utils/format';
 
 export default function AdminWarehouse() {
   const [boxes, setBoxes] = useState([]);
@@ -303,6 +303,15 @@ export default function AdminWarehouse() {
     });
     load();
   }
+
+  // Umur tiap box dihitung sekali di sini supaya tabelnya tidak
+  // menghitung ulang per baris
+  const umurPerBox = useMemo(() => {
+    const m = new Map();
+    for (const b of boxes) m.set(String(b.id), boxStorage(b, b.parcels || []));
+    return m;
+  }, [boxes]);
+  const umurBox = p => (p.box_id ? umurPerBox.get(String(p.box_id)) : null) || null;
 
   const openBoxes = boxes.filter(b => b.status === 'open');
   const totals = sumParcels(openBoxes.flatMap(b => b.parcels || []), 'WH');
@@ -613,15 +622,12 @@ export default function AdminWarehouse() {
                     />
                   </th>
                   <th className="px-3 py-2 text-left w-10">No</th>
-                  <th className="px-3 py-2 text-center w-16" title="Urutan paket dibuka — untuk mencocokkan foto arrival">Buka</th>
-                  <th className="px-3 py-2 text-left">User</th>
-                  <th className="px-3 py-2 text-left">Penerima</th>
+                  <th className="px-3 py-2 text-center w-14" title="Urutan paket dibuka — untuk mencocokkan foto arrival">Buka</th>
                   <th className="px-3 py-2 text-left w-14">Foto</th>
-                  <th className="px-3 py-2 text-left">Jenis</th>
-                  <th className="px-3 py-2 text-left">Permintaan</th>
-                  <th className="px-3 py-2 text-right">Jumlah</th>
-                  <th className="px-3 py-2 text-right">Fee WH</th>
-                  <th className="px-3 py-2 text-right">Durasi</th>
+                  <th className="px-3 py-2 text-left">Resi &amp; pemilik</th>
+                  <th className="px-3 py-2 text-left">Isi &amp; permintaan</th>
+                  <th className="px-3 py-2 text-right">Biaya</th>
+                  <th className="px-3 py-2 text-right w-28" title="Atas: lama resi ini disimpan. Bawah: umur boxnya, dihitung sejak paket pertama di box itu tiba.">Durasi</th>
                   <th className="px-3 py-2 text-left w-40">Box</th>
                   <th className="px-3 py-2 text-right w-36">Aksi</th>
                 </tr>
@@ -645,23 +651,32 @@ export default function AdminWarehouse() {
                       <td className="px-3 py-2 text-center">
                         <OpenMarkCell parcel={p} next={nextOpenNumber} onMark={markOpen} onUnmark={unmarkOpen} />
                       </td>
-                      <td className="px-3 py-2 text-gray-700 font-medium whitespace-nowrap">{p.owner?.label || '—'}</td>
-                      <td className="px-3 py-2">
-                        <div className="text-gray-700 truncate max-w-[240px]">{p.recipient_name}</div>
-                        <div className="text-[11px] font-mono text-gray-400 truncate max-w-[240px]">{p.tracking_number}</div>
-                      </td>
                       <td className="px-3 py-2">
                         {p.photo_url ? (
-                          <img src={p.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover border border-cream-200" />
+                          <img src={p.photo_url} alt="" loading="lazy"
+                            className="w-9 h-9 rounded-lg object-cover border border-cream-200" />
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="w-9 h-9 rounded-lg border border-dashed border-cream-300 flex items-center justify-center text-[9px] text-gray-300"
+                            title="Foto arrival belum ada">belum</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
-                        {p.type === 'paperbased' ? 'Paperbased' : 'Barang'}
+                      {/* Nomor resi jadi yang paling menonjol — itu yang dicari
+                          waktu mencocokkan barang; pemilik & penerima di bawahnya */}
+                      <td className="px-3 py-2">
+                        <div className="font-mono text-[13px] font-semibold text-gray-800 truncate max-w-[220px]">
+                          {p.tracking_number}
+                        </div>
+                        <div className="text-[11px] text-gray-500 truncate max-w-[220px]">
+                          {p.owner?.label || '—'}
+                          {p.recipient_name && p.recipient_name !== p.owner?.label && ` · ${p.recipient_name}`}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1 items-center">
+                          <span className="text-[11px] text-gray-600 whitespace-nowrap">
+                            {p.type === 'paperbased' ? 'Paperbased' : 'Barang'}
+                            {(p.estimated_quantity || 1) > 1 && ` ×${p.estimated_quantity}`}
+                          </span>
                           {p.need_unboxing && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-600 text-white whitespace-nowrap"
                               title="Pelanggan minta video unboxing">🎥 Unboxing</span>
@@ -678,21 +693,36 @@ export default function AdminWarehouse() {
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap"
                               title="Resi diketik manual">✍️ Manual</span>
                           )}
-                          {!p.need_unboxing && !p.freebies_stay && !p.is_manual_input && !p.note && (
-                            <span className="text-gray-300">—</span>
-                          )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-600">{p.estimated_quantity || 1}</td>
-                      <td className="px-3 py-2 text-right text-gray-700 whitespace-nowrap">
-                        {baseFee(p, 'WH') > 0 ? money(baseFee(p, 'WH'), p.currency) : '—'}
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <div className="text-gray-700">
+                          {baseFee(p, 'WH') > 0 ? money(baseFee(p, 'WH'), p.currency) : '—'}
+                        </div>
+                        {(p.additional_fee > 0 || p.fine_amount > 0) && (
+                          <div className="text-[11px] text-gray-400">
+                            {p.additional_fee > 0 && `+${money(p.additional_fee, p.currency)}`}
+                            {p.additional_fee > 0 && p.fine_amount > 0 && ' · '}
+                            {p.fine_amount > 0 && <span className="text-red-500">{rupiah(p.fine_amount)}</span>}
+                          </div>
+                        )}
                       </td>
+                      {/* Dua durasi: resi ini sendiri, dan umur boxnya yang
+                          dihitung sejak paket pertama di box itu tiba */}
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         {days ? (
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full border ${storageTone(days)}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full border ${storageTone(days)}`}
+                            title="Lama resi ini disimpan, sejak foto arrival-nya">
                             Hari ke-{days}
                           </span>
                         ) : <span className="text-gray-300">—</span>}
+                        {umurBox(p) && (
+                          <div className="text-[11px] text-gray-400 mt-0.5"
+                            title={`Umur box, sejak paket pertamanya tiba${umurBox(p).bonus ? ` · bonus ${umurBox(p).bonus} hari` : ''}`}>
+                            box ke-{umurBox(p).hari}
+                            {umurBox(p).bonus > 0 && ' ·🎁'}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <select

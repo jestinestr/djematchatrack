@@ -4,6 +4,7 @@ const supabase = require('../supabase');
 const { fetchCodes } = require('../lib/owner');
 const { logActivity } = require('../lib/log');
 const { ensureOpenBox } = require('../lib/box');
+const { hasColumn } = require('../lib/columns');
 
 // Label yang dipakai di mana-mana: "BosBesar - Box 1"
 const boxLabel = (box, ownerLabel) => `${ownerLabel || '—'} - ${box.name}`;
@@ -92,6 +93,15 @@ router.patch('/:id', async (req, res) => {
   const updates = {};
   if (req.body.name?.trim()) updates.name = req.body.name.trim();
   if (req.body.note !== undefined) updates.note = req.body.note?.trim() || null;
+  // Bonus hari tanpa denda — kolomnya lahir dari migrasi 023
+  if (req.body.free_days !== undefined) {
+    if (!(await hasColumn('boxes', 'free_days'))) {
+      return res.status(503).json({
+        error: 'Bonus hari belum aktif — jalankan supabase/migrations/023_box_free_days.sql',
+      });
+    }
+    updates.free_days = Math.max(0, parseInt(req.body.free_days) || 0);
+  }
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'Tidak ada perubahan' });
 
   const { data, error } = await supabase
@@ -99,6 +109,14 @@ router.patch('/:id', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
 
   const [withOwner] = await withOwners([data]);
+  if (updates.free_days !== undefined) {
+    logActivity({
+      action: 'box_free_days',
+      summary: `${boxLabel(data, withOwner.owner?.label)}: bonus ${updates.free_days} hari tanpa denda`,
+      ref_type: 'box',
+      ref_id: data.id,
+    });
+  }
   res.json(withOwner);
 });
 

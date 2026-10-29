@@ -64,6 +64,29 @@ export function storageDays(p, endAt) {
   return Math.max(1, Math.floor((end - new Date(p.photo_uploaded_at)) / 86400000) + 1);
 }
 
+// Durasi satu box: dihitung sejak paket PERTAMA di box itu tiba, bukan
+// sejak boxnya dibuat — gudang baru mulai menyimpan barang saat barang
+// pertamanya datang. Bonus hari (box.free_days) dipotong dari hasilnya.
+//
+// Mengembalikan null kalau belum ada satu pun foto arrival di box itu.
+export function boxStorage(box, parcels) {
+  const mulai = (parcels || [])
+    .map(p => p.photo_uploaded_at)
+    .filter(Boolean)
+    .sort()[0];
+  if (!mulai) return null;
+
+  const end = box?.closed_at ? new Date(box.closed_at) : new Date();
+  const kotor = Math.max(1, Math.floor((end - new Date(mulai)) / 86400000) + 1);
+  const bonus = Math.max(0, Number(box?.free_days) || 0);
+  return {
+    mulai,
+    hari: Math.max(0, kotor - bonus),   // yang dihitung denda
+    hariKotor: kotor,                   // apa adanya, sebelum bonus
+    bonus,
+  };
+}
+
 // Warna penanda: makin lama makin mencolok
 export const storageTone = d =>
   d >= 30 ? 'bg-red-50 text-red-700 border-red-200'

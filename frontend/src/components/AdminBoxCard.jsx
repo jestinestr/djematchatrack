@@ -4,7 +4,7 @@ import ParcelDetailModal from './ParcelDetailModal';
 import LabelPrintModal from './LabelPrintModal';
 import Pager, { usePaged } from './Pager';
 import { ParcelRow } from './AdminBatchCard';
-import { sumParcels, formatMulti, formatWeight, rupiah } from '../utils/format';
+import { sumParcels, formatMulti, formatWeight, rupiah, boxStorage, storageTone, formatDate } from '../utils/format';
 
 // Satu box milik satu pelanggan. Penanda utamanya "Nama - Box", persis
 // seperti yang dilihat pelanggan.
@@ -19,6 +19,30 @@ export default function AdminBoxCard({ box, tarif, onChanged, onParcelsChanged }
   const [showLabels, setShowLabels] = useState(false);
 
   const parcels = box.parcels || [];
+  // Durasi box dihitung sejak paket pertamanya tiba, bukan sejak boxnya
+  // dibuat — lihat boxStorage() di utils/format.js
+  const umur = boxStorage(box, parcels);
+
+  // Bonus hari tanpa denda. Jarang dipakai, jadi kotaknya disembunyikan
+  // sampai admin menekan tombolnya.
+  const [aturBonus, setAturBonus] = useState(false);
+  const [bonusDraft, setBonusDraft] = useState(String(box.free_days || 0));
+
+  async function simpanBonus() {
+    const n = Math.max(0, parseInt(bonusDraft) || 0);
+    const res = await fetch(`/api/boxes/${box.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ free_days: n }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => null);
+      alert(d?.error || 'Gagal menyimpan bonus hari');
+      return;
+    }
+    setAturBonus(false);
+    onChanged?.();
+  }
 
   // Menutup box = barangnya sudah dikirim. Box berikutnya disiapkan server,
   // namanya diberitahukan supaya admin tahu resi baru nanti masuk ke mana.
@@ -132,7 +156,39 @@ export default function AdminBoxCard({ box, tarif, onChanged, onParcelsChanged }
 
         {/* Ringkasan */}
         {open && (
-          <div className="px-4 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 border-b border-slate-100">
+          <div className="px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 border-b border-slate-100">
+            {umur ? (
+              <span className={`px-1.5 py-0.5 rounded-full border font-semibold ${storageTone(umur.hari)}`}
+                title={`Dihitung sejak paket pertama tiba, ${formatDate(umur.mulai, false)}`
+                  + (umur.bonus ? ` · bonus ${umur.bonus} hari tanpa denda (apa adanya ${umur.hariKotor} hari)` : '')}>
+                Box hari ke-{umur.hari}
+                {umur.bonus > 0 && <span className="font-normal"> · bonus {umur.bonus} hr</span>}
+              </span>
+            ) : (
+              <span className="text-slate-400" title="Belum ada foto arrival di box ini">Belum mulai</span>
+            )}
+
+            {aturBonus ? (
+              <span className="flex items-center gap-1">
+                <input
+                  type="number" min="0" value={bonusDraft}
+                  onChange={e => setBonusDraft(e.target.value)}
+                  className="w-16 border border-slate-300 rounded-lg px-2 py-0.5 text-xs"
+                  autoFocus
+                />
+                <span>hari bonus</span>
+                <button onClick={simpanBonus} className="text-matcha-700 font-semibold hover:underline">Simpan</button>
+                <button onClick={() => { setAturBonus(false); setBonusDraft(String(box.free_days || 0)); }}
+                  className="text-slate-400 hover:underline">Batal</button>
+              </span>
+            ) : (
+              <button onClick={() => setAturBonus(true)}
+                className="text-slate-400 hover:text-matcha-700 hover:underline"
+                title="Beri kelonggaran hari yang tidak dihitung denda">
+                {box.free_days ? 'ubah bonus' : '+ bonus hari'}
+              </button>
+            )}
+
             {totals.weight > 0 && <span>{formatWeight(totals.weight)}</span>}
             {(totals.IDR > 0 || totals.CNY > 0) && <span className="font-medium text-slate-700">{formatMulti(totals)}</span>}
             {totals.fine > 0 && <span className="text-red-600">Denda {rupiah(totals.fine)}</span>}
