@@ -62,7 +62,7 @@ export function FineNotice({ info, onDismiss }) {
 }
 
 // ── Resi manual milik sendiri ───────────────────────────────────────
-export function ManualMineNotice({ parcels, onOpenParcel }) {
+export function ManualMineNotice({ parcels, onOpenParcel, onSeen }) {
   if (!parcels.length) return null;
 
   return (
@@ -74,7 +74,7 @@ export function ManualMineNotice({ parcels, onOpenParcel }) {
             Hi! {parcels.length === 1 ? 'Resi ini' : `${parcels.length} resi ini`} sudah diinput manual oleh admin
           </p>
           <p className="text-xs text-violet-700/90 mt-0.5 leading-snug">
-            Jangan lupa selalu update ya! 💚
+            Cek datanya sudah benar atau belum ya 💚
           </p>
         </div>
       </div>
@@ -91,6 +91,16 @@ export function ManualMineNotice({ parcels, onOpenParcel }) {
         <p className="text-[11px] text-violet-600/80 text-center mt-2">
           dan {parcels.length - 5} lagi di daftar bawah
         </p>
+      )}
+
+      {/* Pengingat ini tidak perlu nongkrong terus — sekali ditutup, baru
+          muncul lagi 5 hari kemudian atau kalau ada resi manual yang baru */}
+      {onSeen && (
+        <button onClick={onSeen}
+          className="w-full mt-3 text-[11px] font-semibold text-violet-700 bg-white/70 border border-violet-200
+                     rounded-xl py-2 hover:bg-white transition-colors">
+          Sudah dicek — sembunyikan dulu
+        </button>
       )}
     </div>
   );

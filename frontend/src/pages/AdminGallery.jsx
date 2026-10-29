@@ -276,27 +276,6 @@ export default function AdminGallery() {
             )}
           </p>
 
-          {/* Yang barusan diupload selalu ikut tampil di atas, apa pun
-              urutan yang dipilih — biasanya itu yang sedang dicek */}
-          {barusan.length > 0 && (
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold text-green-700 uppercase tracking-wide mb-2">
-                Baru diupload hari ini ({barusan.length})
-              </p>
-              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                {barusan.slice(0, 16).map(p => (
-                  <button key={`baru-${p.id}`} onClick={() => toggleSelect(p.id)}
-                    title={`${p.owner?.label || '—'} · ${p.tracking_number}`}
-                    className={`rounded-xl overflow-hidden border-2 transition-all ${
-                      selected.has(p.id) ? 'border-matcha-600' : 'border-green-400 hover:border-green-500'
-                    }`}>
-                    <img src={p.photo_url} alt="" loading="lazy"
-                      className="w-full aspect-square object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {parcels.map(p => {
               const isSelected = selected.has(p.id);

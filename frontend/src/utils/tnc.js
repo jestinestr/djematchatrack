@@ -7,6 +7,47 @@
 //   "- isi"      → butir
 //   "**tebal**"  → huruf tebal
 //   baris kosong → jarak antar bagian
+// Tata cara pemakaian — bagian tetap di menu Info, bukan bagian dari
+// syarat & ketentuan yang bisa diubah admin. Isinya alur yang sama buat
+// semua pelanggan, dari belanja sampai barang dikirim.
+export const TATA_CARA = [
+  {
+    judul: 'Belanja & setor resi',
+    isi: 'Setelah checkout, salin nomor resinya lalu masukkan lewat tombol '
+      + '**Setor Resi** di panel ini — sebelum barangnya sampai di warehouse. '
+      + 'Satu resi satu setoran. Kalau nomornya salah ketik, pakai pilihan '
+      + '**minta perbaikan** supaya admin yang membetulkan.',
+  },
+  {
+    judul: 'Barang sampai di warehouse',
+    isi: 'Begitu paketmu tiba, admin membukanya dan memotret isinya. '
+      + 'Resi yang sudah difoto muncul di daftarmu lengkap dengan **foto arrival**-nya. '
+      + 'Barang yang kamu minta direkam unboxing tidak dibuka sembarangan.',
+  },
+  {
+    judul: 'Cek foto arrival maksimal H+3',
+    isi: 'Buka fotonya dan pastikan barangnya benar, jumlahnya pas, dan tidak rusak. '
+      + 'Komplain setelah lewat **3 hari** sulit ditindaklanjuti karena barangnya sudah masuk antrean packing.',
+  },
+  {
+    judul: 'Minta box ditutup',
+    isi: 'Kalau belanjaanmu sudah lengkap, pakai tombol **Minta Tutup Box**: '
+      + 'pilih resi yang ikut dikirim, isi alamat lengkap, pilih ekspedisi, '
+      + 'dan tentukan perlu asuransi atau tidak. Resi yang belum ada fotonya belum bisa ikut.',
+  },
+  {
+    judul: 'Invoice & pembayaran',
+    isi: 'Admin menimbang, menghitung biaya, lalu mengirim invoicenya. '
+      + 'Pembayaran bisa dalam Yuan atau Rupiah memakai kurs yang tertulis di invoice itu. '
+      + 'Kurang bayar ikut ditagih di invoice berikutnya, kelebihan jadi potongan.',
+  },
+  {
+    judul: 'Barang dikirim',
+    isi: 'Setelah lunas, boxnya ditutup dan dikirim ke alamat yang kamu tulis. '
+      + 'Resi yang belum ikut kiriman ini otomatis masuk box berikutnya — tidak hilang.',
+  },
+];
+
 export const TNC_DEFAULT = `## Setor resi
 - Setiap pembelian **wajib disetor resinya** lewat tombol Setor Resi, sebelum barangnya sampai di warehouse.
 - Kalau barang sudah sampai duluan dan resinya belum disetor sehingga admin yang menginput manual, dikenakan **Rp 1.000 per resi**.

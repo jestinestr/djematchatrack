@@ -597,8 +597,21 @@ router.get('/today', async (req, res) => {
     ]);
 
     const mine = lists.flat().sort(sortNewest);
+
+    // Kapan terakhir kali ada pekerjaan admin yang menyentuh resi orang
+    // ini — dipakai panel pelanggan untuk bilang "terakhir update kemarin"
+    // supaya yang sepi pun tetap tahu kabarnya.
+    const terakhir = (await Promise.all(['hc', 'wh'].map(async kind => {
+      const { data } = await supabase
+        .from(TABLE[kind]).select('created_at, photo_uploaded_at')
+        .eq('owner_code_id', me.id)
+        .order('created_at', { ascending: false }).limit(50);
+      return (data || []).flatMap(p => [p.photo_uploaded_at, p.created_at].filter(Boolean));
+    }))).flat().sort().pop() || null;
+
     res.json({
       admin_active: (logs.count || 0) > 0 || mine.length > 0,
+      last_update: terakhir,
       mine,
     });
   } catch (e) {

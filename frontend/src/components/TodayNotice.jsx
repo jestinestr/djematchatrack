@@ -9,8 +9,37 @@
 // muncul sama sekali — lebih baik sepi daripada basa-basi palsu.
 const PREVIEW = 4;
 
-export default function TodayNotice({ adminActive, parcels, onOpenParcel }) {
-  if (!adminActive) return null;
+// "hari ini" / "kemarin" / "3 hari lalu" — pelanggan lebih paham jarak
+// hari daripada tanggal mentah
+function jarakHari(iso) {
+  if (!iso) return null;
+  const pagi = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  const beda = Math.round((pagi(new Date()) - pagi(iso)) / 86400000);
+  if (beda <= 0) return 'hari ini';
+  if (beda === 1) return 'kemarin';
+  return `${beda} hari lalu`;
+}
+
+export default function TodayNotice({ adminActive, parcels, onOpenParcel, lastUpdate }) {
+  // Hari ini admin tidak menyentuh apa pun milik dia: tetap dikabari kapan
+  // terakhir kali ada pergerakan, supaya tidak merasa ditinggal.
+  if (!adminActive) {
+    const kapan = jarakHari(lastUpdate);
+    if (!kapan) return null;
+    return (
+      <div className="rounded-3xl border-2 border-cream-300 bg-white p-4 flex items-start gap-3">
+        <span className="text-2xl leading-none">🗓️</span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-matcha-800">
+            Admin terakhir update {kapan}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+            Belum ada pergerakan baru untuk resimu. Update rutin tiap Senin &amp; Jumat malam ya 🤍
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const fresh = parcels.filter(p => p.what === 'baru');
   const photos = parcels.filter(p => p.what === 'foto');

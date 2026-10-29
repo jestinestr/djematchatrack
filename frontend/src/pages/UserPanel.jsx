@@ -157,6 +157,27 @@ export default function UserPanel({ type }) {
     [myParcels]
   );
 
+  // Pengingatnya cukup sekali tiap 5 hari. Kalau ada resi manual yang
+  // lebih baru dari terakhir dilihat, kartunya muncul lagi lebih cepat.
+  const JEDA_MANUAL = 5 * 86400000;
+  const [manualSeen, setManualSeen] = useState(() => {
+    try { return Number(localStorage.getItem('manual_notice_seen')) || 0; } catch { return 0; }
+  });
+
+  function tandaiManualDilihat() {
+    const now = Date.now();
+    setManualSeen(now);
+    try { localStorage.setItem('manual_notice_seen', String(now)); } catch { /* mode privat */ }
+  }
+
+  const manualPerlu = useMemo(() => {
+    if (!manualMine.length) return false;
+    if (!manualSeen) return true;
+    const terbaru = Math.max(...manualMine.map(p => new Date(p.created_at || 0).getTime()));
+    return terbaru > manualSeen || Date.now() - manualSeen > JEDA_MANUAL;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualMine, manualSeen]);
+
   const batch = useMemo(
     () => batches.find(b => b.id === activeId) || null,
     [batches, activeId]
@@ -476,6 +497,7 @@ export default function UserPanel({ type }) {
                 <TodayNotice
                   adminActive={today.admin_active}
                   parcels={today.mine}
+                  lastUpdate={today.last_update}
                   onOpenParcel={p => openFromNotice(p)}
                 />
 
@@ -491,11 +513,16 @@ export default function UserPanel({ type }) {
                   />
                 )}
 
-                {/* Resi yang diketik admin + resi nyasar yang belum diklaim */}
-                <ManualMineNotice
-                  parcels={manualMine}
-                  onOpenParcel={p => setDetail(p)}
-                />
+                {/* Resi yang diketik admin + resi nyasar yang belum diklaim.
+                    Pengingat resi manual tidak ditampilkan terus-menerus —
+                    cukup muncul lagi tiap 5 hari. */}
+                {manualPerlu && (
+                  <ManualMineNotice
+                    parcels={manualMine}
+                    onOpenParcel={p => setDetail(p)}
+                    onSeen={tandaiManualDilihat}
+                  />
+                )}
                 <UnclaimedNotice parcels={unclaimedShown} onDismiss={hideUnclaimed} />
 
                 {/* Resi yang fotonya lebih dari satu */}

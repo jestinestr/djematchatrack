@@ -627,7 +627,7 @@ export default function AdminWarehouse() {
                   <th className="px-3 py-2 text-left">Resi &amp; pemilik</th>
                   <th className="px-3 py-2 text-left">Isi &amp; permintaan</th>
                   <th className="px-3 py-2 text-right">Biaya</th>
-                  <th className="px-3 py-2 text-right w-28" title="Atas: lama resi ini disimpan. Bawah: umur boxnya, dihitung sejak paket pertama di box itu tiba.">Durasi</th>
+                  <th className="px-3 py-2 text-right w-24" title="Lama resi ini disimpan, sejak foto arrival-nya">Durasi</th>
                   <th className="px-3 py-2 text-left w-40">Box</th>
                   <th className="px-3 py-2 text-right w-36">Aksi</th>
                 </tr>
@@ -707,8 +707,6 @@ export default function AdminWarehouse() {
                           </div>
                         )}
                       </td>
-                      {/* Dua durasi: resi ini sendiri, dan umur boxnya yang
-                          dihitung sejak paket pertama di box itu tiba */}
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         {days ? (
                           <span className={`text-xs px-1.5 py-0.5 rounded-full border ${storageTone(days)}`}
@@ -716,14 +714,6 @@ export default function AdminWarehouse() {
                             Hari ke-{days}
                           </span>
                         ) : <span className="text-gray-300">—</span>}
-                        {umurBox(p) && (
-                          <div className="text-[11px] text-gray-400 mt-0.5"
-                            title={`Umur boxnya, dihitung sejak paket pertama di box itu tiba`
-                              + (umurBox(p).bonus ? ` · sudah dipotong bonus ${umurBox(p).bonus} hari` : '')}>
-                            umur box {umurBox(p).hari} hari
-                            {umurBox(p).bonus > 0 && ' ·🎁'}
-                          </div>
-                        )}
                       </td>
                       <td className="px-3 py-2">
                         <select
