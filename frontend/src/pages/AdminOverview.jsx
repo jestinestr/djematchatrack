@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { rupiah, sumParcels, formatMulti, boxStorage, sisaSimpan } from '../utils/format';
+import { rupiah, sumParcels, formatMulti, boxStorage, sisaSimpan, storageDays } from '../utils/format';
 
 // Kalimat penyemangat harian — satu baris, tanpa ikon, biar halamannya tenang
 const CHEERS = [
@@ -86,6 +86,15 @@ export default function AdminOverview() {
     .filter(x => x && x.sisa <= (batas.warn || 0))
     .sort((a, b) => a.sisa - b.sisa);
 
+  // Resi yang paling lama mengendap — yang ini gampang terlupakan karena
+  // tenggelam di daftar panjang. Cukup beberapa teratas; sisanya ada di
+  // Warehouse yang bisa diurut "Terlama".
+  const palingLama = aktif
+    .map(p => ({ p, hari: storageDays(p, null) }))
+    .filter(x => x.hari)
+    .sort((a, b) => b.hari - a.hari)
+    .slice(0, 6);
+
   const tautan = [
     { to: '/admin/wh', label: 'Kelola Warehouse', desc: `${aktif.length} resi aktif` },
     { to: '/admin/gallery', label: 'Recap Foto', desc: belumFoto ? `${belumFoto} belum difoto` : 'semua sudah difoto' },
@@ -165,6 +174,39 @@ export default function AdminOverview() {
                       {sisa < 0 ? `lewat ${-sisa} hari` : sisa === 0 ? 'habis hari ini' : `sisa ${sisa} hari`}
                     </span>
                     <span className="text-[11px] text-gray-400 hidden sm:block">hari ke-{hari}</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Resi yang sudah lama menginap */}
+          {palingLama.length > 0 && (
+            <>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                Resi paling lama menginap
+              </p>
+              <div className="bg-white rounded-2xl border border-cream-200 overflow-hidden mb-6">
+                {palingLama.map(({ p, hari }) => (
+                  <Link key={p.id} to="/admin/wh"
+                    className="flex items-center gap-3 px-4 py-2.5 border-b border-cream-100 last:border-0
+                               hover:bg-cream-50 transition-colors">
+                    <span className="font-mono text-xs font-semibold text-gray-700 truncate max-w-[45%]">
+                      {p.tracking_number}
+                    </span>
+                    <span className="text-xs text-gray-400 truncate flex-1">
+                      {p.owner?.label || '—'}
+                      {p.box?.name ? ` · ${p.box.name}` : ''}
+                    </span>
+                    {!p.photo_url && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200
+                                       px-1.5 py-0.5 rounded-full whitespace-nowrap">tanpa foto</span>
+                    )}
+                    <span className={`text-xs font-bold whitespace-nowrap ${
+                      hari >= 30 ? 'text-red-600' : hari >= 14 ? 'text-amber-700' : 'text-gray-500'
+                    }`}>
+                      {hari} hari
+                    </span>
                   </Link>
                 ))}
               </div>
