@@ -61,6 +61,36 @@ export function FineNotice({ info, onDismiss }) {
   );
 }
 
+// ── Durasi simpan box hampir habis ──────────────────────────────────
+//  Dihitung sejak foto arrival pertama di box itu — sama persis dengan
+//  yang dilihat admin, jadi tidak ada angka yang berbeda cerita.
+export function DurasiNotice({ info }) {
+  if (!info) return null;
+  const { sisa, batas, nama } = info;
+
+  const lewat = sisa < 0;
+  return (
+    <div className={`rounded-3xl border-2 p-4 flex items-start gap-3 ${
+      lewat ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
+    }`}>
+      <span className="text-2xl leading-none">⏳</span>
+      <div className="min-w-0">
+        <p className={`text-sm font-bold ${lewat ? 'text-red-900' : 'text-amber-900'}`}>
+          {lewat
+            ? `Durasi simpan ${nama} sudah lewat ${-sisa} hari`
+            : sisa === 0
+              ? `Durasi simpan ${nama} habis hari ini`
+              : `Durasi simpan ${nama} tinggal ${sisa} hari lagi`}
+        </p>
+        <p className={`text-xs mt-0.5 leading-snug ${lewat ? 'text-red-700/90' : 'text-amber-800/90'}`}>
+          Jatahnya {batas} hari, dihitung sejak <b>foto arrival pertama</b> di box ini.
+          Kalau belanjaanmu sudah lengkap, segera pakai tombol <b>Minta Tutup Box</b> ya 🤍
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Resi manual milik sendiri ───────────────────────────────────────
 export function ManualMineNotice({ parcels, onOpenParcel, onSeen }) {
   if (!parcels.length) return null;

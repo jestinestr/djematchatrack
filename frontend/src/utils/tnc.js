@@ -31,7 +31,8 @@ export const TATA_CARA = [
   },
   {
     judul: 'Minta box ditutup',
-    isi: 'Kalau belanjaanmu sudah lengkap, pakai tombol **Minta Tutup Box**: '
+    isi: 'Durasi simpan boxmu berjalan sejak **foto arrival pertama** di box itu, '
+      + 'jadi jangan menunggu terlalu lama. Kalau belanjaanmu sudah lengkap, pakai tombol **Minta Tutup Box**: '
       + 'pilih resi yang ikut dikirim, isi alamat lengkap, pilih ekspedisi, '
       + 'dan tentukan perlu asuransi atau tidak. Resi yang belum ada fotonya belum bisa ikut.',
   },
@@ -56,6 +57,12 @@ export const TNC_DEFAULT = `## Setor resi
 ## Tanggung jawab warehouse
 - Warehouse **tidak bertanggung jawab atas tindakan scam** yang dilakukan oleh seller. Pastikan sendiri seller dan transaksimu sebelum membeli.
 - Warehouse **bertanggung jawab atas barang yang hilang atau terjatuh karena kelalaian warehouse**, dengan penggantian **maksimal 50–80% dari harga barang**, atau dicarikan barang serupa bila warehouse menyanggupi.
+
+## Durasi simpan di warehouse
+- Durasi penyimpanan satu box dihitung sejak **foto arrival pertama** di box itu — bukan sejak boxnya dibuat, dan bukan per resi.
+- Resi yang masuk belakangan ikut durasi box yang sedang berjalan, jadi **kalau belanjaanmu sudah lengkap segera minta boxnya ditutup**.
+- Warehouse mengingatkan lewat panel ini beberapa hari sebelum durasinya habis.
+- Kalau ada kelonggaran (mis. pengiriman tertunda cuaca), warehouse bisa memberi bonus hari yang tidak ikut dihitung.
 
 ## Jadwal update
 - Update rutin **2× seminggu: Senin dan Jumat malam**. Di luar jadwal itu sifatnya opsional.

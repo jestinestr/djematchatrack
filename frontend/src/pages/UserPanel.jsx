@@ -8,9 +8,10 @@ import InfoTnc from '../components/InfoTnc';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pager, { usePaged } from '../components/Pager';
 import UpdateBanner from '../components/UpdateBanner';
-import { ManualMineNotice, UnclaimedNotice, AlbumNotice, FineNotice } from '../components/ManualNotices';
+import { ManualMineNotice, UnclaimedNotice, AlbumNotice, FineNotice, DurasiNotice } from '../components/ManualNotices';
 import TodayNotice from '../components/TodayNotice';
 import { readLastSeen, writeLastSeen, collectUpdates, isFresh } from '../utils/updates';
+import { boxStorage, sisaSimpan } from '../utils/format';
 import { fetchAsUser, downloadMany, slugify, cardName, money, formatDate } from '../utils/format';
 
 const META = {
@@ -85,6 +86,7 @@ export default function UserPanel({ type }) {
               title: b.name,
               status: b.status === 'open' ? 'active' : 'closed',
               closed_at: b.closed_at,
+              free_days: b.free_days,
               parcels: b.parcels,
               mine_count: b.parcels.length,
               total_count: b.parcels.length,
@@ -187,6 +189,21 @@ export default function UserPanel({ type }) {
     () => (batch?.parcels || []).filter(p => p.is_mine),
     [batch]
   );
+
+  // Pengingat durasi simpan: dihitung dengan rumus yang sama persis
+  // seperti di panel admin, jadi angkanya tidak pernah berbeda.
+  const durasiInfo = useMemo(() => {
+    if (!batch || batch.status !== 'active') return null;
+    const umur = boxStorage(
+      { closed_at: batch.closed_at, free_days: batch.free_days },
+      batch.parcels || []
+    );
+    const sisa = sisaSimpan(umur, fineInfo?.storage_limit_days);
+    if (!sisa) return null;
+    const ingat = Number(fineInfo?.storage_warn_days) || 0;
+    if (sisa.sisa > ingat) return null;
+    return { ...sisa, nama: batch.title };
+  }, [batch, fineInfo]);
   const others = useMemo(
     () => (batch?.parcels || []).filter(p => !p.is_mine),
     [batch]
@@ -493,6 +510,8 @@ export default function UserPanel({ type }) {
 
             {!loading && !error && batch && (
               <>
+                <DurasiNotice info={durasiInfo} />
+
                 {/* Kerjaan admin hari ini */}
                 <TodayNotice
                   adminActive={today.admin_active}

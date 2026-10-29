@@ -193,6 +193,7 @@ function registerUserView(kind) {
             note: b.note,
             created_at: b.created_at,
             closed_at: b.closed_at,
+            free_days: b.free_days ?? 0,   // bonus hari tanpa denda
             parcels: mine.filter(p => String(p.box_id) === String(b.id)).sort(sortNewest),
           }));
 

@@ -87,6 +87,17 @@ export function boxStorage(box, parcels) {
   };
 }
 
+// Sisa jatah simpan satu box.
+//  sisa > 0  → masih ada sekian hari lagi
+//  sisa = 0  → habis hari ini
+//  sisa < 0  → sudah lewat sekian hari
+// Mengembalikan null kalau boxnya belum mulai atau batasnya belum diatur.
+export function sisaSimpan(umur, batasHari) {
+  const batas = Number(batasHari) || 0;
+  if (!umur || batas <= 0) return null;
+  return { sisa: batas - umur.hari, batas, hari: umur.hari };
+}
+
 // Warna penanda: makin lama makin mencolok
 export const storageTone = d =>
   d >= 30 ? 'bg-red-50 text-red-700 border-red-200'

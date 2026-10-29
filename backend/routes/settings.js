@@ -18,6 +18,8 @@ router.get('/public', async (req, res) => {
     manual_fine_amount: Number(all.manual_fine_amount) || 0,
     manual_fine_notice: all.manual_fine_notice || '',
     tnc_text: all.tnc_text || '',
+    storage_limit_days: Number(all.storage_limit_days) || 0,
+    storage_warn_days: Number(all.storage_warn_days) || 0,
   });
 });
 

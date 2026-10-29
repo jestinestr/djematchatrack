@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { rupiah, sumParcels, formatMulti } from '../utils/format';
+import { rupiah, sumParcels, formatMulti, boxStorage, sisaSimpan } from '../utils/format';
 
 // Kalimat penyemangat harian — satu baris, tanpa ikon, biar halamannya tenang
 const CHEERS = [
@@ -36,6 +36,7 @@ export default function AdminOverview() {
   const [cheer] = useState(() => CHEERS[Math.floor(Math.random() * CHEERS.length)]);
   const [batches, setBatches] = useState([]);
   const [boxes, setBoxes] = useState([]);
+  const [batas, setBatas] = useState({ limit: 0, warn: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +48,14 @@ export default function AdminOverview() {
       setBoxes(boxData.boxes || []);
       setLoading(false);
     }).catch(() => setLoading(false));
+
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(d => setBatas({
+        limit: Number(d.storage_limit_days) || 0,
+        warn: Number(d.storage_warn_days) || 0,
+      }))
+      .catch(() => {});
   }, []);
 
   const semua = batches.flatMap(b => b.parcels || []);
@@ -64,6 +73,18 @@ export default function AdminOverview() {
   const totals = sumParcels(aktif, 'WH');
   const belumFoto = aktif.filter(p => !p.photo_url).length;
   const boxTerbuka = boxes.filter(b => b.status === 'open').length;
+
+  // Box terbuka yang jatah simpannya tinggal sedikit atau sudah lewat.
+  // Yang paling mendesak di atas, supaya langsung kelihatan.
+  const hampirHabis = boxes
+    .filter(b => b.status === 'open')
+    .map(b => {
+      const umur = boxStorage(b, b.parcels || []);
+      const sisa = sisaSimpan(umur, batas.limit);
+      return sisa ? { box: b, ...sisa } : null;
+    })
+    .filter(x => x && x.sisa <= (batas.warn || 0))
+    .sort((a, b) => a.sisa - b.sisa);
 
   const tautan = [
     { to: '/admin/wh', label: 'Kelola Warehouse', desc: `${aktif.length} resi aktif` },
@@ -120,6 +141,35 @@ export default function AdminOverview() {
               perhatian={totals.fine > 0}
             />
           </div>
+
+          {/* Durasi simpan yang mau habis — paling perlu ditindaklanjuti */}
+          {hampirHabis.length > 0 && (
+            <>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                Durasi simpan hampir habis
+              </p>
+              <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden mb-6">
+                {hampirHabis.map(({ box, sisa, hari }) => (
+                  <Link key={box.id} to="/admin/wh"
+                    className="flex items-center gap-3 px-4 py-2.5 border-b border-cream-100 last:border-0
+                               hover:bg-cream-50 transition-colors">
+                    <span className="text-sm font-semibold text-matcha-900 flex-1 truncate">
+                      {box.owner?.label || '—'} · {box.name}
+                    </span>
+                    <span className="text-xs text-gray-400">{box.parcels?.length || 0} resi</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                      sisa < 0 ? 'bg-red-100 text-red-700'
+                        : sisa === 0 ? 'bg-amber-100 text-amber-800'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}>
+                      {sisa < 0 ? `lewat ${-sisa} hari` : sisa === 0 ? 'habis hari ini' : `sisa ${sisa} hari`}
+                    </span>
+                    <span className="text-[11px] text-gray-400 hidden sm:block">hari ke-{hari}</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Pintasan — teks saja, tanpa ikon */}
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">

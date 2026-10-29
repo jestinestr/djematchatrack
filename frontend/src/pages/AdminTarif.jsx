@@ -278,6 +278,68 @@ const CONTOH_PENGUMUMAN =
   + 'resinya admin input manual dan kena tarif Rp 1.000/resi. '
   + 'Resi yang diinput manual jenisnya otomatis "Barang" ya.';
 
+// Batas lama menyimpan satu box, dan kapan mulai diingatkan.
+function DurasiCard() {
+  const [batas, setBatas] = useState('30');
+  const [ingat, setIngat] = useState('5');
+  const [simpan, setSimpan] = useState('');
+
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.json()).then(d => {
+      setBatas(String(d.storage_limit_days ?? 30));
+      setIngat(String(d.storage_warn_days ?? 5));
+    }).catch(() => {});
+  }, []);
+
+  async function tulis(key, nilai) {
+    const res = await fetch(`/api/settings/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: Math.max(0, Number(nilai) || 0) }),
+    });
+    if (res.ok) { setSimpan(key); setTimeout(() => setSimpan(''), 2000); }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-cream-200 shadow-soft p-4 mb-5">
+      <div className="flex items-start gap-3">
+        <span className="text-xl leading-none">⏳</span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold text-matcha-800 text-sm">Durasi simpan box</h2>
+          <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+            Dihitung sejak <b>foto arrival pertama</b> di box itu. Box yang mendekati batas
+            muncul di Dashboard, dan pelanggannya ikut diingatkan di panelnya.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <label className="text-xs text-gray-600 flex items-center gap-1.5">
+          Batas
+          <input type="number" min="0" value={batas}
+            onChange={e => setBatas(e.target.value)}
+            onBlur={() => tulis('storage_limit_days', batas)}
+            className="w-20 border border-cream-300 rounded-lg px-2 py-1 text-sm" />
+          hari
+        </label>
+        <label className="text-xs text-gray-600 flex items-center gap-1.5">
+          Mulai diingatkan
+          <input type="number" min="0" value={ingat}
+            onChange={e => setIngat(e.target.value)}
+            onBlur={() => tulis('storage_warn_days', ingat)}
+            className="w-20 border border-cream-300 rounded-lg px-2 py-1 text-sm" />
+          hari sebelum habis
+        </label>
+        {simpan && <span className="text-xs text-green-600 font-semibold">✓ Tersimpan</span>}
+      </div>
+
+      <p className="text-[11px] text-gray-400 mt-2">
+        Isi batas 0 kalau tidak mau ada batas sama sekali.
+      </p>
+    </div>
+  );
+}
+
 function ManualFineCard() {
   const [on, setOn]           = useState(false);
   const [tarif, setTarif]     = useState('1000');
@@ -431,6 +493,7 @@ export default function AdminTarif() {
       </div>
 
       <ManualFineCard />
+      <DurasiCard />
 
       {loading ? (
         <LoadingSpinner text="Memuat data tarif..." />

@@ -10,6 +10,8 @@ const DEFAULTS = {
   manual_fine_amount: 1000,       // besarnya denda itu, Rupiah per resi
   manual_fine_notice: '',         // pengumuman soal denda itu di panel pelanggan
   tnc_text: '',                   // syarat & ketentuan; kosong = pakai draf bawaan
+  storage_limit_days: 30,         // batas gratis menyimpan satu box, dalam hari
+  storage_warn_days: 5,           // mulai diingatkan sekian hari sebelum habis
 };
 
 async function getSetting(key) {
