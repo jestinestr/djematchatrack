@@ -320,6 +320,18 @@ async function approveRequest(id) {
     return { data: done };
   }
 
+  // Setoran bisa saja menunggu lama; sementara itu resinya mungkin sudah
+  // diketik admin atau disetor orang lain. Dicek lagi tepat sebelum jadi
+  // resi, supaya tidak ada nomor dobel yang lolos lewat tombol Acc.
+  const sudahAda = await lookupTracking([reqData.tracking_number]);
+  const bentrok = sudahAda.get(String(reqData.tracking_number || '').trim());
+  if (bentrok && bentrok.status === 'parcel') {
+    return {
+      error: `Nomor resi ${reqData.tracking_number} sudah terdaftar — setoran ini tidak bisa di-Acc. Tolak saja atau perbaiki nomornya.`,
+      code: 409,
+    };
+  }
+
   const parcelType = reqData.type; // 'HC' atau 'WH'
   const table = parcelType === 'HC' ? 'hc_parcels' : 'wh_parcels';
 

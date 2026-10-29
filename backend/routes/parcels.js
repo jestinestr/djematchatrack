@@ -325,19 +325,18 @@ function registerCrud(kind) {
     }
 
     try {
-      // Input massal minta nomor kembar ditolak, bukan ditimpa. Form biasa
-      // tidak mengirim tanda ini, jadi kebiasaan lamanya tidak berubah.
-      if (req.body.reject_duplicate === 'true' || req.body.reject_duplicate === true) {
-        const kembar = await cariKembar([tracking_number]);
-        const ada = kembar[String(tracking_number).trim()];
-        if (ada) {
-          return res.status(409).json({
-            error: ada.pemilik
-              ? `Sudah terdaftar atas ${ada.pemilik}`
-              : 'Nomor resi ini sudah terdaftar',
-            duplicate: true,
-          });
-        }
+      // Nomor resi tidak boleh dobel, dari jalur mana pun: form satuan,
+      // input massal, maupun setoran pelanggan yang di-ACC. Dulu hanya
+      // input massal yang mengeceknya, jadi resi kembar masih bisa lolos.
+      const kembar = await cariKembar([tracking_number]);
+      const ada = kembar[String(tracking_number).trim()];
+      if (ada) {
+        return res.status(409).json({
+          error: ada.pemilik
+            ? `Nomor resi ini sudah terdaftar atas ${ada.pemilik}`
+            : 'Nomor resi ini sudah terdaftar',
+          duplicate: true,
+        });
       }
 
       const batch = await getBatch(parseInt(batch_id));
@@ -383,6 +382,20 @@ function registerCrud(kind) {
         .from(table)
         .select('batch_id, owner_code_id, tracking_number, is_manual_input, fine_amount')
         .eq('id', req.params.id).single();
+      // Nomor resi diganti jadi punya resi lain → ditolak juga
+      const nomorBaru = String(req.body.tracking_number || '').trim();
+      if (nomorBaru && nomorBaru !== String(current?.tracking_number || '').trim()) {
+        const kembar = await cariKembar([nomorBaru]);
+        if (kembar[nomorBaru]) {
+          return res.status(409).json({
+            error: kembar[nomorBaru].pemilik
+              ? `Nomor resi ini sudah terdaftar atas ${kembar[nomorBaru].pemilik}`
+              : 'Nomor resi ini sudah terdaftar',
+            duplicate: true,
+          });
+        }
+      }
+
       const batch = await getBatch(current?.batch_id);
       const updates = await stripMissing(table, buildPayload(kind, req.body, batch), ['note']);
       await applyManualFine(updates, req.body, current);
@@ -727,3 +740,4 @@ for (const kind of ['hc', 'wh']) {
 }
 
 module.exports = router;
+module.exports.cariKembar = cariKembar;

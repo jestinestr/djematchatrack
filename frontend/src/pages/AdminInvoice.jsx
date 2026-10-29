@@ -46,7 +46,8 @@ export default function AdminInvoice() {
   const [batchList, setBatchList] = useState([]);
   const [search, setSearch] = useState('');
   const [bukaResi, setBukaResi] = useState(() => new Set()); // daftar resi yang dibentang
-  const [billings, setBillings] = useState({ ready: true, list: [] });
+  const [billings, setBillings] = useState({ ready: true, list: [], lunas: [] });
+  const [tampilSelesai, setTampilSelesai] = useState(false);
   const dikunciRef = useRef(new Map());
   const [carry, setCarry] = useState({});     // ownerId -> { idr, cny }
   const [billCarry, setBillCarry] = useState(true);  // ikut ditagih (bawaan: ya)
@@ -186,11 +187,30 @@ export default function AdminInvoice() {
   // Pencarian menyaring dua hal sekaligus: pilihan box/batch di dropdown,
   // dan kartu pelanggan di bawahnya. Nomor resi ikut dicari supaya admin
   // bisa langsung menemukan invoice tempat sebuah resi ditagih.
+  // Box dianggap selesai kalau sudah ditutup, penagihannya lunas, dan
+  // tidak ada lagi resi yang menunggu ditagih. Yang begini tempatnya di
+  // Arsip, jadi daftar invoice tidak ikut memanjang.
+  const lunasBox = useMemo(() => {
+    const m = new Set();
+    for (const b of billings.lunas || []) {
+      if (b.scope === 'box') m.add(String(b.ref_id));
+    }
+    return m;
+  }, [billings.lunas]);
+
+  const selesai = b => b.closed && lunasBox.has(String(b.id)) && b.pending === 0;
+
   const cocok = (teks, q) => String(teks || '').toLowerCase().includes(q);
 
   // Di tampilan satu box, kotak cari dipakai untuk menyaring resi milik
   // pelanggan yang sedang dibuka — bukan cuma menyaring daftar box.
   const cariResi = batchId ? search.trim() : '';
+
+  const jumlahSelesai = useMemo(
+    () => batchList.filter(b => selesai(b)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [batchList, lunasBox]
+  );
 
   const shownBatches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -345,10 +365,19 @@ export default function AdminInvoice() {
 
   // ── Penagihan berjalan ────────────────────────────────────────────
   const loadBillings = useCallback(() => {
-    fetch('/api/billings?status=unpaid')
+    // Diambil semuanya: yang belum lunas dipakai daftar penagihan berjalan,
+    // yang sudah lunas dipakai menandai box mana yang urusannya selesai.
+    fetch('/api/billings?status=all')
       .then(r => r.json())
-      .then(d => setBillings({ ready: d.ready !== false, list: d.billings || [] }))
-      .catch(() => setBillings({ ready: false, list: [] }));
+      .then(d => {
+        const semua = d.billings || [];
+        setBillings({
+          ready: d.ready !== false,
+          list: semua.filter(b => b.status !== 'paid'),
+          lunas: semua.filter(b => b.status === 'paid'),
+        });
+      })
+      .catch(() => setBillings({ ready: false, list: [], lunas: [] }));
   }, []);
 
   useEffect(() => { loadBillings(); }, [loadBillings]);
@@ -693,7 +722,25 @@ export default function AdminInvoice() {
       {/* Daftar box — dibuka satu per satu seperti berkas */}
       {!batchId && (
         <>
-          <BoxList rows={shownBatches} billings={billings.list} onOpen={setBatchId} search={search} />
+          <BoxList
+            rows={shownBatches.filter(b => tampilSelesai || !selesai(b))}
+            billings={[...billings.list, ...(billings.lunas || [])]}
+            onOpen={setBatchId}
+            search={search}
+          />
+
+          {/* Yang sudah tuntas pindah ke Arsip — di sini cuma disebut
+              jumlahnya, supaya daftarnya tidak kepanjangan */}
+          {jumlahSelesai > 0 && (
+            <button
+              onClick={() => setTampilSelesai(v => !v)}
+              className="mt-2 text-xs text-gray-400 hover:text-matcha-700 transition-colors"
+            >
+              {tampilSelesai
+                ? '− Sembunyikan yang sudah selesai'
+                : `+ ${jumlahSelesai} box sudah selesai ditagih · ada di Arsip`}
+            </button>
+          )}
           <BillingList
             list={billings.list}
             onPaid={setBillingPaid}

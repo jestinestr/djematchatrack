@@ -52,18 +52,43 @@ export default function AdminGallery() {
   }, [allParcels]);
 
   // Hanya yang ada foto, terbaru di atas
+  // Patokan "baru" adalah kapan fotonya diupload, bukan kapan resinya
+  // dibuat — yang dicari admin memang foto yang barusan masuk.
+  const waktuFoto = p => new Date(p.photo_uploaded_at || p.created_at || 0).getTime();
+
   const parcels = useMemo(() => {
-    return allParcels.filter(p => {
+    const hasil = allParcels.filter(p => {
       if (!p.photo_url) return false;
       if (ownerFilter !== 'all' && String(p.owner?.id) !== ownerFilter) return false;
       if (batchFilter === 'active') return p._batch.status === 'active';
       if (batchFilter !== 'all') return String(p._batch.id) === String(batchFilter);
       return true;
-    }).sort((a, b) => {
-      const selisih = new Date(b.created_at) - new Date(a.created_at);
-      return order === 'old' ? -selisih : selisih;
     });
+
+    if (order === 'az') {
+      return hasil.sort((a, b) =>
+        String(a.owner?.label || 'zzz').localeCompare(String(b.owner?.label || 'zzz'), 'id') ||
+        waktuFoto(b) - waktuFoto(a));
+    }
+    return hasil.sort((a, b) =>
+      order === 'old' ? waktuFoto(a) - waktuFoto(b) : waktuFoto(b) - waktuFoto(a));
   }, [allParcels, batchFilter, ownerFilter, order]);
+
+  // Foto yang diupload hari ini — ditandai garis hijau, dan ditampilkan
+  // lagi di barisan atas apa pun urutan yang sedang dipakai.
+  const barusan = useMemo(() => {
+    const pagi = new Date();
+    pagi.setHours(0, 0, 0, 0);
+    return parcels
+      .filter(p => p.photo_uploaded_at && new Date(p.photo_uploaded_at) >= pagi)
+      .sort((a, b) => waktuFoto(b) - waktuFoto(a));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcels]);
+
+  const baruHariIni = useMemo(
+    () => new Set(barusan.map(p => p.id)),
+    [barusan]
+  );
 
   function toggleSelect(id) {
     setSelected(prev => {
@@ -194,7 +219,7 @@ export default function AdminGallery() {
 
         {/* Urutan */}
         <div className="flex gap-1 bg-white border border-cream-200 rounded-xl p-1">
-          {[['new', '↓ Terbaru'], ['old', '↑ Terlama']].map(([v, l]) => (
+          {[['new', '↓ Terbaru'], ['old', '↑ Terlama'], ['az', 'A–Z pelanggan']].map(([v, l]) => (
             <button key={v} onClick={() => setOrder(v)}
               className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 order === v ? 'bg-matcha-800 text-white' : 'text-gray-500 hover:text-matcha-700'
@@ -244,7 +269,34 @@ export default function AdminGallery() {
         </div>
       ) : (
         <>
-          <p className="text-xs text-gray-400 mb-3">{parcels.length} foto ditemukan{someSelected ? `, ${selected.size} dipilih` : ''}</p>
+          <p className="text-xs text-gray-400 mb-3">
+            {parcels.length} foto ditemukan{someSelected ? `, ${selected.size} dipilih` : ''}
+            {barusan.length > 0 && (
+              <span className="text-green-600 font-semibold"> · {barusan.length} baru hari ini</span>
+            )}
+          </p>
+
+          {/* Yang barusan diupload selalu ikut tampil di atas, apa pun
+              urutan yang dipilih — biasanya itu yang sedang dicek */}
+          {barusan.length > 0 && (
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold text-green-700 uppercase tracking-wide mb-2">
+                Baru diupload hari ini ({barusan.length})
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                {barusan.slice(0, 16).map(p => (
+                  <button key={`baru-${p.id}`} onClick={() => toggleSelect(p.id)}
+                    title={`${p.owner?.label || '—'} · ${p.tracking_number}`}
+                    className={`rounded-xl overflow-hidden border-2 transition-all ${
+                      selected.has(p.id) ? 'border-matcha-600' : 'border-green-400 hover:border-green-500'
+                    }`}>
+                    <img src={p.photo_url} alt="" loading="lazy"
+                      className="w-full aspect-square object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {parcels.map(p => {
               const isSelected = selected.has(p.id);
@@ -255,8 +307,11 @@ export default function AdminGallery() {
                   className={`relative group cursor-pointer rounded-2xl overflow-hidden border-2 transition-all duration-150 ${
                     isSelected
                       ? 'border-matcha-500 shadow-soft-md scale-[0.98]'
-                      : 'border-transparent hover:border-matcha-300 hover:shadow-soft'
+                      : baruHariIni.has(p.id)
+                        ? 'border-green-400 hover:border-green-500 hover:shadow-soft'
+                        : 'border-transparent hover:border-matcha-300 hover:shadow-soft'
                   }`}
+                  title={baruHariIni.has(p.id) ? 'Diupload hari ini' : undefined}
                 >
                   {/* Photo */}
                   <div className="aspect-square bg-cream-100 relative overflow-hidden">
