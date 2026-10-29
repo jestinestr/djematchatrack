@@ -718,8 +718,9 @@ export default function AdminWarehouse() {
                         ) : <span className="text-gray-300">—</span>}
                         {umurBox(p) && (
                           <div className="text-[11px] text-gray-400 mt-0.5"
-                            title={`Umur box, sejak paket pertamanya tiba${umurBox(p).bonus ? ` · bonus ${umurBox(p).bonus} hari` : ''}`}>
-                            box ke-{umurBox(p).hari}
+                            title={`Umur boxnya, dihitung sejak paket pertama di box itu tiba`
+                              + (umurBox(p).bonus ? ` · sudah dipotong bonus ${umurBox(p).bonus} hari` : '')}>
+                            umur box {umurBox(p).hari} hari
                             {umurBox(p).bonus > 0 && ' ·🎁'}
                           </div>
                         )}
