@@ -36,7 +36,6 @@ export default function AdminOverview() {
   const [cheer] = useState(() => CHEERS[Math.floor(Math.random() * CHEERS.length)]);
   const [batches, setBatches] = useState([]);
   const [boxes, setBoxes] = useState([]);
-  const [paket, setPaket] = useState([]);
   const [batas, setBatas] = useState({ limit: 0, warn: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -44,11 +43,9 @@ export default function AdminOverview() {
     Promise.all([
       fetch('/api/parcels/wh/all').then(r => r.json()),
       fetch('/api/parcels/wh/boxes').then(r => r.json()),
-      fetch('/api/packages').then(r => r.json()).catch(() => []),
-    ]).then(([wh, boxData, pkg]) => {
+    ]).then(([wh, boxData]) => {
       setBatches(Array.isArray(wh) ? wh : []);
       setBoxes(boxData.boxes || []);
-      setPaket(Array.isArray(pkg) ? pkg : []);
       setLoading(false);
     }).catch(() => setLoading(false));
 
@@ -98,35 +95,33 @@ export default function AdminOverview() {
     .sort((a, b) => b.hari - a.hari)
     .slice(0, 6);
 
-  // Pelanggan yang sudah seminggu lebih tidak setor resi — pantas disapa
-  // duluan. Yang sedang berpaket aktif dilewati: jatahnya sudah dibayar di
-  // muka, jadi sepinya bukan tanda mau pergi.
+  // Resi yang sudah lama diinput tapi fotonya belum pernah ada — artinya
+  // barangnya memang belum nyampe gudang. Dikelompokkan per pelanggan
+  // supaya satu kali tanya bisa sekalian beberapa resi: besar kemungkinan
+  // seller-nya belum kirim.
   const perluFollowUp = (() => {
-    const berpaket = new Set(
-      paket.filter(pk => pk.status === 'active' && pk.owner?.id)
-           .map(pk => String(pk.owner.id))
-    );
+    const JEDA = 7;                 // hari sejak diinput, baru dianggap telat
+    const per = new Map();
 
-    const terakhir = new Map();   // id pemilik → setoran resi paling akhir
-    for (const p of semua) {
-      if (!p.owner?.id || !p.created_at) continue;
-      const k = String(p.owner.id);
-      const t = new Date(p.created_at).getTime();
-      const ada = terakhir.get(k);
-      if (!ada || t > ada.t) terakhir.set(k, { t, label: p.owner.label });
+    for (const p of aktif) {
+      if (p.photo_url || !p.created_at) continue;
+      const hari = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400000);
+      if (hari < JEDA) continue;
+
+      const id = p.owner?.id ? String(p.owner.id) : 'tanpa';
+      const ada = per.get(id) || {
+        id,
+        label: p.owner?.label || 'Tanpa pemilik',
+        jumlah: 0,
+        tertua: 0,
+      };
+      ada.jumlah += 1;
+      ada.tertua = Math.max(ada.tertua, hari);
+      per.set(id, ada);
     }
 
-    const sekarang = Date.now();
-    return [...terakhir.entries()]
-      .filter(([id]) => !berpaket.has(id))
-      .map(([id, v]) => ({
-        id,
-        label: v.label,
-        hari: Math.floor((sekarang - v.t) / 86400000),
-        aktif: aktif.filter(p => String(p.owner?.id) === id).length,
-      }))
-      .filter(x => x.hari >= 7)
-      .sort((a, b) => b.hari - a.hari)
+    return [...per.values()]
+      .sort((a, b) => b.tertua - a.tertua || b.jumlah - a.jumlah)
       .slice(0, 4);
   })();
 
@@ -215,31 +210,35 @@ export default function AdminOverview() {
             </>
           )}
 
-          {/* Pelanggan yang perlu disapa duluan */}
+          {/* Pelanggan yang perlu ditanyai: resinya lama tak berfoto */}
           {perluFollowUp.length > 0 && (
             <>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                Perlu di-follow up · sepi 7 hari
+                Perlu di-follow up · resi lama belum ada foto
               </p>
               <div className="bg-white rounded-2xl border border-cream-200 overflow-hidden mb-6">
                 {perluFollowUp.map(o => (
-                  <Link key={o.id} to="/admin/wh"
+                  <Link key={o.id} to="/admin/gallery"
                     className="flex items-center gap-3 px-4 py-2.5 border-b border-cream-100 last:border-0
                                hover:bg-cream-50 transition-colors">
                     <span className="text-sm font-semibold text-matcha-900 truncate flex-1">
-                      {o.label || '—'}
+                      {o.label}
                     </span>
-                    <span className="text-xs text-gray-400 whitespace-nowrap hidden sm:block">
-                      {o.aktif ? `${o.aktif} resi masih di gudang` : 'tidak ada resi aktif'}
+                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                      {o.jumlah} resi
                     </span>
                     <span className={`text-xs font-bold whitespace-nowrap ${
-                      o.hari >= 21 ? 'text-red-600' : 'text-amber-700'
+                      o.tertua >= 21 ? 'text-red-600' : 'text-amber-700'
                     }`}>
-                      {o.hari} hari sepi
+                      tertua {o.tertua} hari
                     </span>
                   </Link>
                 ))}
               </div>
+              <p className="text-[11px] text-gray-400 -mt-4 mb-6">
+                Sudah lewat 7 hari sejak diinput tapi belum ada foto arrival —
+                kemungkinan paketnya belum dikirim seller.
+              </p>
             </>
           )}
 
